@@ -1,0 +1,58 @@
+{
+  "fisica": {
+    "gravedad": 14,
+    "hz": 60
+  },
+  "jugador": {
+    "altura": 1.7,
+    "radio": 0.32,
+    "velocidadAndar": 7,
+    "aceleracionSuelo": 45,
+    "controlAereo": 9,
+    "salto": 6.5,
+    "resistenciaAire": 0.04,
+    "velocidadMaxima": 45
+  },
+  "odm": {
+    "alcanceCable": 60,
+    "velocidadGancho": 150,
+    "velocidadRecogida": 25,
+    "aceleracionRecogida": 70,
+    "longitudMinima": 2,
+    "asistenciaGrados": 4,
+    "separacionGanchosGrados": 1.5,
+    "fuerzaImpulso": 24,
+    "fuerzaOrbita": 12,
+    "frenoEmergencia": 0.2
+  },
+  "gas": {
+    "capacidad": 100,
+    "costeDisparo": 1,
+    "costeRecogidaPorSegundo": 2.5,
+    "costeImpulsoPorSegundo": 9,
+    "costeFreno": 15,
+    "recargaPorSegundo": 35,
+    "radioRecarga": 6
+  },
+  "camara": {
+    "distancia": 5.5,
+    "alturaPivote": 1.55,
+    "fovBase": 70,
+    "fovMax": 95,
+    "suavizado": 12,
+    "sensibilidad": 0.0022,
+    "radioColision": 0.3
+  },
+  "render": {
+    "sombras": true,
+    "tamanoSombra": 2048,
+    "radioSombra": 150,
+    "maxAntorchasConLuz": 8
+  },
+  "mundo": {
+    "semilla": 845,
+    "radioMuralla": 230,
+    "alturaMuralla": 50,
+    "grosorMuralla": 12
+  }
+}

@@ -1,0 +1,186 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0d1116;
+  font-family: Georgia, 'Times New Roman', serif;
+  color: #f3efe6;
+}
+
+#app,
+#app canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+/* Dos cilindros de gas */
+.hud-gas {
+  position: absolute;
+  left: 24px;
+  bottom: 24px;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.hud-gas .cilindro {
+  width: 16px;
+  height: 92px;
+  border: 2px solid rgba(220, 226, 232, 0.85);
+  border-radius: 8px;
+  background: rgba(20, 26, 32, 0.45);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+.hud-gas .relleno {
+  width: 100%;
+  background: linear-gradient(#f4f8fb, #b8c7d3);
+  transition: height 0.1s linear;
+}
+.hud-gas .relleno.bajo {
+  background: linear-gradient(#ffb19e, #d9583f);
+}
+.hud-gas .etiqueta {
+  font-size: 13px;
+  letter-spacing: 2px;
+  margin-left: 6px;
+}
+
+/* Retícula con indicadores de anclaje */
+.reticula {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.reticula .punto {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #fff;
+}
+.reticula .indicador {
+  width: 10px;
+  height: 18px;
+  border: 2px solid rgba(255, 90, 74, 0.8);
+  opacity: 0.8;
+}
+.reticula .indicador.izq {
+  border-right: none;
+  border-radius: 10px 0 0 10px;
+}
+.reticula .indicador.der {
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+}
+.reticula .indicador.valido {
+  border-color: rgba(240, 248, 255, 0.95);
+}
+.reticula .indicador.activo {
+  border-color: #8fe0a0;
+}
+
+.marcador {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid rgba(255, 90, 74, 0.8);
+}
+.marcador.valido {
+  border-color: rgba(240, 248, 255, 0.95);
+}
+
+.hud-velocidad {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  font-size: 22px;
+  letter-spacing: 1px;
+}
+.hud-aviso {
+  position: absolute;
+  left: 50%;
+  top: 62%;
+  transform: translateX(-50%);
+  font-size: 20px;
+  color: #ffb19e;
+  letter-spacing: 2px;
+}
+.hud-ayuda {
+  position: absolute;
+  left: 24px;
+  top: 18px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.hud-fps {
+  position: absolute;
+  right: 24px;
+  top: 18px;
+  font-size: 12px;
+  font-family: monospace;
+}
+
+/* Pantalla de inicio */
+.inicio {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(10, 14, 20, 0.55), rgba(10, 14, 20, 0.85));
+  cursor: pointer;
+  text-align: center;
+  padding: 16px;
+}
+.inicio h1 {
+  font-size: 48px;
+  letter-spacing: 8px;
+  margin: 0;
+}
+.inicio .sub {
+  margin: 6px 0 20px;
+  opacity: 0.8;
+  letter-spacing: 2px;
+}
+.inicio ul {
+  list-style: none;
+  padding: 0;
+  max-width: 760px;
+  line-height: 1.8;
+  font-size: 15px;
+}
+.inicio .clic {
+  margin-top: 18px;
+  font-size: 18px;
+  letter-spacing: 3px;
+  animation: latido 1.6s ease-in-out infinite;
+}
+@keyframes latido {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.lil-gui.root {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+}
