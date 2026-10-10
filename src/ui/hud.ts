@@ -38,7 +38,7 @@ export class Hud {
       <div class="marcador der"></div>
       <div class="hud-velocidad">0 m/s</div>
       <div class="hud-aviso"></div>
-      <div class="hud-ayuda">F1 ajustes · R reaparecer</div>
+      <div class="hud-ayuda">F1/P ajustes · R reaparecer · Esc soltar ratón</div>
       <div class="hud-fps"></div>`;
     contenedor.appendChild(this.raiz);
     this.raiz.querySelectorAll<HTMLDivElement>('.relleno').forEach((e) => this.rellenos.push(e));
@@ -58,9 +58,11 @@ export class Hud {
         <li><b>Clic izq / Q</b> gancho izquierdo · <b>Clic der / E</b> gancho derecho <i>(mantener = recoger cable, soltar = desenganchar)</i></li>
         <li><b>Espacio</b> impulso de gas · <b>Shift</b> salto en el suelo / freno de emergencia en el aire</li>
         <li><b>WASD</b> mover y ajustar en el aire · <b>Ratón</b> cámara</li>
-        <li><b>R</b> reaparecer · <b>F1</b> panel de ajustes · Recarga gas junto a las cajas de la plaza (banderín verde)</li>
+        <li><b>R</b> reaparecer · <b>F1</b> o <b>P</b> panel de ajustes · <b>Flechas</b> girar la cámara sin ratón</li>
+        <li>Recarga gas junto a las cajas de la plaza (banderín verde)</li>
       </ul>
-      <p class="clic">Haz clic para jugar</p>`;
+      <p class="clic">Haz clic para jugar</p>
+      <p class="tactil">Este prototipo necesita teclado y ratón; los controles táctiles llegarán más adelante.</p>`;
     contenedor.appendChild(this.inicio);
   }
 

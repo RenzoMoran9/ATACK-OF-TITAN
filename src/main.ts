@@ -33,7 +33,7 @@ interface EstadoDepuracion {
 async function iniciar(): Promise<void> {
   const app = document.getElementById('app')!;
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = config.render.sombras;
   renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -92,7 +92,10 @@ async function iniciar(): Promise<void> {
   }
   const modoCaptura = urlDepuracion.cam !== null;
   hud.mostrarInicio(!modoCaptura);
-  document.querySelector('.inicio')?.addEventListener('click', () => renderer.domElement.requestPointerLock());
+  document.querySelector('.inicio')?.addEventListener('click', async () => {
+    // Sin pointer lock (algunos visores lo bloquean) se juega igual: clics directos y cámara con cursor/flechas.
+    if (!(await entrada.capturar())) hud.mostrarInicio(false);
+  });
   document.addEventListener('pointerlockchange', () => {
     hud.mostrarInicio(document.pointerLockElement !== renderer.domElement && !modoCaptura);
   });
@@ -120,7 +123,10 @@ async function iniciar(): Promise<void> {
   const dibujar = (alfa: number, dt: number) => {
     tiempo += dt;
     const { dx, dy } = entrada.raton();
-    rig.girar(dx, dy);
+    // Flechas: giro de cámara alternativo (útil cuando el visor no permite capturar el ratón)
+    const fx = (entrada.mantenida('ArrowRight') ? 1 : 0) - (entrada.mantenida('ArrowLeft') ? 1 : 0);
+    const fy = (entrada.mantenida('ArrowDown') ? 1 : 0) - (entrada.mantenida('ArrowUp') ? 1 : 0);
+    rig.girar(dx + fx * 900 * dt, dy + fy * 600 * dt);
     jugador.dibujar(alfa, dt, tiempo);
     rig.actualizar(dt, jugador.posRender, jugador.vel);
     jugador.odm.apuntar(camara.position, rig.dir, camara.up, jugador.pos);
@@ -160,5 +166,18 @@ async function iniciar(): Promise<void> {
 
 iniciar().catch((e) => {
   console.error(e);
-  document.body.innerHTML = `<pre style="color:#fff;padding:20px">Error al iniciar: ${String(e)}</pre>`;
+  const texto = String(e);
+  const aviso = /wasm|webassembly|compile/i.test(texto)
+    ? 'Este navegador o visor no permite WebAssembly, que necesita el motor de física. Prueba en Chrome, Edge o Firefox de escritorio, o en local con npm run dev.'
+    : 'Prueba a recargar la página. Si se repite, ejecútalo en local con npm run dev.';
+  const caja = document.createElement('div');
+  caja.className = 'error-inicio';
+  const titulo = document.createElement('h2');
+  titulo.textContent = 'No se pudo iniciar el juego';
+  const p = document.createElement('p');
+  p.textContent = aviso;
+  const detalle = document.createElement('pre');
+  detalle.textContent = texto;
+  caja.append(titulo, p, detalle);
+  document.body.replaceChildren(caja);
 });

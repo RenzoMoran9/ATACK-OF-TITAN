@@ -8,16 +8,21 @@ export class Entrada {
   private dx = 0;
   private dy = 0;
   bloqueado = false;
+  /**
+   * Modo sin captura del ratón: el navegador o el visor (p. ej. un iframe) rechazó el
+   * pointer lock. Los clics cuentan directamente y la cámara sigue al cursor y a las flechas.
+   */
+  sinCaptura = false;
   onTeclaEspecial: ((code: string) => void) | null = null;
 
   constructor(private readonly lienzo: HTMLElement) {
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'F1') {
+      if (e.code === 'F1' || e.code === 'KeyP') {
         e.preventDefault();
-        this.onTeclaEspecial?.('F1');
+        if (!e.repeat) this.onTeclaEspecial?.('F1');
         return;
       }
-      if (['Space', 'Tab'].includes(e.code)) e.preventDefault();
+      if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
       if (!this.abajo.has(e.code)) this.pulsadas.add(e.code);
       this.abajo.add(e.code);
     });
@@ -25,8 +30,8 @@ export class Entrada {
     window.addEventListener('blur', () => this.abajo.clear());
     lienzo.addEventListener('mousedown', (e) => {
       const code = `Mouse${e.button}`;
-      if (!this.bloqueado) {
-        lienzo.requestPointerLock?.();
+      if (!this.bloqueado && !this.sinCaptura) {
+        void this.capturar();
         return;
       }
       if (!this.abajo.has(code)) this.pulsadas.add(code);
@@ -38,11 +43,34 @@ export class Entrada {
       this.bloqueado = document.pointerLockElement === lienzo;
       if (!this.bloqueado) this.abajo.clear();
     });
+    document.addEventListener('pointerlockerror', () => {
+      this.sinCaptura = true;
+    });
     window.addEventListener('mousemove', (e) => {
-      if (!this.bloqueado) return;
+      if (!this.bloqueado && !this.sinCaptura) return;
       this.dx += e.movementX;
       this.dy += e.movementY;
     });
+  }
+
+  /**
+   * Intenta capturar el ratón. Si el navegador lo rechaza (o no existe la API),
+   * pasa al modo sin captura y devuelve false.
+   */
+  async capturar(): Promise<boolean> {
+    if (this.bloqueado) return true;
+    if (!this.lienzo.requestPointerLock) {
+      this.sinCaptura = true;
+      return false;
+    }
+    try {
+      // En navegadores modernos devuelve una promesa; en los antiguos, undefined.
+      await (this.lienzo.requestPointerLock() as unknown as Promise<void> | undefined);
+      return true;
+    } catch {
+      this.sinCaptura = true;
+      return false;
+    }
   }
 
   mantenida(code: string): boolean {

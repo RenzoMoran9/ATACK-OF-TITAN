@@ -7,6 +7,9 @@ con la **guía visual aplicada desde el principio** aunque todo sea geometría s
 > Nota legal: proyecto personal. Publicarlo o monetizarlo con la marca, nombres o diseños de Attack on Titan
 > exigiría licencia de Kodansha; si algún día se publica, hay que cambiar nombres y diseños.
 
+**Probarlo en el navegador:** https://claude.ai/artifact/6DjD9aBs2qgzD8aMR3AsLM (escritorio, con teclado y ratón).
+Vistas directas con ancla: `#tejado`, `#bosque`, `#titan`, `#muralla-noche`, `#tejado-atardecer`…
+
 ## Puesta en marcha
 
 ```bash
@@ -32,9 +35,10 @@ npm run dev                       # http://localhost:5173
 | **Espacio** | Impulso de gas (hacia donde pulsas o hacia donde miras; anclado, orbita el ancla) |
 | **Shift** | Salto en el suelo / freno de emergencia en el aire (gasta mucho gas) |
 | **WASD** | Mover en el suelo, ajustar la trayectoria en el aire |
-| Ratón | Cámara |
+| Ratón / **flechas** | Cámara (las flechas sirven si el navegador no deja capturar el ratón) |
 | **R** | Reaparecer en la plaza (y rellenar gas) |
-| **F1** | Panel de ajustes (todos los valores de `src/data/config.json`, en caliente) |
+| **F1** o **P** | Panel de ajustes (todos los valores de `src/data/config.json`, en caliente) |
+| **Esc** | Soltar el ratón |
 
 El gas se recarga junto a las cajas de suministro de la plaza (banderín verde).
 
@@ -48,6 +52,9 @@ El gas se recarga junto a las cajas de suministro de la plaza (banderín verde).
 | `?hud=0` | | Oculta el HUD |
 
 Ejemplo: `http://localhost:5173/?cam=muralla&hora=noche`
+
+Lo mismo con un ancla, que es lo único que llega a la página dentro de un artefacto de claude.ai:
+`#muralla-noche`, `#tejado-atardecer`, `#bosque`, `#noche` (formato `#<cam>-<hora>`).
 
 ## Capturas automáticas (`npm run capturas`)
 

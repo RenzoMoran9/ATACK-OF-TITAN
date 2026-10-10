@@ -1,3 +1,7 @@
+:root {
+  color-scheme: dark;
+}
+
 html,
 body {
   margin: 0;
@@ -176,6 +180,40 @@ body {
   50% {
     opacity: 0.4;
   }
+}
+
+.inicio .tactil {
+  display: none;
+  max-width: 420px;
+  font-size: 14px;
+  color: #ffcf9e;
+}
+@media (pointer: coarse) {
+  .inicio .tactil {
+    display: block;
+  }
+}
+@media (max-width: 600px) {
+  .inicio h1 {
+    font-size: 30px;
+    letter-spacing: 4px;
+  }
+  .inicio ul {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}
+
+.error-inicio {
+  max-width: 640px;
+  margin: 40px auto;
+  padding-inline: 16px;
+  line-height: 1.5;
+}
+.error-inicio pre {
+  white-space: pre-wrap;
+  font-size: 12px;
+  opacity: 0.7;
 }
 
 .lil-gui.root {
