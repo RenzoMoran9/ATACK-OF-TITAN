@@ -157,6 +157,12 @@ export interface EstadoAnimacion {
   corte: number | null;
   /** Corte giratorio estilo Levi en curso. */
   giro: boolean;
+  /** Manteniendo F: brazos atrás, cuerpo enrollado, listo para el tajo. */
+  preparandoCorte?: boolean;
+  /** Cambiando de par de cuchillas. */
+  cambiandoCuchillas?: boolean;
+  /** Rodada al aterrizar (Shift justo antes de tocar el suelo). */
+  rodando?: boolean;
   agarrado: boolean;
   muerto: boolean;
   /** Recién aterrizado: segundos desde el aterrizaje (para flexionar/rodar), o null. */
@@ -245,6 +251,9 @@ export interface JugadorAPI extends Humano {
   readonly paresRepuesto: number;
   /** Filo del par montado (0 = roto, 1 = nuevo). */
   readonly filo: number;
+  readonly cambiandoCuchillas: boolean;
+  /** Depósito de gas (las misiones pueden vaciarlo: «los cilindros silban vacíos»). */
+  readonly gas: { nivel: number; readonly capacidad: number };
   teletransportar(pies: THREE.Vector3, rumbo?: number): void;
   /** Gas y cuchillas al máximo. */
   reabastecer(): void;

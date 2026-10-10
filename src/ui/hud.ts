@@ -1,10 +1,20 @@
-import * as THREE from 'three';
+import type { ContextoJuego } from '../core/contexto';
+import type { Campana } from '../missions/campana';
 import type { Jugador } from '../player/jugador';
 
 /**
- * HUD mínimo: dos cilindros de gas, retícula con indicador de anclaje válido/fuera de
- * alcance para cada gancho (y su marcador en el mundo), velocidad y avisos.
+ * HUD: gas (dos cilindros), cuchillas, vida, retícula con indicador de anclaje por gancho,
+ * objetivo del capítulo, mensajes, aviso de anormal, QTE de agarre, estado del escuadrón
+ * y fundido al morir.
  */
+
+interface Mensaje {
+  el: HTMLDivElement;
+  restante: number;
+}
+
+const NOMBRE_ORDEN: Record<string, string> = { seguir: 'Seguidme', atacar: 'Atacad', proteger: 'Proteged a los civiles', retirada: 'Retirada' };
+
 export class Hud {
   private readonly raiz: HTMLDivElement;
   private readonly rellenos: HTMLDivElement[] = [];
@@ -12,22 +22,45 @@ export class Hud {
   private readonly indicadores: HTMLDivElement[] = [];
   private readonly marcadores: HTMLDivElement[] = [];
   private readonly velocidad: HTMLDivElement;
-  private readonly aviso: HTMLDivElement;
   private readonly fps: HTMLDivElement;
-  private readonly inicio: HTMLDivElement;
+  private readonly vida: HTMLDivElement;
+  private readonly filo: HTMLDivElement;
+  private readonly repuesto: HTMLSpanElement;
+  private readonly estadoCuchillas: HTMLSpanElement;
+  private readonly objetivo: HTMLDivElement;
+  private readonly detalle: HTMLDivElement;
+  private readonly mensajesEl: HTMLDivElement;
+  private readonly mensajes: Mensaje[] = [];
+  private readonly qte: HTMLDivElement;
+  private readonly qteTexto: HTMLDivElement;
+  private readonly qteBarra: HTMLDivElement;
+  private readonly escuadron: HTMLDivElement;
+  private readonly anormal: HTMLDivElement;
+  private readonly muerte: HTMLDivElement;
   private acumFps = 0;
   private framesFps = 0;
+  private reloj = 0;
   mostrarFps = false;
 
-  constructor(contenedor: HTMLElement, visible: boolean) {
+  constructor(contenedor: HTMLElement, visible: boolean, ctx: ContextoJuego) {
     this.raiz = document.createElement('div');
     this.raiz.className = 'hud';
-    this.raiz.style.display = visible ? '' : 'none';
+    this.raiz.hidden = !visible;
     this.raiz.innerHTML = `
-      <div class="hud-gas">
-        <div class="cilindro"><div class="relleno"></div></div>
-        <div class="cilindro"><div class="relleno"></div></div>
-        <span class="etiqueta">GAS <b>100</b></span>
+      <div class="hud-objetivo"><div class="titulo"></div><div class="detalle"></div></div>
+      <div class="hud-mensajes"></div>
+      <div class="hud-anormal" hidden>¡Titán anormal!</div>
+      <div class="hud-equipo">
+        <div class="hud-gas">
+          <div class="cilindro"><div class="relleno"></div></div>
+          <div class="cilindro"><div class="relleno"></div></div>
+          <span class="etiqueta">GAS <b>100</b></span>
+        </div>
+        <div class="hud-barras">
+          <div class="fila"><span>VIDA</span><div class="barra"><div class="vida"></div></div></div>
+          <div class="fila"><span>FILO</span><div class="barra"><div class="filo"></div></div><span class="repuesto">×4</span></div>
+          <span class="estado-cuchillas"></span>
+        </div>
       </div>
       <div class="reticula">
         <div class="indicador izq"></div>
@@ -36,66 +69,136 @@ export class Hud {
       </div>
       <div class="marcador izq"></div>
       <div class="marcador der"></div>
+      <div class="hud-escuadron" hidden></div>
+      <div class="hud-qte" hidden><div class="texto"></div><div class="barra"><div class="tiempo"></div></div></div>
       <div class="hud-velocidad">0 m/s</div>
-      <div class="hud-aviso"></div>
-      <div class="hud-ayuda">F1/P ajustes · R reaparecer · Esc soltar ratón</div>
-      <div class="hud-fps"></div>`;
+      <div class="hud-fps"></div>
+      <div class="hud-muerte" hidden><div>Has sido devorado</div></div>`;
     contenedor.appendChild(this.raiz);
+    const q = <T extends Element>(s: string) => this.raiz.querySelector(s) as unknown as T;
     this.raiz.querySelectorAll<HTMLDivElement>('.relleno').forEach((e) => this.rellenos.push(e));
-    this.textoGas = this.raiz.querySelector('.etiqueta b')!;
+    this.textoGas = q('.etiqueta b');
     this.raiz.querySelectorAll<HTMLDivElement>('.indicador').forEach((e) => this.indicadores.push(e));
     this.raiz.querySelectorAll<HTMLDivElement>('.marcador').forEach((e) => this.marcadores.push(e));
-    this.velocidad = this.raiz.querySelector('.hud-velocidad')!;
-    this.aviso = this.raiz.querySelector('.hud-aviso')!;
-    this.fps = this.raiz.querySelector('.hud-fps')!;
-
-    this.inicio = document.createElement('div');
-    this.inicio.className = 'inicio';
-    this.inicio.innerHTML = `
-      <h1>ATACK OF TITAN</h1>
-      <p class="sub">Fase 1 · Prototipo de movimiento ODM</p>
-      <ul>
-        <li><b>Clic izq / Q</b> gancho izquierdo · <b>Clic der / E</b> gancho derecho <i>(mantener = recoger cable, soltar = desenganchar)</i></li>
-        <li><b>Espacio</b> impulso de gas · <b>Shift</b> salto en el suelo / freno de emergencia en el aire</li>
-        <li><b>WASD</b> mover y ajustar en el aire · <b>Ratón</b> cámara</li>
-        <li><b>R</b> reaparecer · <b>F1</b> o <b>P</b> panel de ajustes · <b>Flechas</b> girar la cámara sin ratón</li>
-        <li>Recarga gas junto a las cajas de la plaza (banderín verde)</li>
-      </ul>
-      <p class="clic">Haz clic para jugar</p>
-      <p class="tactil">Este prototipo necesita teclado y ratón; los controles táctiles llegarán más adelante.</p>`;
-    contenedor.appendChild(this.inicio);
+    this.velocidad = q('.hud-velocidad');
+    this.fps = q('.hud-fps');
+    this.vida = q('.vida');
+    this.filo = q('.filo');
+    this.repuesto = q('.repuesto');
+    this.estadoCuchillas = q('.estado-cuchillas');
+    this.objetivo = q('.hud-objetivo .titulo');
+    this.detalle = q('.hud-objetivo .detalle');
+    this.mensajesEl = q('.hud-mensajes');
+    this.qte = q('.hud-qte');
+    this.qteTexto = q('.hud-qte .texto');
+    this.qteBarra = q('.hud-qte .tiempo');
+    this.escuadron = q('.hud-escuadron');
+    this.anormal = q('.hud-anormal');
+    this.muerte = q('.hud-muerte');
+    ctx.eventos.on('mensaje', (e) => this.mensaje(e.texto, e.segundos ?? 3));
   }
 
-  mostrarInicio(si: boolean): void {
-    this.inicio.style.display = si ? '' : 'none';
+  /** Los mensajes no se borran al cambiar de capítulo: el HUD se suscribe una vez. */
+  mensaje(texto: string, segundos: number): void {
+    // no repetir el mismo texto si ya está en pantalla
+    const igual = this.mensajes.find((m) => m.el.textContent === texto);
+    if (igual) {
+      igual.restante = Math.max(igual.restante, segundos);
+      return;
+    }
+    const el = document.createElement('div');
+    el.className = 'mensaje';
+    el.textContent = texto;
+    this.mensajesEl.appendChild(el);
+    this.mensajes.push({ el, restante: segundos });
+    while (this.mensajes.length > 4) this.mensajes.shift()!.el.remove();
   }
 
-  actualizar(dt: number, jugador: Jugador, camara: THREE.Camera, ancho: number, alto: number): void {
+  actualizar(dt: number, ctx: ContextoJuego, jugador: Jugador, campana: Campana | null, ancho: number, alto: number): void {
+    this.reloj += dt;
     const frac = jugador.gas.fraccion;
     for (const r of this.rellenos) {
       r.style.height = `${(frac * 100).toFixed(1)}%`;
       r.classList.toggle('bajo', frac < 0.2);
     }
     this.textoGas.textContent = Math.round(jugador.gas.nivel).toString();
+    this.vida.style.width = `${(jugador.salud / jugador.saludMax) * 100}%`;
+    this.vida.classList.toggle('bajo', jugador.salud < 30);
+    const c = jugador.combate?.cuchillas;
+    if (c) {
+      this.filo.style.width = `${c.filo * 100}%`;
+      this.filo.classList.toggle('bajo', c.mellada || c.rota);
+      this.repuesto.textContent = `×${c.repuesto}`;
+      this.estadoCuchillas.textContent = c.cambiando > 0 ? 'Cambiando…' : c.rota ? 'ROTAS · R' : c.mellada ? 'Melladas · R' : '';
+    }
 
     jugador.odm.apuntes.forEach((a, i) => {
       const g = jugador.odm.ganchos[i];
       const ind = this.indicadores[i];
       ind.classList.toggle('valido', a.valido);
       ind.classList.toggle('activo', g.estado === 'anclado');
+      ind.classList.toggle('titan', a.valido && (a.etiqueta === 'titan' || a.etiqueta === 'nuca'));
       const m = this.marcadores[i];
       if (a.punto) {
-        const p = a.punto.clone().project(camara);
+        const p = a.punto.clone().project(ctx.camara);
         if (p.z < 1) {
-          m.style.display = '';
+          m.hidden = false;
           m.style.transform = `translate(${((p.x + 1) / 2) * ancho}px, ${((1 - p.y) / 2) * alto}px) rotate(45deg)`;
           m.classList.toggle('valido', a.valido);
-        } else m.style.display = 'none';
-      } else m.style.display = 'none';
+        } else m.hidden = true;
+      } else m.hidden = true;
     });
 
     this.velocidad.textContent = `${jugador.vel.length().toFixed(0)} m/s`;
-    this.aviso.textContent = jugador.gas.vacio ? 'Sin gas' : '';
+
+    // Objetivo
+    if (campana && campana.capitulo) {
+      this.objetivo.textContent = campana.objetivoTexto;
+      this.detalle.textContent = campana.objetivoDetalle;
+      this.objetivo.parentElement!.hidden = !campana.objetivoTexto;
+    } else this.objetivo.parentElement!.hidden = true;
+
+    // Mensajes
+    for (let i = this.mensajes.length - 1; i >= 0; i--) {
+      const m = this.mensajes[i];
+      m.restante -= dt;
+      m.el.style.opacity = String(Math.min(1, m.restante * 2));
+      if (m.restante <= 0) {
+        m.el.remove();
+        this.mensajes.splice(i, 1);
+      }
+    }
+    if (jugador.gas.vacio && !this.mensajes.some((m) => m.el.textContent === 'Sin gas')) this.mensaje('Sin gas', 1.5);
+
+    // Aviso de anormal cercano
+    const anormalCerca = ctx.poblacion.titanes.some((t) => t.vivo && t.anormal && t.posicion.distanceTo(jugador.pos) < 120);
+    this.anormal.hidden = !anormalCerca;
+
+    // QTE de agarre
+    const qte = jugador.combate?.qte;
+    this.qte.hidden = !qte || !jugador.agarradoPor;
+    if (qte) {
+      this.qteTexto.textContent = qte.restante > 0 ? `¡Pulsa F! ${qte.hechas}/${qte.necesarias}` : 'No llegas… ¡que alguien te ayude!';
+      this.qteBarra.style.width = `${(qte.restante / qte.total) * 100}%`;
+    }
+
+    // Escuadrón
+    const soldados = ctx.escuadron.soldados;
+    this.escuadron.hidden = soldados.length === 0;
+    if (soldados.length) {
+      const filas = soldados
+        .map((s) => {
+          const estado = !s.vivo ? 'caido' : s.agarradoPor ? 'agarrado' : 'bien';
+          const texto = !s.vivo ? 'caído' : s.agarradoPor ? '¡agarrado!' : '';
+          return `<div class="soldado ${estado}"><span class="punto"></span>${s.nombre}<i>${texto}</i></div>`;
+        })
+        .join('');
+      const html = `<div class="orden">Orden: ${NOMBRE_ORDEN[ctx.escuadron.orden] ?? ''}</div>${filas}<div class="teclas">1 seguir · 2 atacar · 3 civiles · 4 retirada</div>`;
+      if (this.escuadron.innerHTML !== html) this.escuadron.innerHTML = html;
+    }
+
+    // Muerte
+    this.muerte.hidden = jugador.vivo;
 
     this.acumFps += dt;
     this.framesFps++;
@@ -106,3 +209,4 @@ export class Hud {
     }
   }
 }
+

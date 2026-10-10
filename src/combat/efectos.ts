@@ -14,7 +14,7 @@ export class Efectos {
 
   constructor(private readonly escena: THREE.Scene) {
     this.vaporP = new Particulas(escena, 1400, '#f4f6f8', 3.2, { gravedad: -1.2, alfaMax: 0.55, amortiguacion: 0.8 });
-    this.sangreP = new Particulas(escena, 500, '#b3121b', 0.4, { gravedad: 14, alfaMax: 0.95, amortiguacion: 0.5 });
+    this.sangreP = new Particulas(escena, 600, '#c0141c', 0.08, { gravedad: 14, alfaMax: 1, amortiguacion: 0.3 });
   }
 
   /** Bocanada de vapor en un punto (tam = tamaño inicial de cada nube en m). */
@@ -37,7 +37,7 @@ export class Efectos {
   sangre(pos: THREE.Vector3, dir: THREE.Vector3, cantidad = 18): void {
     for (let i = 0; i < cantidad; i++) {
       this.tmp.copy(dir).normalize().multiplyScalar(4 + Math.random() * 8).add(new THREE.Vector3((Math.random() - 0.5) * 4, Math.random() * 4, (Math.random() - 0.5) * 4));
-      this.sangreP.emitir(pos, this.tmp, 0.5 + Math.random() * 0.4, 0.25 + Math.random() * 0.35, 1);
+      this.sangreP.emitir(pos, this.tmp, 0.45 + Math.random() * 0.3, 0.08 + Math.random() * 0.12, 1);
     }
   }
 

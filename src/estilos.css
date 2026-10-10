@@ -27,11 +27,16 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
-/* Dos cilindros de gas */
-.hud-gas {
+/* Equipo: dos cilindros de gas, vida y filo */
+.hud-equipo {
   position: absolute;
   left: 24px;
   bottom: 24px;
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+}
+.hud-gas {
   display: flex;
   align-items: flex-end;
   gap: 6px;
@@ -140,70 +145,6 @@ body {
   font-family: monospace;
 }
 
-/* Pantalla de inicio */
-.inicio {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: radial-gradient(ellipse at center, rgba(10, 14, 20, 0.55), rgba(10, 14, 20, 0.85));
-  cursor: pointer;
-  text-align: center;
-  padding: 16px;
-}
-.inicio h1 {
-  font-size: 48px;
-  letter-spacing: 8px;
-  margin: 0;
-}
-.inicio .sub {
-  margin: 6px 0 20px;
-  opacity: 0.8;
-  letter-spacing: 2px;
-}
-.inicio ul {
-  list-style: none;
-  padding: 0;
-  max-width: 760px;
-  line-height: 1.8;
-  font-size: 15px;
-}
-.inicio .clic {
-  margin-top: 18px;
-  font-size: 18px;
-  letter-spacing: 3px;
-  animation: latido 1.6s ease-in-out infinite;
-}
-@keyframes latido {
-  50% {
-    opacity: 0.4;
-  }
-}
-
-.inicio .tactil {
-  display: none;
-  max-width: 420px;
-  font-size: 14px;
-  color: #ffcf9e;
-}
-@media (pointer: coarse) {
-  .inicio .tactil {
-    display: block;
-  }
-}
-@media (max-width: 600px) {
-  .inicio h1 {
-    font-size: 30px;
-    letter-spacing: 4px;
-  }
-  .inicio ul {
-    font-size: 13px;
-    line-height: 1.6;
-  }
-}
-
 .error-inicio {
   max-width: 640px;
   margin: 40px auto;
@@ -221,4 +162,314 @@ body {
   top: 12px;
   right: 12px;
   z-index: 10;
+}
+
+.hud [hidden] {
+  display: none !important;
+}
+
+.hud-barras {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+.hud-barras .fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hud-barras .fila > span:first-child {
+  width: 36px;
+}
+.hud-barras .barra {
+  width: 150px;
+  height: 8px;
+  border: 1px solid rgba(220, 226, 232, 0.7);
+  background: rgba(20, 26, 32, 0.45);
+}
+.hud-barras .vida {
+  height: 100%;
+  background: #c9dcc0;
+}
+.hud-barras .filo {
+  height: 100%;
+  background: linear-gradient(90deg, #aeb6be, #f1f5f8);
+}
+.hud-barras .vida.bajo,
+.hud-barras .filo.bajo {
+  background: #d9583f;
+}
+.hud-barras .repuesto {
+  font-size: 13px;
+}
+.hud-barras .estado-cuchillas {
+  color: #ffb19e;
+  min-height: 14px;
+}
+
+.reticula .indicador.titan {
+  border-color: #ffd36b;
+}
+
+.hud-objetivo {
+  position: absolute;
+  left: 24px;
+  top: 16px;
+  max-width: min(460px, calc(100vw - 48px));
+  padding: 10px 14px;
+  background: linear-gradient(90deg, rgba(10, 14, 20, 0.6), rgba(10, 14, 20, 0));
+  border-left: 3px solid #b3121b;
+}
+.hud-objetivo .titulo {
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+.hud-objetivo .detalle {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-mensajes {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(720px, calc(100vw - 32px));
+}
+.hud-mensajes .mensaje {
+  font-size: 18px;
+  text-align: center;
+  padding: 4px 12px;
+  background: rgba(10, 14, 20, 0.45);
+}
+
+.hud-anormal {
+  position: absolute;
+  left: 50%;
+  top: 12%;
+  transform: translateX(-50%);
+  font-size: 15px;
+  letter-spacing: 3px;
+  padding: 4px 12px;
+  border: 1px solid #f3efe6;
+  background: rgba(10, 10, 10, 0.75);
+  animation: latido 0.9s ease-in-out infinite;
+}
+
+.hud-qte {
+  position: absolute;
+  left: 50%;
+  top: 64%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.hud-qte .texto {
+  font-size: 28px;
+  letter-spacing: 2px;
+  color: #ffdfd0;
+}
+.hud-qte .barra {
+  margin: 8px auto 0;
+  width: 260px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.hud-qte .tiempo {
+  height: 100%;
+  background: #d9583f;
+}
+
+.hud-escuadron {
+  position: absolute;
+  right: 24px;
+  top: 30%;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 170px;
+  padding: 10px 12px;
+  background: linear-gradient(270deg, rgba(10, 14, 20, 0.55), rgba(10, 14, 20, 0));
+}
+.hud-escuadron .orden {
+  font-size: 12px;
+  letter-spacing: 1px;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+.hud-escuadron .soldado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hud-escuadron .soldado .punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #8fe0a0;
+}
+.hud-escuadron .soldado.agarrado .punto {
+  background: #ffb35c;
+}
+.hud-escuadron .soldado.caido {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.hud-escuadron .soldado.caido .punto {
+  background: #777;
+}
+.hud-escuadron .soldado i {
+  font-size: 11px;
+  color: #ffb19e;
+}
+.hud-escuadron .teclas {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-top: 6px;
+}
+
+.hud-muerte {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 2, 2, 0.88);
+  font-size: 34px;
+  letter-spacing: 6px;
+  color: #e9d6cf;
+}
+
+/* Pantallas: menú, presentación, pausa, victoria, derrota */
+.pantalla {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding-inline: 16px;
+  text-align: center;
+  background: radial-gradient(ellipse at center, rgba(10, 14, 20, 0.6), rgba(10, 14, 20, 0.9));
+  overflow-y: auto;
+}
+.pantalla[hidden] {
+  display: none;
+}
+.pantalla h1 {
+  font-size: clamp(30px, 6vw, 52px);
+  letter-spacing: 8px;
+  margin: 0;
+}
+.pantalla h2 {
+  font-size: clamp(24px, 4vw, 38px);
+  letter-spacing: 3px;
+  margin: 0;
+  text-wrap: balance;
+}
+.pantalla .sub,
+.pantalla .epoca {
+  opacity: 0.75;
+  letter-spacing: 2px;
+  margin: 0;
+}
+.pantalla .texto {
+  max-width: 640px;
+  line-height: 1.6;
+  font-size: 16px;
+}
+.pantalla .capitulos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  max-width: 900px;
+}
+.pantalla button {
+  font: inherit;
+  color: #f3efe6;
+  background: rgba(30, 36, 44, 0.85);
+  border: 1px solid rgba(243, 239, 230, 0.35);
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.pantalla button:hover,
+.pantalla button:focus-visible {
+  border-color: #f3efe6;
+  outline: none;
+  background: rgba(60, 30, 28, 0.9);
+}
+.pantalla button.principal {
+  border-color: #b3121b;
+  background: rgba(120, 20, 22, 0.85);
+}
+.pantalla .capitulo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 260px;
+  text-align: left;
+  padding: 14px 16px;
+}
+.pantalla .capitulo .epoca {
+  font-size: 12px;
+}
+.pantalla .capitulo .hecho {
+  font-size: 11px;
+  color: #8fe0a0;
+  letter-spacing: 1px;
+}
+.pantalla .botones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+.pantalla .resumen {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  line-height: 1.8;
+  font-variant-numeric: tabular-nums;
+}
+.pantalla .controles {
+  list-style: none;
+  padding: 0;
+  max-width: 780px;
+  font-size: 13px;
+  line-height: 1.7;
+  opacity: 0.8;
+}
+@keyframes latido {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.pantalla .tactil {
+  display: none;
+  color: #ffcf9e;
+}
+@media (pointer: coarse) {
+  .pantalla .tactil {
+    display: block;
+  }
+}
+.pantalla.derrota h2 {
+  color: #ff9c8a;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud-anormal {
+    animation: none;
+  }
 }

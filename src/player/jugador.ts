@@ -1,10 +1,12 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { config } from '../core/config';
+import type { ContextoJuego } from '../core/contexto';
 import type { Entrada } from '../core/entrada';
 import type { Fisica } from '../core/fisica';
 import { nuevoId } from '../core/poblacion';
 import type { JugadorAPI, TitanAPI } from '../core/tipos';
+import { CombateJugador } from './combate';
 import { DepositoGas } from './gas';
 import { ModeloJugador } from './modeloJugador';
 import { EquipoODM, type Lado } from './odm';
@@ -34,8 +36,15 @@ export class Jugador implements JugadorAPI {
   agarradoPor: TitanAPI | null = null;
   salud = 100;
   readonly saludMax = 100;
-  paresRepuesto = 4;
-  filo = 1;
+  get paresRepuesto(): number {
+    return this.combate?.cuchillas.repuesto ?? 4;
+  }
+  get filo(): number {
+    return this.combate?.cuchillas.filo ?? 1;
+  }
+  get cambiandoCuchillas(): boolean {
+    return (this.combate?.cuchillas.cambiando ?? 0) > 0;
+  }
   get posicion(): THREE.Vector3 {
     return this.pos;
   }
@@ -48,13 +57,16 @@ export class Jugador implements JugadorAPI {
     this.agarradoPor = titan;
     this.brazoAgarre = brazo;
     this.odm.liberarTodo();
+    this.vel.set(0, 0, 0);
   }
   alSerSoltado(): void {
     this.agarradoPor = null;
+    // cae de la mano con un pequeño impulso
+    this.vel.set((Math.random() - 0.5) * 4, 3, (Math.random() - 0.5) * 4);
   }
   alSerDevorado(): void {
     this.agarradoPor = null;
-    this.vivo = false;
+    this.morir();
   }
   fijarPosicion(p: THREE.Vector3): void {
     this.pos.copy(p);
@@ -63,15 +75,91 @@ export class Jugador implements JugadorAPI {
   }
   reabastecer(): void {
     this.gas.recargar(this.gas.capacidad);
-    this.paresRepuesto = 4;
-    this.filo = 1;
+    this.combate?.cuchillas.rellenar();
   }
   revivir(pies: THREE.Vector3, rumbo?: number): void {
     this.vivo = true;
     this.salud = this.saludMax;
     this.agarradoPor = null;
+    this.modelo.grupo.visible = true;
     this.reabastecer();
     this.teletransportar(pies, rumbo);
+  }
+
+  /** Combate (tajos, cuchillas, QTE). Se crea al conectar el contexto. */
+  combate: CombateJugador | null = null;
+  private ctx: ContextoJuego | null = null;
+  /** Segundos desde el último daño (la vida se regenera fuera de combate). */
+  private sinDanio = 99;
+  private tiempo = 0;
+  private ultimoShiftAire = -9;
+  private tAterrizaje: number | null = null;
+  private impactoAterrizaje = 0;
+  private rodando = 0;
+  private enDeposito = 0;
+
+  conectar(ctx: ContextoJuego): void {
+    this.ctx = ctx;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const jugador = this;
+    this.combate = new CombateJugador(ctx, {
+      pos: this.pos,
+      posPrevia: this.posPrevia,
+      vel: this.vel,
+      humano: this,
+      get agarradoPor() {
+        return jugador.agarradoPor;
+      },
+      set agarradoPor(t: TitanAPI | null) {
+        jugador.agarradoPor = t;
+      },
+      get brazoAgarre() {
+        return jugador.brazoAgarre;
+      },
+      set brazoAgarre(b: 'brazoIzq' | 'brazoDer') {
+        jugador.brazoAgarre = b;
+      },
+      ancladoATitanRecogiendo: () =>
+        this.odm.recogiendo && this.odm.anclados.some((g) => g.etiquetaAncla === 'titan' || g.etiquetaAncla === 'nuca'),
+      consumirGas: (c) => this.odm.gasInfinito || this.gas.consumir(c),
+    });
+  }
+
+  /** Daño directo (golpes, caídas). */
+  herir(cantidad: number, motivo: string): void {
+    if (!this.vivo || cantidad <= 0) return;
+    this.salud = Math.max(0, this.salud - cantidad);
+    this.sinDanio = 0;
+    if (this.combate) this.combate.sacudida = Math.max(this.combate.sacudida, Math.min(1, cantidad / 40));
+    if (this.salud <= 0) {
+      this.ctx?.eventos.emit({ tipo: 'mensaje', texto: motivo, segundos: 3 });
+      this.morir();
+    }
+  }
+
+  private morir(): void {
+    if (!this.vivo) return;
+    this.vivo = false;
+    this.odm.liberarTodo();
+    this.modelo.grupo.visible = false;
+    this.vel.set(0, 0, 0);
+  }
+
+  /** Junto al depósito: el gas sube y, tras 2 s, cuchillas nuevas. */
+  recargarEnDeposito(dt: number, cerca: boolean): void {
+    if (!cerca || !this.vivo) {
+      this.enDeposito = 0;
+      return;
+    }
+    this.gas.recargar(config.gas.recargaPorSegundo * dt);
+    const antes = this.enDeposito;
+    this.enDeposito += dt;
+    const c = this.combate?.cuchillas;
+    if (antes < 2 && this.enDeposito >= 2 && c && (c.repuesto < 4 || c.filo < 1)) {
+      c.rellenar();
+      this.ctx?.eventos.emit({ tipo: 'mensaje', texto: 'Cuchillas repuestas', segundos: 1.5 });
+      this.ctx?.eventos.emit({ tipo: 'recarga', quien: this });
+    }
   }
 
   readonly pos = new THREE.Vector3();
@@ -94,7 +182,7 @@ export class Jugador implements JugadorAPI {
   private readonly acel = new THREE.Vector3();
   private readonly tmp = new THREE.Vector3();
 
-  constructor(escena: THREE.Scene, fisica: Fisica, inicio: THREE.Vector3) {
+  constructor(escena: THREE.Scene, private readonly fisica: Fisica, inicio: THREE.Vector3) {
     const j = config.jugador;
     const mitad = j.altura / 2 - j.radio;
     this.cuerpo = fisica.mundo.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
@@ -150,12 +238,22 @@ export class Jugador implements JugadorAPI {
       this.rumboFijo = null;
     }
 
-    // Reaparecer
-    if (entrada.consumir('KeyR')) {
-      this.teletransportar(new THREE.Vector3(0, 0, 14));
-      this.gas.recargar(this.gas.capacidad);
+    this.tiempo += dt;
+    // Reaparecer (depuración)
+    if (entrada.consumir('Backspace')) {
+      this.revivir(this.ctx?.puntoReaparicion ?? new THREE.Vector3(0, 0, 14));
       return;
     }
+    if (!this.vivo) return;
+    // Agarrado por un titán: él nos mueve; nosotros solo podemos cortar (QTE)
+    if (this.agarradoPor) {
+      this.combate?.paso(dt, entrada, mirada.dir);
+      this.posPrevia.copy(this.pos);
+      return;
+    }
+    // Vida: se regenera fuera de combate
+    this.sinDanio += dt;
+    if (this.sinDanio > 8) this.salud = Math.min(this.saludMax, this.salud + 5 * dt);
 
     this.vel.y -= config.fisica.gravedad * dt;
 
@@ -165,6 +263,7 @@ export class Jugador implements JugadorAPI {
     const tirando = this.odm.recogiendo || this.odm.impulsando;
 
     const shift = entrada.consumir('ShiftLeft') || entrada.consumir('ShiftRight');
+    if (shift && !this.enSuelo) this.ultimoShiftAire = this.tiempo;
     if (this.enSuelo && !tirando) {
       // En el suelo: acelerar hacia la velocidad de carrera deseada
       const objetivo = deseo.clone().multiplyScalar(j.velocidadAndar);
@@ -175,7 +274,7 @@ export class Jugador implements JugadorAPI {
       const k = dv > maxDv ? maxDv / dv : 1;
       this.vel.x += dvx * k;
       this.vel.z += dvz * k;
-      if (shift) this.vel.y = j.salto;
+      if (shift && this.rodando <= 0) this.vel.y = j.salto;
     } else {
       this.vel.addScaledVector(deseo, j.controlAereo * dt);
       this.vel.multiplyScalar(1 - j.resistenciaAire * dt);
@@ -188,6 +287,9 @@ export class Jugador implements JugadorAPI {
       }
     }
 
+    // Tajos, cambio de cuchillas e impulso asistido hacia el punto débil
+    this.combate?.paso(dt, entrada, mirada.dir);
+
     const rapidez = this.vel.length();
     if (rapidez > j.velocidadMaxima) this.vel.multiplyScalar(j.velocidadMaxima / rapidez);
 
@@ -196,6 +298,8 @@ export class Jugador implements JugadorAPI {
     this.odm.restringir(prevista, this.vel);
     const deseado = prevista.sub(this.pos);
 
+    const estabaEnSuelo = this.enSuelo;
+    const vyAntes = this.vel.y;
     this.controlador.computeColliderMovement(this.collider, deseado);
     const mov = this.controlador.computedMovement();
     for (let i = 0; i < this.controlador.numComputedCollisions(); i++) {
@@ -203,9 +307,42 @@ export class Jugador implements JugadorAPI {
       if (!col) continue;
       const n = this.tmp.set(col.normal1.x, col.normal1.y, col.normal1.z);
       const vn = this.vel.dot(n);
-      if (vn < 0) this.vel.addScaledVector(n, -vn);
+      if (vn < 0) {
+        // estrellarse contra un titán a mucha velocidad duele
+        const etiqueta = col.collider ? this.fisica.etiquetas.get(col.collider.handle) : undefined;
+        if ((etiqueta === 'titan' || etiqueta === 'nuca') && -vn > 22) this.herir((-vn - 22) * 4, 'Te has estrellado contra un titán');
+        this.vel.addScaledVector(n, -vn);
+      }
     }
     this.enSuelo = this.controlador.computedGrounded();
+    // Aterrizaje: impacto fuerte = daño, salvo rodada (Shift justo antes de tocar el suelo)
+    if (this.enSuelo && !estabaEnSuelo) {
+      const impacto = -vyAntes;
+      this.tAterrizaje = 0;
+      this.impactoAterrizaje = Math.max(0, impacto);
+      if (impacto > 14 && this.tiempo - this.ultimoShiftAire < 0.35) {
+        this.rodando = 0.55;
+        this.ctx?.eventos.emit({ tipo: 'mensaje', texto: 'Rodada', segundos: 0.8 });
+      } else if (impacto > 22) {
+        this.herir((impacto - 22) * 4, 'La caída ha sido mortal');
+      }
+    }
+    if (this.tAterrizaje !== null) {
+      this.tAterrizaje += dt;
+      if (this.tAterrizaje > 0.6) this.tAterrizaje = null;
+    }
+    if (this.rodando > 0) {
+      this.rodando -= dt;
+      // la rodada conserva parte del impulso horizontal
+      if (this.enSuelo) {
+        const vh = Math.hypot(this.vel.x, this.vel.z);
+        if (vh < 6) {
+          const f = new THREE.Vector3(Math.sin(this.rumbo), 0, Math.cos(this.rumbo));
+          this.vel.x = f.x * 6;
+          this.vel.z = f.z * 6;
+        }
+      }
+    }
     if (this.enSuelo && this.vel.y < 0) this.vel.y = 0;
     this.pos.x += mov.x;
     this.pos.y += mov.y;
@@ -213,7 +350,7 @@ export class Jugador implements JugadorAPI {
     this.cuerpo.setNextKinematicTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z });
 
     // Red de seguridad si se sale del mundo
-    if (this.pos.y < -50) this.teletransportar(new THREE.Vector3(0, 0, 14));
+    if (this.pos.y < -50) this.teletransportar(this.ctx?.puntoReaparicion ?? new THREE.Vector3(0, 0, 14));
 
     // Orientación del modelo: hacia donde se mueve (o hacia la cámara si está quieto y apuntando)
     if (this.rumboFijo === null) {
@@ -254,12 +391,15 @@ export class Jugador implements JugadorAPI {
       anclas: this.odm.anclados.map((g) => g.ancla),
       recogiendo: this.odm.recogiendo,
       impulsando: this.odm.impulsando,
-      corte: null,
-      giro: false,
-      agarrado: false,
-      muerto: false,
-      aterrizaje: null,
-      impactoAterrizaje: 0,
+      corte: this.combate?.progresoTajo ?? null,
+      giro: !!this.combate?.tajo?.giro,
+      preparandoCorte: !!this.combate?.preparando,
+      cambiandoCuchillas: (this.combate?.cuchillas.cambiando ?? 0) > 0,
+      rodando: this.rodando > 0,
+      agarrado: this.agarradoPor !== null,
+      muerto: !this.vivo,
+      aterrizaje: this.tAterrizaje,
+      impactoAterrizaje: this.impactoAterrizaje,
     });
     g.updateMatrixWorld(true);
     this.odm.dibujar(this.salidaModelo, this.pos);

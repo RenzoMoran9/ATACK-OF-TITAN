@@ -17,6 +17,8 @@ export class CamaraTercera {
   private fov: number;
   private poseFija: { pos: THREE.Vector3; mirar: THREE.Vector3 } | null = null;
   readonly dir = new THREE.Vector3(0, 0, -1);
+  /** Temblor de cámara (0–1): golpes, agarres, pisadas cercanas. */
+  sacudida = 0;
 
   constructor(readonly camara: THREE.PerspectiveCamera, private readonly fisica: Fisica, private readonly excluir: () => RAPIER.Collider) {
     this.distanciaActual = config.camara.distancia;
@@ -74,6 +76,11 @@ export class CamaraTercera {
 
     cam.position.copy(pivote).addScaledVector(atras, this.distanciaActual);
     cam.lookAt(pivote.clone().addScaledVector(this.dir, 10));
+    if (this.sacudida > 0.01) {
+      const a = this.sacudida * this.sacudida * 0.06;
+      cam.rotation.z += (Math.random() - 0.5) * a;
+      cam.rotation.x += (Math.random() - 0.5) * a;
+    }
     if (Math.abs(cam.fov - this.fov) > 0.05) {
       cam.fov = this.fov;
       cam.updateProjectionMatrix();

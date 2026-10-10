@@ -10,7 +10,12 @@ import { Poblacion } from './core/poblacion';
 import { Efectos } from './combat/efectos';
 import { CamaraTercera } from './player/camara';
 import { Jugador } from './player/jugador';
+import { Campana } from './missions/campana';
+import { CapEntrenamiento } from './missions/capitulos/entrenamiento';
+import { CapLibre } from './missions/capitulos/libre';
+import { CapTrost } from './missions/capitulos/trost';
 import { Hud } from './ui/hud';
+import { Pantallas } from './ui/pantallas';
 import { crearPanel } from './ui/panel';
 import { Cielo } from './world/cielo';
 import { ajustarNoche } from './world/materiales';
@@ -20,7 +25,7 @@ declare global {
   interface Window {
     /** true cuando la escena está construida y se han dibujado varios fotogramas (lo usa scripts/capturas.ts). */
     __juegoListo?: boolean;
-    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion };
+    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown };
   }
 }
 
@@ -56,7 +61,6 @@ async function iniciar(): Promise<void> {
   const jugador = new Jugador(escena, fisica, mundo.inicio);
   const rig = new CamaraTercera(camara, fisica, () => jugador.collider);
   const entrada = new Entrada(renderer.domElement);
-  const hud = new Hud(document.body, urlDepuracion.hud);
 
   // ── Contexto de juego compartido por todos los sistemas ──
   const poblacion = new Poblacion();
@@ -91,9 +95,26 @@ async function iniciar(): Promise<void> {
     puntoReaparicion: mundo.inicio.clone(),
     esDeNoche: () => cielo.esDeNoche,
   };
-  // Modo libre: los titanes de referencia en la llanura
-  for (const o of mundo.titanesReferencia) ctx.titanes.generar(o);
-  if (urlDepuracion.cam) ctx.titanes.congelado = true;
+  jugador.conectar(ctx);
+  const hud = new Hud(document.body, urlDepuracion.hud, ctx);
+  // Órdenes al escuadrón con 1-4
+  const ORDENES = { Digit1: 'seguir', Digit2: 'atacar', Digit3: 'proteger', Digit4: 'retirada' } as const;
+  const NOMBRES_ORDEN = { seguir: 'Seguidme', atacar: 'Atacad', proteger: 'Proteged a los civiles', retirada: 'Retirada' } as const;
+  // Muerte del jugador: fundido y reaparición
+  let muertoDesde = -1;
+
+  // Capturas (?cam=...): escena fija con los titanes de referencia congelados, sin menús.
+  // Si no, campaña por capítulos con su menú.
+  const modoCaptura = urlDepuracion.cam !== null;
+  let campana: Campana | null = null;
+  let pantallas: Pantallas | null = null;
+  if (modoCaptura) {
+    for (const o of mundo.titanesReferencia) ctx.titanes.generar(o);
+    ctx.titanes.congelado = true;
+  } else {
+    campana = new Campana(ctx, [new CapEntrenamiento(), new CapTrost(), new CapLibre()]);
+    pantallas = new Pantallas(campana, () => entrada.capturar());
+  }
 
   const cambiarHora = (h: Hora) => {
     cielo.aplicar(h, renderer);
@@ -131,14 +152,13 @@ async function iniciar(): Promise<void> {
     if (mundo.puntos[urlDepuracion.cam]) irA(urlDepuracion.cam);
     else console.warn(`?cam=${urlDepuracion.cam} no existe. Opciones: ${Object.keys(mundo.puntos).join(', ')}`);
   }
-  const modoCaptura = urlDepuracion.cam !== null;
-  hud.mostrarInicio(!modoCaptura);
-  document.querySelector('.inicio')?.addEventListener('click', async () => {
-    // Sin pointer lock (algunos visores lo bloquean) se juega igual: clics directos y cámara con cursor/flechas.
-    if (!(await entrada.capturar())) hud.mostrarInicio(false);
-  });
+  // Soltar el ratón (Esc) pausa la partida
   document.addEventListener('pointerlockchange', () => {
-    hud.mostrarInicio(document.pointerLockElement !== renderer.domElement && !modoCaptura);
+    const capturado = document.pointerLockElement === renderer.domElement;
+    if (!capturado && !entrada.sinCaptura) pantallas?.ponerPausa(true);
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape' && entrada.sinCaptura) pantallas?.ponerPausa(!pantallas.pausado);
   });
 
   window.addEventListener('resize', () => {
@@ -151,17 +171,35 @@ async function iniciar(): Promise<void> {
   let tiempo = 0;
   let fotogramas = 0;
   const actualizar = (dt: number) => {
+    // En menús y en pausa el mundo se queda quieto (se sigue dibujando)
+    if (pantallas?.bloqueaJuego) {
+      pasosEnFotograma++;
+      return;
+    }
     reloj.t += dt;
+    for (const [tecla, orden] of Object.entries(ORDENES)) {
+      if (entrada.consumir(tecla) && ctx.escuadron.soldados.length > 0) {
+        ctx.escuadron.ordenar(orden);
+        ctx.eventos.emit({ tipo: 'mensaje', texto: `Orden: ${NOMBRES_ORDEN[orden]}`, segundos: 1.5 });
+      }
+    }
     jugador.paso(dt, entrada, { dir: rig.dir, yaw: rig.yaw });
+    if (!jugador.vivo) {
+      if (muertoDesde < 0) muertoDesde = reloj.t;
+      else if (reloj.t - muertoDesde > 3.5) {
+        muertoDesde = -1;
+        jugador.revivir(ctx.puntoReaparicion);
+      }
+    }
     ctx.titanes.actualizar(dt);
     ctx.escuadron.actualizar(dt);
     ctx.civiles.actualizar(dt);
+    campana?.actualizar(dt);
     fisica.paso(dt);
-    // Recarga de gas junto al depósito de la plaza
+    // Recarga de gas y cuchillas junto al depósito de la plaza
     const dep = mundo.ciudad.deposito;
-    if (Math.hypot(jugador.pos.x - dep.x, jugador.pos.z - dep.z) < config.gas.radioRecarga && jugador.pos.y < 3) {
-      jugador.gas.recargar(config.gas.recargaPorSegundo * dt);
-    }
+    const enDeposito = Math.hypot(jugador.pos.x - dep.x, jugador.pos.z - dep.z) < config.gas.radioRecarga && jugador.pos.y < 3;
+    jugador.recargarEnDeposito(dt, enDeposito && (campana?.depositoDisponible() ?? true));
     pasosEnFotograma++;
   };
 
@@ -177,6 +215,7 @@ async function iniciar(): Promise<void> {
     const fy = (entrada.mantenida('ArrowDown') ? 1 : 0) - (entrada.mantenida('ArrowUp') ? 1 : 0);
     rig.girar(dx + fx * 900 * dt, dy + fy * 600 * dt);
     jugador.dibujar(alfa, dt, tiempo);
+    rig.sacudida = jugador.combate?.sacudida ?? 0;
     rig.actualizar(dt, jugador.posRender, jugador.vel);
     jugador.odm.apuntar(camara.position, rig.dir, camara.up, jugador.pos);
     cielo.seguir(jugador.posRender, camara);
@@ -185,7 +224,7 @@ async function iniciar(): Promise<void> {
     ctx.escuadron.dibujar(dt, tiempo);
     ctx.civiles.dibujar(dt, tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
-    hud.actualizar(dt, jugador, camara, window.innerWidth, window.innerHeight);
+    hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
     renderer.render(escena, camara);
     if (pasosEnFotograma > 0) {
       entrada.finFotograma();
@@ -212,6 +251,9 @@ async function iniciar(): Promise<void> {
       ganchos: jugador.odm.ganchos.map((g) => g.estado),
       apuntes: jugador.odm.apuntes.map((a) => a.valido),
     }),
+    // Para pruebas automáticas (Playwright) y depuración en consola
+    ctx,
+    campana,
   };
   const bucle = new BuclePasoFijo(1 / config.fisica.hz, actualizar, dibujar);
   Object.defineProperty(bucleRef, 'escalaTiempo', {

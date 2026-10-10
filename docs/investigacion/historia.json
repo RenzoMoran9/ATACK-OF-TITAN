@@ -1,0 +1,528 @@
+{
+ "capitulos": [
+  {
+   "id": "prologo-845",
+   "titulo": "Prólogo: La caída de Shiganshina",
+   "arcoYAnio": "Arco del prólogo (manga cap. 1-2, anime T1 ep. 1-2), año 845",
+   "resumenHistoria": "El Cuerpo de Exploración de Keith Shadis vuelve derrotado: de más de cien soldados regresan menos de veinte, y Shadis cede el mando a Erwin. Esa misma tarde el Titán Colosal (60 m) asoma por encima de la muralla sur de Shiganshina y revienta la puerta de una sola patada. Los cascotes aplastan casas y los titanes puros entran. Carla Yeager queda atrapada bajo su casa. Hannes, de la Guarnición, no se atreve a enfrentarse al titán sonriente y se lleva a Eren y a Mikasa. La Guarnición mete a los supervivientes en barcazas en la puerta interior mientras discute si cerrarla con gente fuera. Entonces el Titán Acorazado la embiste y Wall Maria cae.",
+   "ubicacionEnNuestroMundo": "El distrito actual vestido como Shiganshina en 845, a primera hora de la tarde. El Colosal aparece detrás de la puerta sur (+Z, z≈236-242) y los cascotes caen sobre el anillo sur de casas. Hay que añadir una puerta interior al norte (−Z, θ=π en puntoAnillo) con un punto de evacuación: carros o un muelle (en el canon eran barcazas por el canal). La ruta sale de la zona sur, sigue la avenida en cruz, pasa por la plaza (0,0) y por la iglesia (0,−62) y llega a la puerta norte.",
+   "objetivoPrincipal": "Llegar a la puerta interior norte y subir a la última evacuación antes de que el Acorazado la derribe (temporizador oculto de unos 6-8 minutos).",
+   "objetivosSecundarios": [
+    "Llevar hasta la puerta a 3 civiles perdidos (niños o ancianos) sin que los vea un titán",
+    "Avisar a Hannes de dónde está la familia Yeager (así empieza a escoltarte)",
+    "Encontrar a Armin y llevarlo con su abuelo",
+    "Llegar a la puerta sin que te vea ningún titán (logro de sigilo)"
+   ],
+   "enemigos": [
+    "Titán Colosal (60 m), guionizado: patada a la puerta, lluvia de cascotes y vapor. No se puede combatir.",
+    "Titanes puros de 3 a 15 m que entran por la brecha (6-10 a la vez)",
+    "Titán sonriente (unos 13-15 m, el que devora a Carla), que acecha de forma guionizada en una calle lateral",
+    "Titán Acorazado (15 m), guionizado: carga final contra la puerta interior"
+   ],
+   "aliados": [
+    "Hannes (Guarnición), escolta que te recoge si te alcanzan",
+    "Eren Yeager, Mikasa Ackerman y Armin Arlert de niños (NPC)",
+    "Los soldados de la Guarnición de Fugo, que defienden la puerta interior con cañones"
+   ],
+   "civiles": "Huyen en masa por las avenidas hacia la puerta interior norte. Se forman atascos y aglomeraciones que atraen a los titanes. Algunos quedan atrapados bajo los escombros: el jugador, que es un niño, no puede sacarlos solo, pero sí avisar a un soldado. Al final la Guarnición duda entre cerrar la puerta o esperar a los rezagados.",
+   "mecanicasQueIntroduce": [
+    "Huida a pie sin equipo de maniobras: sprint con aguante y respiración audible",
+    "Sigilo por línea de visión: perder de vista al titán en callejones, portales e interiores",
+    "Cascotes que caen, con una sombra en el suelo que avisa del impacto",
+    "Pasos de titán con audio 3D y temblor de cámara para saber dónde están",
+    "Escolta NPC (Hannes) y civiles que te siguen",
+    "Temporizador narrativo: la llegada del Acorazado"
+   ],
+   "condicionVictoria": "Cruzar la puerta interior y subir a la evacuación antes de la carga del Acorazado.",
+   "condicionDerrota": "Te agarra un titán (de niño no hay rescate posible), te aplasta un cascote o la puerta se cierra contigo dentro.",
+   "textoNarrativoIntro": "Año 845. Cien años de calma se rompen de golpe: una cabeza sin piel asoma por encima de la muralla y el suelo tiembla con la patada. No llevas espadas ni equipo, solo tus piernas y el camino hasta la puerta interior."
+  },
+  {
+   "id": "cap1-cadetes",
+   "titulo": "Capítulo 1: Cadetes del 104.º",
+   "arcoYAnio": "Arco del 104.º Cuerpo de Cadetes (manga cap. 3-4 y 15-18, anime T1 ep. 3-5 y 14-15), años 847-850",
+   "resumenHistoria": "Dos años después de la caída, los huérfanos de Maria se alistan. Con el instructor Keith Shadis, los cadetes pasan la prueba de aptitud colgados de cables. Eren falla una y otra vez hasta que se descubre que su cinturón estaba roto. Practican maniobras en el bosque contra siluetas de madera de titanes con la nuca marcada, montan a caballo y entrenan cuerpo a cuerpo. Tras tres años se gradúan los diez mejores, por este orden: Mikasa, Reiner, Bertolt, Annie, Eren, Jean, Marco, Connie, Sasha y Krista. Los diez pueden entrar en la Policía Militar. La víspera de Trost se disuelve el cuerpo y cada uno elige destino.",
+   "ubicacionEnNuestroMundo": "Campo de instrucción fuera de la puerta sur. El pórtico de la prueba de equilibrio está en la llanura junto al camino (z≈260-300). El circuito de siluetas de madera de 3, 7 y 15 m con la nuca marcada está en el borde del bosque gigante (z 400-520). Hay un carro de suministros para recargar junto al camino.",
+   "objetivoPrincipal": "Graduarse: aprobar la prueba de equilibrio y completar el circuito de siluetas con la puntuación necesaria para entrar en el top 10.",
+   "objetivosSecundarios": [
+    "Circuito contrarreloj sin tocar el suelo",
+    "Cortes perfectos dentro de la franja de la nuca (1 m de alto por 10 cm de ancho)",
+    "Derribar una silueta cortándole los tobillos y rematar la nuca",
+    "Cambiar de cuchillas en el aire sin perder altura",
+    "Duelo de puntuación con Jean o con Mikasa",
+    "Encontrar el cinturón roto (guiño a Eren)"
+   ],
+   "enemigos": [
+    "Ninguno de verdad: siluetas de madera de 3, 7 y 15 m que los instructores sacan de detrás de los troncos y que caen si les cortas la nuca",
+    "Siluetas «anormales» sobre raíles, con velocidad errática (nivel avanzado)"
+   ],
+   "aliados": [
+    "El instructor Keith Shadis, que evalúa",
+    "Compañeros de práctica y rivales en el ranking: Eren Yeager, Mikasa Ackerman, Armin Arlert, Jean Kirstein, Marco Bott, Connie Springer, Sasha Blouse, Reiner Braun, Bertolt Hoover, Annie Leonhart, Krista Lenz, Ymir, Thomas Wagner y Mina Carolina"
+   ],
+   "civiles": "No hay, solo instructores y cadetes. El ambiente es de rutina y competición, y sirve de respiro antes del horror. Puede haber un pueblo de refugiados de fondo, labrando los campos.",
+   "mecanicasQueIntroduce": [
+    "Prueba de equilibrio en el arnés (postura y centro de masas; base para que el cuerpo del jugador se mueva de forma más realista)",
+    "Los cuatro ataques canónicos: nuca, tobillos y corvas, ojos y muñecas",
+    "Daño según la velocidad y el ángulo del corte; cuchillas que se mellan y se cambian",
+    "Recarga de gas y cuchillas en un punto de suministro",
+    "Ranking final y elección de cuerpo (Guarnición, Exploración o Policía Militar), que cambia diálogos posteriores"
+   ],
+   "condicionVictoria": "Aprobar las dos pruebas y quedar entre los diez primeros (o graduarse como cadete normal, con menos opciones).",
+   "condicionDerrota": "No hay derrota permanente: si fallas, repites la prueba. Tocar el suelo o romper todas las cuchillas reinicia el circuito.",
+   "textoNarrativoIntro": "Año 847. Los refugiados de Maria labran campos ajenos o se alistan, y tú eliges los cables y el acero. Te esperan tres años de astillas, caídas y un instructor que no perdona antes de volver a ver la muralla de cerca."
+  },
+  {
+   "id": "cap2-trost-brecha",
+   "titulo": "Capítulo 2: Trost I. La brecha",
+   "arcoYAnio": "Arco de la batalla de Trost (manga cap. 3-7, anime T1 ep. 4-6), año 850",
+   "resumenHistoria": "La mañana después de la graduación, con el Cuerpo de Exploración fuera de las murallas, varios cadetes limpian los cañones en lo alto de la muralla. Entonces vuelve el Colosal y abre un boquete de unos 8 m en la puerta sur. Eren lo ataca, pero el Colosal desaparece entre el vapor. La Guarnición ordena evacuar por la puerta interior norte. La Guarnición forma la vanguardia junto a la brecha, los cadetes la retaguardia media, y la élite junto con Mikasa protege a los civiles. La vanguardia cae y el Escuadrón 34 es masacrado. Eren desaparece en la boca de un titán al salvar a Armin. En el norte, el carro sobrecargado de Dimo Reeves atasca la puerta mientras se acerca un anormal, y Mikasa lo resuelve. Cuando acaba la evacuación suena la retirada, pero muchos cadetes ya no tienen gas para subir la muralla.",
+   "ubicacionEnNuestroMundo": "Todo el distrito actual hace de Trost. Se empieza en lo alto de la muralla sur, junto a los cañones sobre raíles, que ya existen. La hoja de la puerta sur (θ=0, z≈236-242) tiene un boquete de unos 8 m. El sector a defender son las calles entre la puerta y la plaza (z 40-220). Los civiles evacúan por la avenida central norte-sur hasta una nueva puerta interior al norte (θ=π, z≈−236), donde ocurre el atasco del carro de Reeves.",
+   "objetivoPrincipal": "Contener a los titanes en tu sector de la retaguardia media hasta que la evacuación de civiles llegue al 100 % y suene la campana de retirada.",
+   "objetivosSecundarios": [
+    "Salvar a Samuel cuando el vapor del Colosal lo tira de la muralla (engancharlo y frenar su caída, como hizo Sasha)",
+    "Llegar a la nuca del Colosal antes de que se esfume (no se le puede matar; recompensa narrativa)",
+    "Liberar a compañeros del Escuadrón 34 que estén agarrados cortando la muñeca o los dedos en 3-5 s",
+    "Matar al anormal que corre hacia la multitud atascada en la puerta norte",
+    "Despejar el carro de Reeves con Mikasa",
+    "Disparar una bengala morada cuando agarren a un compañero"
+   ],
+   "enemigos": [
+    "Titán Colosal (60 m), guionizado: patada a la puerta y estallido de vapor; después desaparece",
+    "Oleadas de titanes puros de 3 a 15 m que entran por la brecha (los de más de 8 m se agachan o gatean); entre 8 y 15 a la vez",
+    "1-2 anormales: el que devora a Thomas (corre y salta, y pasa del humano más cercano) y otro que va hacia la puerta norte",
+    "Opcional: el titán que se asoma, un anormal que mira por encima de los tejados"
+   ],
+   "aliados": [
+    "Escuadrón 34 (el jugador va en él): Armin Arlert, Eren Yeager, Thomas Wagner, Mina Carolina, Nac Tias y Mylius Zeramuski",
+    "Mikasa Ackerman, en la retaguardia; aparece en la puerta norte",
+    "Hannes y la vanguardia de la Guarnición",
+    "El capitán Kitz Weilman, al mando",
+    "Connie Springer, Sasha Blouse y Samuel, en la muralla al principio"
+   ],
+   "civiles": "Cientos de vecinos avanzan en columna por la avenida central hacia la puerta norte; cuanto más juntos van, más titanes atraen. El carro de Dimo Reeves bloquea la puerta y la cola se para; si un titán llega a la multitud, cada segundo cuesta vidas. El HUD muestra cuántos se han evacuado.",
+   "mecanicasQueIntroduce": [
+    "Titanes agresivos: ven en cono, persiguen, prefieren las multitudes, agarran y muerden",
+    "Anormales con movimiento errático y aviso en pantalla",
+    "Ataques como en el anime: nuca, tobillos y corvas para derribar, ojos para cegar, muñeca para soltar a quien tengan agarrado",
+    "Escuadrón con órdenes sencillas: seguirme, atacar mi objetivo, distraer, retirada",
+    "Muerte permanente de compañeros (en modo canon, Thomas, Mina, Nac y Mylius mueren pase lo que pase)",
+    "Civiles NPC y contador de evacuación",
+    "Bengalas (morada para emergencias, roja para avistamientos) y campana de retirada",
+    "Gas sin recarga, porque el depósito ha caído (prepara el capítulo siguiente)"
+   ],
+   "condicionVictoria": "La evacuación llega al 100 % (o al umbral elegido) y sigues vivo cuando suena la retirada.",
+   "condicionDerrota": "Mueres; un titán alcanza la cola de la puerta norte y las bajas civiles superan el límite; o cae todo tu escuadrón.",
+   "textoNarrativoIntro": "Año 850. Cinco años de paz frágil se rompen con una nube de vapor sobre la puerta sur. El distrito sigue lleno de gente y la orden es clara: nadie huye ni retrocede hasta que el último civil cruce la puerta norte."
+  },
+  {
+   "id": "cap3-trost-deposito",
+   "titulo": "Capítulo 3: Trost II. El depósito de suministros",
+   "arcoYAnio": "Batalla de Trost (manga cap. 7-10, anime T1 ep. 6-8), año 850",
+   "resumenHistoria": "Ya se ha dado la orden de retirada, pero los cadetes no pueden subir la muralla: los titanes han tomado el cuartel de suministros y el equipo de abastecimiento se ha encerrado dentro. Mikasa se queda sin gas y la salva un titán misterioso que solo ataca a otros titanes. Armin y Connie proponen usarlo como ariete, y Jean encabeza la carga hacia el depósito. Dentro hay siete titanes pequeños. Un grupo baja en el montacargas y les dispara a los ojos, y otro se deja caer a la vez desde las vigas sobre sus nucas; Connie y Sasha fallan y Mikasa y Annie rematan. Con el gas recuperado, los cadetes escalan la muralla. El titán misterioso se desploma y de su nuca sale Eren.",
+   "ubicacionEnNuestroMundo": "El depósito actual de la plaza (14, 0, 12) pasa a ser el cuartel de suministros: un edificio de piedra de dos plantas con una nave interior de techo alto, vigas a las que se puede enganchar y un montacargas. Los cadetes supervivientes empiezan agazapados en tejados cerca de la iglesia (0, −62). La salida es escalar la muralla norte.",
+   "objetivoPrincipal": "Entrar en el cuartel, eliminar a los 7 titanes de la nave con el ataque coordinado, recargar gas para todo el escuadrón y escalar la muralla.",
+   "objetivosSecundarios": [
+    "Llegar al depósito con al menos 5 cadetes vivos",
+    "Sacar al equipo de abastecimiento escondido en el sótano",
+    "Que nadie falle su corte en la emboscada (en el canon fallan Connie y Sasha)",
+    "Llevar al titán misterioso hasta el depósito para que despeje la entrada",
+    "Volver a por el titán misterioso cuando lo estén devorando y descubrir quién va dentro"
+   ],
+   "enemigos": [
+    "7 titanes de 3-5 m dentro de la nave",
+    "6-10 titanes de 3 a 15 m alrededor del edificio",
+    "El anormal que devoró a Thomas (lo mata el titán misterioso)",
+    "Neutral: el titán misterioso de 15 m (Eren), que ignora a los humanos y ataca a los titanes"
+   ],
+   "aliados": [
+    "Jean Kirstein, que encabeza la carga",
+    "Armin Arlert, que traza el plan",
+    "Mikasa Ackerman",
+    "Connie Springer",
+    "Sasha Blouse",
+    "Marco Bott",
+    "Annie Leonhart, Reiner Braun y Bertolt Hoover",
+    "Krista Lenz e Ymir"
+   ],
+   "civiles": "El distrito ya está evacuado. Solo quedan los soldados de abastecimiento escondidos, que no luchan y hay que sacar como si fueran civiles. El silencio de las calles vacías y la sangre en el empedrado sostienen el horror.",
+   "mecanicasQueIntroduce": [
+    "Gestión crítica del gas: la barra está casi vacía y solo se recarga en el depósito",
+    "Interiores: vigas y techo enganchables, espacio cerrado con cámara ajustada",
+    "Ataque coordinado del escuadrón «a mi señal»: cegar con armas de fuego y cortar 7 nucas a la vez",
+    "Titán neutral con IA propia: pelea con titanes, recibe daño y puede caer",
+    "Montacargas como cebo",
+    "Escalar la muralla de 50 m con el gas lleno para escapar"
+   ],
+   "condicionVictoria": "Los 7 titanes eliminados, el gas recargado y al menos 5 cadetes en lo alto de la muralla.",
+   "condicionDerrota": "Te quedas sin gas en el suelo con titanes cerca, mueres o cae todo el escuadrón antes de llegar al depósito.",
+   "textoNarrativoIntro": "La campana de retirada suena, pero tus cilindros silban vacíos. El único gas del distrito está en un cuartel lleno de bocas sonrientes, y entre los tejados ruge algo que no se parece a ningún titán que hayas visto."
+  },
+  {
+   "id": "cap4-trost-roca",
+   "titulo": "Capítulo 4: Trost III. La roca",
+   "arcoYAnio": "Batalla de Trost, fase final (manga cap. 10-14, anime T1 ep. 9-13), año 850",
+   "resumenHistoria": "El capitán Kitz Weilman manda disparar contra Eren. Se salva gracias a Armin y a la llegada del comandante Dot Pixis, que aprueba el plan de Armin: Eren, transformado, llevará una roca enorme del distrito hasta la brecha sur para taparla. La Guarnición y los cadetes hacen de cebo en el otro extremo mientras un escuadrón de élite (Ian Dietrich, Rico Brzenska, Mitabi Jarnach y Mikasa) escolta a Eren. Eren pierde el control y Rico dispara la bengala roja de fracaso, pero Ian decide defenderlo. Armin lo despierta clavándole la cuchilla en la nuca sin matarlo, y Eren lleva la roca. Ian y Mitabi mueren y Rico dispara la bengala amarilla. Levi llega con el Cuerpo de Exploración. Al día siguiente se limpia el distrito y se capturan vivos dos titanes, Sonny y Bean. Ese día Marco muere sin que nadie lo vea.",
+   "ubicacionEnNuestroMundo": "Distrito actual. Se coloca una roca de unos 15 m cerca de la plaza o al sudeste, a 150-200 m de la puerta. La escolta sigue la avenida sur hasta la brecha (θ=0). La zona de cebo está en el norte y noreste, junto a la muralla, con los cañones de la coronación y una red de arpones de la Guarnición junto a la puerta norte para agrupar titanes.",
+   "objetivoPrincipal": "Escoltar al titán de Eren con la roca hasta la brecha sur y defenderlo hasta que la tape (bengala amarilla).",
+   "objetivosSecundarios": [
+    "Defender a Eren mientras está descontrolado hasta que llegue Armin (fase de aguante)",
+    "Atraer titanes hacia la zona de cebo norte y los cañones de la muralla",
+    "Mantener con vida a Ian, Rico o Mitabi (en el canon solo sobrevive Rico)",
+    "Disparar los cañones de la muralla (carga lenta; solo derriban, alguien tiene que rematar la nuca)",
+    "Epílogo: limpiar el distrito al día siguiente con Levi y capturar dos titanes vivos (cortarles las extremidades sin tocar la nuca)",
+    "Encontrar el equipo de Marco Bott (pista para más adelante)"
+   ],
+   "enemigos": [
+    "15-25 titanes puros de 3 a 15 m atraídos por los cebos y por el titán de Eren",
+    "1-2 anormales que corren directos hacia Eren",
+    "Peligro aliado: el titán de Eren, descontrolado, golpea a quien tenga cerca"
+   ],
+   "aliados": [
+    "Escuadrón de élite: Ian Dietrich, Rico Brzenska y Mitabi Jarnach",
+    "Mikasa Ackerman",
+    "Armin Arlert",
+    "El comandante Dot Pixis, al mando desde la muralla",
+    "Eren Yeager, titán aliado de 15 m que carga la roca",
+    "Al final: Levi Ackerman y el Cuerpo de Exploración"
+   ],
+   "civiles": "Ya no queda nadie en el distrito, pero miles de refugiados esperan tras la muralla Rose. Pixis recuerda que, si cae Rose, no habrá adónde huir. Los soldados que desertan por miedo minan la moral.",
+   "mecanicasQueIntroduce": [
+    "Escolta de una unidad lenta y enorme (barras de vida del titán de Eren y de su nuca)",
+    "Cebos y zonas para agrupar titanes (red de arpones, cañones de la muralla)",
+    "Fase en que el aliado está descontrolado y ataca a cualquiera",
+    "Bengalas: roja (fracaso, código de la Guarnición) y amarilla (misión terminada)",
+    "Incapacitar sin matar para capturar titanes, en el epílogo",
+    "Llega un aliado de élite (Levi) como recompensa"
+   ],
+   "condicionVictoria": "La roca tapa la brecha y se dispara la bengala amarilla; en el epílogo, dos titanes capturados vivos.",
+   "condicionDerrota": "Los titanes destruyen la nuca del titán de Eren, Armin no llega a tiempo de despertarlo o mueres.",
+   "textoNarrativoIntro": "Un comandante con fama de excéntrico se juega Wall Rose a un muchacho que se convierte en monstruo. Tu trabajo es sencillo y terrible: que ninguna boca llegue a su nuca mientras la roca avanza."
+  },
+  {
+   "id": "cap5-expedicion-57",
+   "titulo": "Capítulo 5: La 57.ª expedición. La formación",
+   "arcoYAnio": "Arco del Titán Femenino (manga cap. 21-25, anime T1 ep. 16-18), año 850, un mes después de Trost",
+   "resumenHistoria": "Eren queda a cargo del escuadrón de operaciones especiales de Levi, y Erwin lanza una expedición de prueba hacia Shiganshina con su formación de exploración de largo alcance. Los jinetes van muy separados y avisan con bengalas rojas (titán) o negras (anormal), y el mando corrige el rumbo con verdes. En el canon salen de Karanes porque la puerta de Trost está tapada. Un titán inteligente, el Femenino, arrasa el flanco derecho buscando a Eren. Armin, Jean y Reiner lo retrasan con la capucha puesta; Reiner revela la posición de Eren y Krista les trae caballos. Erwin desvía la formación hacia el Bosque de Árboles Gigantes.",
+   "ubicacionEnNuestroMundo": "Se sale desde la muralla del distrito: como la puerta sur sigue tapada con la roca, los caballos bajan con los ascensores de poleas de la coronación, que describe el dossier. La llanura al sur (z 242-400) se amplía a los lados para la formación y tiene granjas sueltas. El destino es el bosque (z 400-740).",
+   "objetivoPrincipal": "Mantener tu puesto en la formación (flanco derecho o relevo) leyendo y repitiendo bengalas, y retrasar al Titán Femenino hasta que el centro gire hacia el bosque.",
+   "objetivosSecundarios": [
+    "Repetir las bengalas que recibes en menos de 5 s (relevo)",
+    "Disparar una bengala negra al ver un anormal y alejarlo de la columna de carros",
+    "Rescatar a un jinete derribado y subirlo a tu caballo",
+    "Recuperar caballos sueltos con Krista",
+    "Engancharte al Femenino en campo abierto (solo puedes anclarte a su cuerpo) y sobrevivir"
+   ],
+   "enemigos": [
+    "Titanes puros de 3 a 15 m sueltos por la llanura, en grupos de 1 a 3",
+    "2-4 anormales que corren hacia la formación",
+    "Titán Femenino (14 m): rápido e inteligente, se tapa la nuca con la mano, mata jinetes sin comérselos; aparece por el flanco derecho"
+   ],
+   "aliados": [
+    "Armin Arlert, Jean Kirstein y Reiner Braun (el trío del flanco derecho)",
+    "Krista Lenz, con los caballos",
+    "Erwin Smith, al mando del centro y de las bengalas verdes",
+    "Mike Zacharias y Hange Zoë, jefes de escuadrón",
+    "Ness y Siss, veteranos del flanco que caen ante el Femenino"
+   ],
+   "civiles": "Al salir, los vecinos miran desde las calles entre la esperanza y el desprecio; en la llanura solo hay granjas abandonadas. No hay civiles que proteger: el peso recae en los compañeros.",
+   "mecanicasQueIntroduce": [
+    "Caballo: se le llama con un silbido y se asusta cerca de los titanes",
+    "Formación de largo alcance con jinetes NPC y columnas de humo que se leen a distancia",
+    "Bengalas de colores con rueda de selección (roja, negra, verde, morada, azul y amarilla)",
+    "Equipo de maniobras en campo abierto: no hay anclajes salvo el propio titán",
+    "Primer jefe cambiante con IA inteligente: amaga, se protege la nuca y persigue un objetivo",
+    "Lluvia opcional que anula las bengalas"
+   ],
+   "condicionVictoria": "La formación entra en el bosque (bengala verde de Erwin) y sobrevives con tu caballo.",
+   "condicionDerrota": "Mueres, pierdes el caballo y te quedas a pie lejos de la formación, o el Femenino alcanza el centro antes del cambio de rumbo.",
+   "textoNarrativoIntro": "Al otro lado de la muralla no hay tejados ni troncos, solo hierba, cielo y columnas de humo de colores que alguien disparó antes de morir. En el flanco derecho, las bengalas rojas se vuelven negras y luego dejan de verse."
+  },
+  {
+   "id": "cap6-bosque-femenino",
+   "titulo": "Capítulo 6: El Bosque de Árboles Gigantes",
+   "arcoYAnio": "Arco del Titán Femenino (manga cap. 25-30, anime T1 ep. 18-22), año 850",
+   "resumenHistoria": "Solo la columna central entra en el bosque; el resto rodea el borde atrayendo titanes. El Femenino persigue a Eren y al escuadrón de Levi, que tiene orden de no luchar, y mata a quien lo sigue. Levi lo lleva a una trampa de armas de captura con arpones y queda inmovilizado, pero se endurece la nuca. Su grito atrae a todos los titanes de la zona para que devoren su cuerpo, y Annie escapa entre el vapor. Disfrazada de soldado, se vuelve a transformar, acaba con el escuadrón de Levi (Gunther, Eld, Petra y Oruo) y se lleva a Eren en la boca. Mikasa y Levi la ciegan, le cortan los tendones de los brazos y lo rescatan; Levi se lesiona el tobillo.",
+   "ubicacionEnNuestroMundo": "El bosque actual (z 400-740): un camino central bajo las copas para ir a caballo, un claro con la trampa de arpones en lo hondo, ramas horizontales transitables para la defensa y el borde del bosque como zona de oleadas.",
+   "objetivoPrincipal": "Llevar al Titán Femenino hasta la trampa sin enfrentarte a él; después, defender su cuerpo inmovilizado del enjambre y, al final, rescatar a Eren de su boca con Mikasa y Levi.",
+   "objetivosSecundarios": [
+    "Cumplir la orden de no luchar durante la persecución (desobedecer tiene consecuencias)",
+    "Matar a X titanes que trepan hacia el Femenino tras el grito",
+    "Mantener con vida a algún miembro del escuadrón de Levi (en el canon mueren los cuatro)",
+    "Cegar los dos ojos del Femenino antes del ataque final",
+    "Recuperar las insignias de los caídos"
+   ],
+   "enemigos": [
+    "Titán Femenino (14 m): endurece los puños, los tobillos y la nuca (las cuchillas se rompen), da patadas, aprovecha los troncos y grita para atraer titanes",
+    "Enjambre de 15-30 puros de 3 a 15 m durante el grito",
+    "Anormales que corren entre los troncos"
+   ],
+   "aliados": [
+    "Escuadrón de operaciones especiales: Levi Ackerman, Petra Rall, Oruo Bozad, Eld Gin y Gunther Schultz",
+    "Eren Yeager, todavía humano; puede transformarse en la fase final",
+    "Mikasa Ackerman",
+    "Erwin Smith y los veteranos de las armas de captura"
+   ],
+   "civiles": "No hay civiles; el coste humano lo pagan los soldados. En la retirada, con los titanes persiguiendo la columna, se tiran cadáveres de los carros para aligerar peso.",
+   "mecanicasQueIntroduce": [
+    "Persecución a caballo por el bosque con orden de no combatir",
+    "Trampa de arpones que inmoviliza a un jefe",
+    "Endurecimiento: zonas donde la cuchilla rebota y se rompe",
+    "Grito que convierte la escena en una defensa por oleadas",
+    "Ataque en pareja (uno distrae y el otro corta) con Mikasa y Levi",
+    "Rescate desde la boca de un titán con tiempo limitado"
+   ],
+   "condicionVictoria": "Eren rescatado de la boca del Femenino y retirada hacia el distrito.",
+   "condicionDerrota": "El Femenino sale del bosque con Eren o mueres.",
+   "textoNarrativoIntro": "Troncos de ochenta metros tapan el cielo y ahogan los gritos. Algo de catorce metros corre detrás de vosotros sin hacer ruido, y la única orden del capitán es seguir cabalgando."
+  },
+  {
+   "id": "cap7-stohess",
+   "titulo": "Capítulo 7: Stohess",
+   "arcoYAnio": "Arco del asalto a Stohess (manga cap. 31-34, anime T1 ep. 23-25), año 850",
+   "resumenHistoria": "Armin deduce que Annie es el Femenino. Con la excusa de entregar a Eren a la Policía Militar en Mitras, Erwin le tiende una trampa en Stohess, el distrito de Wall Sina donde ella está destinada. Annie la huele en la entrada del pasaje subterráneo y se transforma en plena ciudad; los civiles huyen entre derrumbes. Eren tarda en transformarse y luego la combate por las calles. Annie intenta escalar la muralla Sina con los dedos endurecidos; Mikasa se los corta y la hace caer, Eren la reduce y ella se encierra en un cristal que nada puede romper.",
+   "ubicacionEnNuestroMundo": "El distrito se reutiliza como Stohess, con una paleta más rica de Wall Sina, interior y banderas de la Policía Militar. Hay una entrada a un pasaje subterráneo cerca de la plaza, el combate recorre las avenidas y el final es la escalada de la muralla por el norte.",
+   "objetivoPrincipal": "Impedir que el Titán Femenino escape por encima de la muralla con las menores bajas civiles posibles.",
+   "objetivosSecundarios": [
+    "Disparar a tiempo la bengala de plan fallido para avisar a los soldados ocultos",
+    "Sacar a civiles atrapados en edificios a punto de derrumbarse",
+    "Cortar los dedos endurecidos del Femenino durante la escalada",
+    "Proteger la nuca del titán de Eren cuando lo derribe"
+   ],
+   "enemigos": [
+    "Titán Femenino (14 m) en terreno urbano",
+    "Policías militares que no se lo creen y bloquean calles (no letales)"
+   ],
+   "aliados": [
+    "Armin Arlert",
+    "Mikasa Ackerman",
+    "Eren Yeager, como titán aliado",
+    "Jean Kirstein, disfrazado de Eren como señuelo",
+    "Erwin Smith y Hange Zoë",
+    "Marlo Freudenberg e Hitch Dreyse, de la Policía Militar y de la promoción del 104.º"
+   ],
+   "civiles": "La ciudad está en plena actividad y nadie ha avisado: la gente sale de casas y mercados en todas direcciones, los edificios se derrumban y hay heridos bajo los escombros. Se cuentan las bajas civiles y los daños, y después Erwin tiene que rendir cuentas ante el alcalde.",
+   "mecanicasQueIntroduce": [
+    "Combate urbano contra un jefe con daños colaterales",
+    "Medidores de bajas civiles y de destrucción",
+    "Fase en que el jefe escala la muralla (cortar sus dedos endurecidos)",
+    "Pelea de titán contra titán con el jugador como apoyo",
+    "Cristalización: un final que no se puede romper"
+   ],
+   "condicionVictoria": "Annie cae dentro del distrito y se encierra en el cristal antes de cruzar la muralla.",
+   "condicionDerrota": "El Femenino cruza la muralla, las bajas civiles superan el límite o mueres.",
+   "textoNarrativoIntro": "En el interior más seguro del mundo nadie ha visto un titán en cien años. Hoy van a ver uno alzarse entre sus mercados, y tú sabes qué cara tiene debajo."
+  },
+  {
+   "id": "cap8-utgard",
+   "titulo": "Capítulo 8: La noche de Utgard",
+   "arcoYAnio": "Arco del choque de titanes (manga cap. 35-42, anime T2 ep. 1-5), año 850",
+   "resumenHistoria": "Mientras se ejecuta el plan de Stohess, Mike Zacharias detecta titanes dentro de Wall Rose. Los reclutas, sin equipo de combate, se reparten en cuatro grupos a caballo para avisar a las aldeas. Mike se queda de señuelo y muere ante un titán que habla: la Bestia. Sasha salva a una niña de un titán de 3 m. Connie encuentra su aldea, Ragako, reventada desde dentro y un titán deforme tumbado sobre su casa. No encuentran ninguna brecha y por la noche se refugian en el castillo de Utgard, pero los titanes siguen activos a la luz de la luna. Rompen la torre, los veteranos se quedan sin gas y mueren, y la Bestia lanza piedras desde la muralla. Al amanecer, Ymir se transforma para salvar a Krista, y llegan Hange y los refuerzos.",
+   "ubicacionEnNuestroMundo": "Hace falta contenido nuevo: aldeas y granjas en la llanura y un castillo en ruinas al estilo de Utgard, en el borde del bosque o junto a un tramo de muralla. La Bestia se coloca en lo alto de la muralla, que ya es transitable, y lanza proyectiles desde allí.",
+   "objetivoPrincipal": "Sobrevivir a la noche en el castillo de Utgard hasta el amanecer y la llegada de los refuerzos.",
+   "objetivosSecundarios": [
+    "De día: avisar a 3 aldeas y escoltar a sus vecinos hacia el norte",
+    "Salvar a la niña del titán de 3 m luchando a pie, sin equipo de maniobras",
+    "Investigar Ragako (pista: hay tantos titanes como aldeanos)",
+    "Bloquear la puerta de la torre con el cañón antiguo y barricadas",
+    "Recoger el equipo de un veterano caído y salir con poco gas",
+    "Proteger a Krista y a Ymir"
+   ],
+   "enemigos": [
+    "Titanes de Ragako de 3 a 15 m, algunos con las extremidades atrofiadas, activos de noche (excepción canónica)",
+    "Titanes pequeños de 3-4 m que se cuelan en la torre",
+    "Titán Bestia (17 m): dirige a los titanes y lanza piedras desde la muralla; aquí no se le puede matar"
+   ],
+   "aliados": [
+    "Veteranos: Nanaba, Gelgar, Lynne y Henning (mueren en el canon)",
+    "Reclutas: Connie Springer, Reiner Braun, Bertolt Hoover, Krista Lenz e Ymir; Sasha Blouse en la fase de día",
+    "Ymir como Titán Mandíbula (5 m), aliada al amanecer",
+    "Refuerzos al amanecer: Hange Zoë, Eren Yeager, Mikasa Ackerman y Armin Arlert"
+   ],
+   "civiles": "Los aldeanos de la llanura no saben nada: hay que avisarlos, ayudarlos a cargar los carros y sacarlos hacia el norte antes de que lleguen los titanes. Los de Ragako ya no están: se han convertido en esos titanes.",
+   "mecanicasQueIntroduce": [
+    "Fase a caballo para avisar y evacuar aldeas (misión de escolta)",
+    "Noche con titanes activos, rompiendo la regla habitual",
+    "Defensa de una posición con barricadas, al principio sin equipo de maniobras",
+    "Equipo recogido de un caído, con gas escaso",
+    "Proyectiles de un jefe lejano con aviso de impacto",
+    "Aliado titán pequeño (Ymir) controlado por IA"
+   ],
+   "condicionVictoria": "Llegar al amanecer con al menos la mitad de los reclutas vivos y la torre en pie hasta que lleguen los refuerzos.",
+   "condicionDerrota": "Los titanes llegan a lo alto de la torre y matan a los reclutas, o mueres.",
+   "textoNarrativoIntro": "La muralla no tiene ninguna brecha y aun así los titanes están dentro. Te encierras sin espadas en un castillo mientras la luna enseña siluetas que no deberían moverse de noche, y desde la muralla algo peludo os observa."
+  },
+  {
+   "id": "cap9-muralla-acorazado-colosal",
+   "titulo": "Capítulo 9: Sobre la muralla. El Acorazado y el Colosal",
+   "arcoYAnio": "Arco del choque de titanes (manga cap. 42-50, anime T2 ep. 6-12), año 850",
+   "resumenHistoria": "Tras Utgard, en lo alto de la muralla, Reiner le confiesa a Eren que él es el Acorazado y Bertolt el Colosal. Eren pelea contra el Acorazado con una llave que le enseñó Annie, y Mikasa le corta los músculos de detrás de las rodillas. Pero el Colosal se deja caer sobre ellos con una explosión de vapor que impide acercarse, y los cambiantes se llevan a Eren y a Ymir. Erwin organiza el rescate: carga a caballo contra una horda de titanes, pierde un brazo y libera a Eren. El Acorazado lanza titanes contra los jinetes. Aparece el titán sonriente que devoró a Carla y mata a Hannes. Eren activa sin querer el poder de la Coordenada y los titanes puros se lanzan contra los cambiantes.",
+   "ubicacionEnNuestroMundo": "La pelea contra el Acorazado y el Colosal es en lo alto de la muralla actual (50 m de alto, 12 m de ancho, raíles y cañones). El rescate es a caballo por la llanura sur y el bosque (z 242-740), persiguiendo al Acorazado.",
+   "objetivoPrincipal": "Inmovilizar al Acorazado cortándole las corvas, sobrevivir al vapor del Colosal y, en la segunda parte, recuperar a Eren en la carga de rescate.",
+   "objetivosSecundarios": [
+    "Cortar las corvas del Acorazado (zonas sin armadura) mientras Eren lo sujeta",
+    "No acercarse al Colosal mientras suelta vapor (o aguantar unos segundos con la capa mojada)",
+    "Durante la carga, salvar a Erwin cuando lo derriban",
+    "Matar al titán sonriente antes de que alcance a Hannes (en el canon no se consigue)",
+    "Esquivar los titanes que lanza el Acorazado"
+   ],
+   "enemigos": [
+    "Titán Acorazado (15 m): su armadura rompe las cuchillas; puntos débiles en corvas, axilas y ojos",
+    "Titán Colosal (60 m): vapor ardiente continuo que empuja y quema; no se le puede enganchar",
+    "Horda de 20-40 titanes puros de 3 a 15 m durante el rescate",
+    "Titán sonriente (unos 15 m)"
+   ],
+   "aliados": [
+    "Hange Zoë y sus equipos",
+    "Mikasa Ackerman",
+    "Eren Yeager, como titán aliado",
+    "Erwin Smith, en la carga de rescate",
+    "Hannes y la Guarnición",
+    "Jean Kirstein, Connie Springer, Armin Arlert e Historia Reiss",
+    "Ymir, ambigua: ayuda o traiciona según el momento"
+   ],
+   "civiles": "No hay civiles en la zona; los refugiados de Rose están bajo Wall Sina. El peso emocional lo llevan Hannes y la traición de compañeros de cuartel.",
+   "mecanicasQueIntroduce": [
+    "Jefe acorazado: solo es vulnerable en las articulaciones y cuando se le rompe la armadura",
+    "Zona prohibida por el vapor: empuja y quema, y los ganchos no sirven",
+    "Combate en lo alto de la muralla, con una caída de 50 m",
+    "Carga de caballería contra una horda",
+    "Titanes lanzados como proyectiles",
+    "Evento de la Coordenada: los puros cambian de bando unos segundos"
+   ],
+   "condicionVictoria": "Eren rescatado y retirada a la muralla.",
+   "condicionDerrota": "El Acorazado escapa con Eren o mueres.",
+   "textoNarrativoIntro": "Los compañeros con los que compartiste rancho tres años se paran en lo alto de la muralla y dicen la verdad sin alzar la voz. Un instante después el cielo se llena de vapor y de un relámpago que ya viste una vez, hace cinco años."
+  },
+  {
+   "id": "cap10-rebelion-orvud",
+   "titulo": "Capítulo 10: La rebelión. Kenny y Orvud",
+   "arcoYAnio": "Arco del Gobierno Real (manga cap. 51-69, anime T3 ep. 1-12), año 850",
+   "resumenHistoria": "El gobierno persigue al Cuerpo de Exploración. La Escuadra Antipersonal de la Policía Militar, al mando de Kenny Ackerman, caza personas con equipo de maniobras y pistolas; en Trost persigue al escuadrón de Levi por los tejados. Tras el golpe de Estado, Rod Reiss se convierte en un titán anormal gigantesco, de más de 100 m, que se arrastra hacia Orvud. Eren, transformado, le mete en la boca barriles de pólvora atados, y cuando el cuerpo revienta, Historia remata el trozo de nuca. Eso la lleva al trono.",
+   "ubicacionEnNuestroMundo": "La primera mitad es en el distrito actual como Trost (la persecución por los tejados del canon ocurre allí). La segunda mitad usa el mismo anillo vestido como Orvud, de noche, con el titán de Rod Reiss avanzando desde la llanura sur hacia la muralla.",
+   "objetivoPrincipal": "Escapar de la Escuadra Antipersonal por los tejados y después detener al titán de Rod Reiss antes de que derribe la muralla del distrito.",
+   "objetivosSecundarios": [
+    "Proteger a Eren y a Historia durante la persecución",
+    "Neutralizar a soldados antipersonales sin matarlos (opcional, por la ética del escuadrón)",
+    "Preparar los barriles de pólvora para la carga de Eren",
+    "Rematar los trozos de nuca que salen volando tras la explosión",
+    "Evitar daños a los civiles que miran desde la muralla"
+   ],
+   "enemigos": [
+    "Kenny Ackerman y la Escuadra Antipersonal (humanos con ganchos y pistolas de dos disparos)",
+    "Titán de Rod Reiss: anormal de más de 100 m que se arrastra y desprende calor, así que no se le puede cortar de cerca"
+   ],
+   "aliados": [
+    "Levi Ackerman",
+    "Mikasa Ackerman, Armin Arlert, Jean Kirstein, Connie Springer y Sasha Blouse",
+    "Historia Reiss",
+    "Hange Zoë y Moblit Berner",
+    "Eren Yeager, como titán endurecido"
+   ],
+   "civiles": "En Trost los vecinos ven la persecución sin entender nada. En Orvud no se evacúa a la población, que mira desde la muralla y desde las calles, y los trozos ardientes del titán pueden caerles encima.",
+   "mecanicasQueIntroduce": [
+    "Combate contra humanos que esquivan, disparan y se cubren",
+    "Persecución por los tejados entre humanos",
+    "Jefe gigantesco con un aura de calor que impide cortarlo de cerca",
+    "Explosivos colocados (barriles) y detonación",
+    "Rematar trozos de nuca en el aire"
+   ],
+   "condicionVictoria": "El titán de Rod Reiss destruido y la muralla en pie.",
+   "condicionDerrota": "Cae la muralla, capturan a Historia o a Eren, o mueres.",
+   "textoNarrativoIntro": "Por primera vez, quien te dispara desde los tejados lleva uniforme y tiene cara humana. Cuando esa guerra acaba, algo del tamaño de una colina se arrastra ardiendo hacia la muralla."
+  },
+  {
+   "id": "cap11-retorno-shiganshina",
+   "titulo": "Capítulo 11: Retorno a Shiganshina",
+   "arcoYAnio": "Arco del retorno a Shiganshina (manga cap. 70-90, anime T3 ep. 13-22), año 850",
+   "resumenHistoria": "Gracias al endurecimiento de Eren, el Cuerpo de Exploración marcha de noche hacia Shiganshina. Un centenar de soldados encapuchados esconde cuál de ellos es Eren mientras tapa las puertas. Los esperan el Acorazado, el Colosal y la Bestia, con un ejército de titanes puros y el Carguero. Hange y Levi usan las nuevas lanzas relámpago para cegar al Acorazado y reventarle la nuca blindada. La Bestia arrasa con lluvias de piedras a los soldados que están fuera de la puerta interior. Erwin encabeza una carga suicida con los reclutas para que Levi llegue hasta la Bestia saltando de titán en titán. El Colosal cae como una bomba dentro del distrito; Armin lo distrae a costa de su vida y Eren lo vence. Al final llegan al sótano de Grisha.",
+   "ubicacionEnNuestroMundo": "El distrito actual vestido como Shiganshina tras cinco años de abandono: hierba en las calles, casas hundidas, la puerta sur destrozada (θ=0) y la puerta interior norte rota. La Bestia y su ejército esperan en la llanura del lado interior (aquí el norte, fuera de la puerta interior) y el Carguero vigila desde la muralla. La meta es el sótano de la casa Yeager.",
+   "objetivoPrincipal": "Tapar las dos puertas, neutralizar al Acorazado con lanzas relámpago y sobrevivir hasta llegar al sótano de la casa Yeager.",
+   "objetivosSecundarios": [
+    "Marcha nocturna sin encender luces ni alertar a los titanes",
+    "Escoltar a Eren mientras tapa cada puerta con el endurecimiento",
+    "Primera lanza relámpago a los ojos del Acorazado y la segunda a la nuca",
+    "Ponerse a cubierto de la lluvia de piedras usando las casas",
+    "Participar en la carga de Erwin o en los saltos de Levi sobre los titanes",
+    "Proteger los caballos (sin ellos no hay vuelta)"
+   ],
+   "enemigos": [
+    "Titán Acorazado (15 m)",
+    "Titán Colosal (60 m), lanzado dentro del distrito: explosión y vapor",
+    "Titán Bestia (17 m): lanza piedras trituradas que barren zonas enteras",
+    "Titán Carguero (4 m): suministros y vigilancia",
+    "Ejército de 20-40 titanes puros de 3 a 15 m que rodea el distrito"
+   ],
+   "aliados": [
+    "Levi Ackerman, Erwin Smith y Hange Zoë",
+    "Escuadrón de Levi: Eren Yeager, Mikasa Ackerman, Armin Arlert, Jean Kirstein, Connie Springer y Sasha Blouse",
+    "Escuadrón de Hange: Moblit Berner y otros",
+    "Floch Forster y los reclutas de la carga"
+   ],
+   "civiles": "No hay ninguno: el distrito está muerto desde 845. La ausencia es el horror: mesas puestas, restos del día de la caída y la casa donde murió Carla.",
+   "mecanicasQueIntroduce": [
+    "Lanzas relámpago: proyectil que se clava y estalla a los pocos segundos, con munición muy limitada",
+    "Marcha nocturna sigilosa, con capas y sin luces",
+    "Escolta del endurecimiento de Eren para tapar las puertas",
+    "Bombardeo de área de un jefe lejano (hay que cubrirse)",
+    "Carga a caballo como señuelo",
+    "Saltar de titán en titán para alcanzar a un jefe lejano"
+   ],
+   "condicionVictoria": "Puertas tapadas, Acorazado neutralizado, Colosal y Bestia vencidos o en retirada, y llegada al sótano.",
+   "condicionDerrota": "Capturan a Eren, caen todos los soldados o mueres.",
+   "textoNarrativoIntro": "Vuelves de noche, con la capucha calada y sin hacer ruido, a la ciudad de la que huiste de niño. Sobre las calles donde todo empezó han crecido cinco años de hierba, y quienes la destruyeron llevan días esperándote."
+  }
+ ],
+ "tonoYReglas": [
+  "Tono: horror de supervivencia y desesperanza. La muerte de compañeros es frecuente, seca y nada épica: la música se corta tras la muerte de un aliado, no hay chistes en plena tensión y hay respiros breves (la noche, el rancho del cuartel, el discurso antes de una misión).",
+  "El jugador es un cadete ORIGINAL del 104.º, con nombre y aspecto a elegir, y no Eren. Vive los hechos canónicos junto a los personajes sin quitarles sus momentos clave: Eren lleva la roca, Armin lo despierta, Mikasa corta las corvas del Acorazado, Levi abate a la Bestia. Sí puede cambiar el destino de los secundarios (Thomas, Mina, Marco, el escuadrón de Levi, Ian, Mitabi). Habrá un «modo canon», en el que mueren quienes mueren en la historia, y un «modo libre», con muerte permanente según cómo juegues.",
+  "Titanes puros: miden de 2 a 15 m (en Trost sobre todo de 3 a 15). Solo mueren si se les corta la nuca: una franja de unos 1 m de alto por 10 cm de ancho en la base del cráneo. Cualquier otra herida se regenera soltando vapor blanco (los ojos en segundos, las extremidades más despacio). Al morir se evaporan. Ignoran a los animales: los caballos no les interesan.",
+  "Ataques como en el anime, cada uno con su efecto: (a) nuca: el corte con dos cuchillas mata si la profundidad, el ángulo y la velocidad bastan; (b) tobillos, tendón de Aquiles o corvas: el titán cae de rodillas unos segundos y deja la nuca expuesta; (c) ojos: ceguera temporal y golpes al azar; (d) muñeca o dedos: suelta a quien tenga agarrado; (e) ataque en pareja: uno distrae o ciega y el otro remata, la táctica canónica del depósito y de Mikasa con Levi.",
+  "Agresividad de los puros: detectan humanos con la vista (cono de visión y distancia), van a por el más cercano y prefieren grupos y multitudes (los distritos salientes existen para atraerlos). No piensan ni esquivan, pero agarran, muerden, pisan, dan manotazos, se estiran hacia los tejados y persiguen a quien huye. Un humano agarrado tiene unos 3-5 s para que lo rescaten antes de acabar en la boca.",
+  "Anormales: corren, saltan o gatean de forma errática. A menudo ignoran al humano más cercano para ir a por una multitud o un objetivo raro. Se avisan con bengala negra y en el HUD con el aviso «Titán anormal».",
+  "Ciclo de día y noche: de día están activos. Sin sol se van apagando poco a poco (en el canon, Sonny quedó casi inactivo en una hora y Bean seguía activo a las tres); en el juego, esos tiempos se escalan. Excepción canónica: en Utgard los titanes de Ragako, dirigidos por la Bestia, se mueven de noche.",
+  "Cambiantes como jefes, con alturas fijas: Femenino 14 m, Acorazado 15, Colosal 60, Bestia 17, Mandíbula 5 y Carguero 4. Cada uno tiene su regla: el Femenino endurece puños y nuca, el Acorazado tiene armadura con huecos en las articulaciones, el vapor del Colosal impide engancharse y quema, y la Bestia lanza piedras.",
+  "Recursos: el gas y las cuchillas son limitados; las cuchillas se mellan y se rompen. En Trost solo se recarga en el cuartel de suministros. Quedarse sin gas en el suelo es casi una sentencia de muerte, y ese es el tema central de la batalla.",
+  "Bengalas canónicas del Cuerpo de Exploración: roja, titán avistado; negra, anormal; verde, cambio de rumbo; morada, emergencia (alguien agarrado); azul, retirada; amarilla, misión terminada. La Guarnición usa la roja para «fracaso», como hace Rico en Trost.",
+  "Civiles: no luchan. Huyen en columnas hacia la puerta interior y forman atascos que atraen titanes. Su número y su supervivencia cuentan en la puntuación y cambian diálogos posteriores. Llevar a varios hasta la salida es más importante que matar titanes.",
+  "Escuadrón aliado: entre 2 y 5 compañeros canónicos con órdenes sencillas (seguirme, atacar mi objetivo, cebo o distracción, cegar, retirada o recargar). Gastan su propio gas, pueden ser agarrados y necesitan rescate, y comentan lo que pasa con frases breves.",
+  "La historia avanza al jugar con una máquina de estados por capítulo: los eventos se disparan por lugar, por tiempo y por porcentaje de evacuación, y cada capítulo enseña una mecánica nueva. El mismo distrito se reutiliza tres veces cambiando su aspecto: Shiganshina en 845, Trost en 850 y Shiganshina en ruinas en 850.",
+  "Texto y diálogos: breves, en español y parafraseados. No se copian diálogos literales largos del manga ni del anime. Los nombres canónicos solo se usan porque es un proyecto personal; el README ya advierte que, si se publicara, habría que cambiarlos.",
+  "Violencia: sangre roja muy saturada y vapor blanco como sello visual. Las muertes se sugieren con siluetas, fuera de plano o con cortes de cámara, sin desmembramientos detallados. El horror sale de la impotencia, no de la casquería."
+ ],
+ "alcanceRecomendadoAhora": "IMPLEMENTAR YA, en esta iteración y con el mundo existente: los capítulos 2 (Trost I: La brecha) y 3 (Trost II: El depósito), encadenados en una sola misión «Defensa de Trost». Además, una versión mínima del capítulo 1: un tutorial de 3-5 minutos con siluetas de madera de 3, 7 y 15 m con la nuca marcada en el borde del bosque, para enseñar los cuatro ataques (nuca, tobillos y corvas, ojos, muñeca) antes de la batalla. Estos dos capítulos cubren todo lo que pide el usuario: ataques y puntos débiles, titanes agresivos que ven humanos, civiles a proteger, escuadrón aliado y una historia que avanza al jugar.\n\nCambios concretos en el mundo para hacerlo:\n(1) Abrir un boquete de unos 8 m en la hoja de la puerta sur (puntoAnillo θ=0). Los titanes de más de 8 m entran agachados.\n(2) Añadir una puerta interior al norte (θ=π, z≈−236) como punto de evacuación, como en el canon, con el evento del carro atascado de Reeves.\n(3) Convertir el depósito de la plaza (14, 0, 12) en el cuartel de suministros: edificio de piedra de dos plantas con nave interior, vigas enganchables y un montacargas. Durante la misión, el gas solo se recarga ahí.\n(4) Una máquina de estados de la misión: muralla y cañones → Colosal (guion de 60 m: cabeza sobre la muralla, patada y vapor) → retaguardia media con contador de evacuación → campana de retirada → asalto al depósito → escalar la muralla norte.\n(5) Entre 10 y 20 titanes puros de 3 a 15 m que entran a oleadas, más 1 o 2 anormales, dentro del límite de rendimiento del dossier (60 fps con unos 20 titanes).\n(6) Entre 40 y 150 civiles NPC sencillos (instanciados) que avanzan por la avenida central hacia el norte.\n(7) Un escuadrón de 4-5 cadetes canónicos con órdenes (Armin, Thomas, Mina, Nac, Mylius; y para el depósito, Jean, Connie, Sasha, Marco y Mikasa).\n(8) El titán misterioso (Eren, 15 m) como IA neutral que solo ataca titanes.\n(9) Bengalas morada, roja y amarilla y la campana de retirada.\n\nSIGUIENTE ITERACIÓN: el capítulo 4 (La roca), que necesita la escolta de un titán aliado de 15 m con la roca, los cañones de la muralla disparables, la red de arpones, el escuadrón de élite de Ian, Rico y Mitabi, y la llegada de Levi. También la limpieza con captura de Sonny y Bean como modo libre. Después, el prólogo de 845, reutilizando el distrito como Shiganshina: necesita un modelo de niño sin equipo de maniobras, sigilo por línea de visión, cascotes guionizados y la carga del Acorazado.\n\nMÁS ADELANTE (fases 4-5 del dossier): los capítulos 5 y 6 (caballo, formación de largo alcance, bengalas completas y el Titán Femenino en el bosque que ya existe) y el capítulo 9 (Acorazado y Colosal en lo alto de la muralla, que ya es transitable).\n\nAL FINAL: el capítulo 7 (Stohess, que reutiliza el distrito), el 8 (Utgard, que necesita aldeas y castillo), el 10 (Kenny y Orvud, con combate contra humanos y un jefe de más de 100 m) y el 11 (Retorno a Shiganshina con lanzas relámpago, Bestia y Carguero).\n\nFUERA DE ALCANCE por ahora: lo de 854 (Marley, Liberio, la guerra por Paradis y el Retumbar).\n\nNota técnica: la muralla actual es un anillo con una sola puerta, así que la puerta interior norte es el único añadido estructural imprescindible. Sirve en los capítulos 0, 2, 3, 4 y 11.",
+ "fuentes": [
+  "Dossier del usuario: /root/.claude/uploads/4d243384-4963-5adf-b954-af96a82233f5/e0805b01-titan_of_titan.pdf (págs. 1-5: geografía, distritos, tono y cronología; págs. 20-23: mundo, bengalas, misiones y fases)",
+  "https://attackontitan.fandom.com/wiki/Battle_of_Trost_District",
+  "https://attackontitan.fandom.com/wiki/Trost_District",
+  "https://attackontitan.fandom.com/wiki/The_Struggle_for_Trost_arc",
+  "https://attackontitan.fandom.com/wiki/Fall_of_Wall_Maria",
+  "https://attackontitan.fandom.com/wiki/Hannes",
+  "https://attackontitan.fandom.com/wiki/Eren_Yeager",
+  "https://attackontitan.fandom.com/wiki/104th_Training_Corps_arc",
+  "https://attackontitan.fandom.com/wiki/57th_Exterior_Scouting_Mission_(Anime)",
+  "https://attackontitan.fandom.com/wiki/Forest_of_Giant_Trees:_The_57th_Exterior_Scouting_Mission,_Part_2",
+  "https://attackontitan.fandom.com/wiki/Karanes_District",
+  "https://attackontitan.fandom.com/wiki/Signal_flare",
+  "https://attackontitan.fandom.com/wiki/Stohess_District_raid",
+  "https://attackontitan.fandom.com/wiki/Assault_on_Stohess_arc",
+  "https://attackontitan.fandom.com/wiki/Wall_Rose_invasion",
+  "https://attackontitan.fandom.com/wiki/List_of_Attack_on_Titan_episodes/Season_2",
+  "https://attackontitan.fandom.com/wiki/Royal_Government_arc",
+  "https://attackontitan.fandom.com/wiki/Return_to_Shiganshina_arc",
+  "https://attackontitan.fandom.com/wiki/Perfect_Game_(Episode)",
+  "https://attackontitan.fandom.com/wiki/Shiganshina_District",
+  "https://attackontitan.fandom.com/wiki/Sonny",
+  "https://en.wikipedia.org/wiki/Attack_on_Titan_season_3",
+  "https://villains.fandom.com/wiki/Anti-Personnel_Control_Squad",
+  "https://www.denofgeek.com/tv/attack-on-titan-season-3-episode-14-review-thunder-spears",
+  "https://otakumode.com/otapedia/anime/attack_on_titan/trost_district_arc",
+  "https://otakumode.com/otapedia/anime/attack_on_titan/clash_arc",
+  "https://daddyjim.ai/attack-on-titan/episode/I-Can-Hear-His-Heartbeat-The-Struggle-for-Trost-Part-4 (plan del depósito; fuente secundaria)",
+  "https://daddyjim.ai/attack-on-titan/manga-chapter/Necessity (prueba de equilibrio; fuente secundaria)",
+  "https://sportskeeda.com/anime/10-highest-ranked-cadets-attack-titan-s-104th-training-corps (top 10 del 104.º; fuente secundaria)",
+  "https://halloweencostumes.com/blog/p-777-colossal-spoiler-alert-attack-on-titan-how-to-kill-a-titan-infographic.aspx (clases de tamaño y nuca; infografía fan, contrastada con el dossier)",
+  "https://mein-mmo.de/en/attack-on-titan-abnormale-titanen-glitch,1117129 (Isayama sobre los anormales como «fallos»; fuente secundaria)",
+  "Nota: attackontitan.fandom.com está bloqueado por el proxy de este entorno; las páginas de la wiki se consultaron con Firecrawl (Battle of Trost District, Fall of Wall Maria y Wall Rose invasion completas) y con extractos de búsqueda. La cuenta de Firecrawl avisó de que le quedan pocos créditos."
+ ]
+}
