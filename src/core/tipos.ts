@@ -35,7 +35,20 @@ export interface Humano {
 
 // ───────────────────────── Titanes ─────────────────────────
 
-export type ZonaTitan = 'nuca' | 'tendonIzq' | 'tendonDer' | 'ojos' | 'brazoIzq' | 'brazoDer' | 'cuerpo';
+export type ZonaTitan =
+  | 'nuca'
+  | 'tendonIzq' // tendón de Aquiles
+  | 'tendonDer'
+  | 'corvaIzq' // detrás de la rodilla
+  | 'corvaDer'
+  | 'ojoIzq'
+  | 'ojoDer'
+  | 'brazoIzq' // hombro/deltoides y codo
+  | 'brazoDer'
+  | 'manoIzq' // muñeca y dedos: solo activa mientras sujeta a alguien
+  | 'manoDer'
+  | 'mandibula' // solo activa con la boca abierta para devorar
+  | 'cuerpo';
 
 export interface PuntoDebil {
   readonly zona: ZonaTitan;
@@ -43,8 +56,13 @@ export interface PuntoDebil {
   readonly centro: THREE.Vector3;
   /** Radio de la esfera de impacto (m). */
   readonly radio: number;
-  /** Normal hacia fuera de la superficie (para el factor de ángulo del corte). */
+  /** Normal hacia fuera de la superficie. */
   readonly normal: THREE.Vector3;
+  /**
+   * Eje de la columna o del miembro en esa zona (unitario). El tajo rinde más cuanto más
+   * perpendicular a este eje pasa la cuchilla. Por defecto, la vertical del titán.
+   */
+  readonly eje?: THREE.Vector3;
   /** false mientras la zona está cortada y regenerándose (o el titán ha muerto). */
   readonly activo: boolean;
 }
@@ -61,7 +79,17 @@ export type EstadoTitan =
   | 'muriendo'
   | 'muerto';
 
-export type EfectoCorte = 'muerte' | 'derribo' | 'ceguera' | 'brazo' | 'superficial' | 'nada';
+export type EfectoCorte =
+  | 'muerte' // nuca por encima del umbral
+  | 'herida' // nuca por debajo: vapor, tambaleo, se regenera
+  | 'cojera' // un tendón
+  | 'derribo' // dos tendones o una corva: cae de rodillas
+  | 'ceguera' // ojo(s)
+  | 'brazo' // brazo inutilizado/amputado
+  | 'liberacion' // soltó a quien tenía en la mano o en la boca
+  | 'superficial' // por debajo del umbral de la zona
+  | 'rebote' // demasiado lento (< 8 m/s): no corta y mella
+  | 'nada';
 
 export interface ResultadoCorte {
   zona: ZonaTitan;

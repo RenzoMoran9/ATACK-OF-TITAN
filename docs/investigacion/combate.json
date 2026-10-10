@@ -1,0 +1,455 @@
+{
+ "puntosDebiles": [
+  {
+   "zona": "Nuca (único punto letal)",
+   "canon": "Zona de 1 m de largo por 10 cm de ancho en la nuca, donde está el sistema nervioso central. En los titanes puros es solo la columna del humano absorbido. Es la única forma segura de matarlos: regeneran incluso la cabeza cortada si la nuca no se va con ella. Al morir, el cadáver se evapora hasta quedar en esqueleto y luego desaparece (wiki Titan; dossier p. 8). En el S1E8 (cuartel de suministros), Sasha y Connie hacen cortes poco profundos y el titán sigue vivo, así que Mikasa y Annie tienen que rematar: el corte tiene que llegar a cierta profundidad.",
+   "efectoEnJuego": "Muerte solo si el daño del corte (o la suma de varios cortes seguidos) supera el umbral U del titán. Por debajo de U es una 'herida en la nuca': sale un chorro de vapor, el titán se tambalea un momento (si es de los que sienten dolor) y la herida se cierra deprisa. Dos cortes rápidos, por ejemplo del jugador y de un aliado en menos de ~1,5 s, sí suman. Al matarlo: cámara lenta de 0,3 s, el titán cae hacia delante, columna de vapor y evaporación.",
+   "tamanoYPosicion": "Canon 1 m × 0,10 m. El tamaño crece menos que la altura, porque lo que hay dentro es una columna humana: s = sqrt(H/10). Quedan 0,55 m × 5,5 cm (3 m), 0,63 × 6,3 cm (4 m), 0,84 × 8,4 cm (7 m), 1,0 × 10 cm (10 m) y 1,22 m × 12 cm (15 m). Va vertical, desde la base del cráneo hacia abajo: borde superior en y ≈ cabeza.y − 0,8·radioCabeza, que con las PROPORCIONES de titan.ts es ≈0,72H en el larguirucho y ≈0,63H en el barrigón; centrada en x = 0 y pegada a la piel de atrás del cuello (z ≈ −0,065H). Para que se pueda jugar, la hitbox es un SENSOR (no sólido) más grande que la franja canónica: ancho efectivo = ancho + 0,5 m (alcance de la cuchilla), largo + 0,3 m, profundidad 0,35 m + 0,02H. Va colgada del grupo 'superior' para que siga la inclinación y la caída del torso. Ojo: la caja 'nuca' actual de titan.ts es sólida y usa escala H/1,7 (en uno de 15 m mide ~2,2 m de alto y 0,84 m de ancho); hay que cambiarla.",
+   "regeneracion": "La herida no letal se cierra sola: el daño acumulado baja a razón de U/6 por segundo, empezando 1 s después del corte, así que tarda ~6 s en cerrarse del todo. El vapor sale con una intensidad proporcional al daño que queda. Muerta, no se regenera: caída 1,5–2 s, vapor masivo 10 s, desaparece a los ~12 s. Los colisionadores se quitan a los 6 s y los ganchos clavados se sueltan."
+  },
+  {
+   "zona": "Tendón de Aquiles (detrás del tobillo)",
+   "canon": "Cortar tendones de tobillos o rodillas inmoviliza al titán antes de rematarlo (dossier 3.1; el Escuadrón de Levi le corta los músculos de las piernas al Femenino en 'The Defeated'). El cebo, el apoyo a tendones y el rematador forman el equipo clásico.",
+   "efectoEnJuego": "Un tendón cortado: cojea, su velocidad baja a ×0,45 y no puede esprintar ni hacer embestidas. Los dos: cae de rodillas (o a cuatro patas si es barrigón). La nuca baja a ~0,45H y queda accesible desde el suelo o desde un tejado bajo. Durante 1,2 s después de caer no puede agarrar.",
+   "tamanoYPosicion": "Caja sensor de 0,08H de alto × 0,05H de ancho × 0,05H de fondo, en la parte posterior del tobillo (y 0,03H–0,11H, z = tobillo.z − radioPierna·0,8·H). Hay que acercarse en vuelo bajo y por detrás o por un lado.",
+   "regeneracion": "Base 10 s × factor del titán (0,7–1,3; los anormales ×0,8). Durante la regeneración sale vapor del tobillo y, cuando el tendón vuelve, se levanta en 1,5 s."
+  },
+  {
+   "zona": "Corva (detrás de la rodilla)",
+   "canon": "Variante del corte a tendones (dossier: 'tobillos o rodillas'). Las corvas también son, junto con los codos, las articulaciones sin blindaje del Acorazado; servirá para jefes más adelante.",
+   "efectoEnJuego": "Igual que el tendón de Aquiles, pero cae antes y más fuerte: una corva cortada = rodilla al suelo durante el 60 % del tiempo de regeneración. Es más fácil de alcanzar en los titanes grandes, porque el tobillo de uno de 15 m está casi pegado al suelo.",
+   "tamanoYPosicion": "Caja sensor de 0,07H × 0,06H × 0,04H detrás de la rodilla, en y = (cadera − muslo)·H según las PROPORCIONES, un poco hacia atrás (z = rodilla.z − radioPierna·H).",
+   "regeneracion": "Base 12 s × factor. Vapor desde la rodilla."
+  },
+  {
+   "zona": "Ojos",
+   "canon": "Cegar es parte de la técnica para inmovilizar: Levi le apuñala los ojos al Femenino y Petra y Oluo se los arrancan. En el cuartel de suministros (S1E8) los cadetes disparan a los ojos de siete titanes pequeños antes de saltar a por la nuca. El Femenino es capaz de regenerar un solo ojo concentrándose en él (así mata a Eld).",
+   "efectoEnJuego": "Un ojo: el cono de visión se queda en la mitad de ese lado y el titán gira la cabeza buscando. Los dos: estado CIEGO; pierde el objetivo, se lleva las manos a la cara 1 s y luego lanza manotazos a ciegas hacia la última posición conocida y hacia los ruidos de gas cercanos (≤15 m). Es la mejor ventana para el rematador.",
+   "tamanoYPosicion": "Esfera sensor de radio 0,2·radioCabeza·H por ojo, delante en la cara (x ±0,35·rc, y +0,1·rc respecto al centro de la cabeza, z +0,92·rc), colgada del grupo 'cabeza'. Un mismo tajo horizontal puede alcanzar los dos.",
+   "regeneracion": "Base 12 s × factor; los anormales pueden regenerar un ojo antes que el otro (60 % del tiempo). Vapor saliendo de las cuencas."
+  },
+  {
+   "zona": "Hombro / músculos del brazo",
+   "canon": "Cortar los brazos para que no te atrape (dossier 3.1). En el bosque, el Escuadrón de Levi le corta los hombros al Femenino y los brazos le quedan colgando, inútiles. Levi destroza el brazo del Femenino más rápido de lo que ella puede endurecerse.",
+   "efectoEnJuego": "Brazo inutilizado: cuelga flácido (se ve con IK desactivada) y no puede agarrar ni dar manotazos con ese lado. Con los dos brazos fuera solo le queda la embestida con mordisco. Si el corte llega a 1,6U, el antebrazo se separa y cae (un trozo que humea).",
+   "tamanoYPosicion": "Cápsula sensor en la parte de arriba y de atrás del hombro (deltoides), de radio 0,06H, más una segunda cápsula en el codo de radio 0,04H. Colgadas del 'superior'.",
+   "regeneracion": "Base 20 s × factor si solo está inutilizado; 30 s si está amputado (vuelve a crecer escalando de 0 a 1 en el último 40 % del tiempo)."
+  },
+  {
+   "zona": "Muñeca y dedos (liberar un agarre)",
+   "canon": "Si un titán te agarra, un compañero puede salvarte (dossier, prompt 3). Eren saca a Armin de la boca del titán y es engullido en su lugar (S1E5).",
+   "efectoEnJuego": "Mientras el titán sujeta a alguien (al jugador, a un aliado o a un civil), cortarle la muñeca o los dedos hace que suelte a la víctima. Desde dentro, cada F del QTE es un corte a los dedos. También sirve fuera del agarre: con la mano dañada, el siguiente intento de agarre tarda +1 s.",
+   "tamanoYPosicion": "Cápsula sensor de radio 0,035H en la muñeca y una esfera de radio 0,05H en la mano. Solo se activan como punto débil mientras la mano está cerrada.",
+   "regeneracion": "6 s × factor."
+  },
+  {
+   "zona": "Mandíbula / mejillas (liberar un mordisco)",
+   "canon": "En 'The Defeated' (S1E22), Levi le corta las mejillas y la mandíbula al Femenino hasta que se le abre la boca y Eren cae libre.",
+   "efectoEnJuego": "Si la víctima ya está en la boca (fase final del agarre o mordisco con embestida), un corte a la mandíbula hace que la boca se abra y la víctima caiga. Es la última oportunidad de rescate antes de que la devore.",
+   "tamanoYPosicion": "Dos cápsulas sensor en las comisuras (x ±0,6·rc, y −0,35·rc, z +0,8·rc) de radio 0,12·rc. Solo están activas en la fase BOCA.",
+   "regeneracion": "8 s × factor."
+  },
+  {
+   "zona": "Cabeza y torso (no letales)",
+   "canon": "Regeneran hasta la cabeza si la nuca no se va con ella. Algunos ignoran heridas terribles, incluso que les atraviesen el corazón, y siguen atacando; otros chillan y se retuercen.",
+   "efectoEnJuego": "Hacen poco daño útil: vapor, desgaste de cuchilla y que el titán se fije en ti. Decapitar sin llevarse la nuca lo deja quieto 30 s (sin visión ni mordisco), pero sigue vivo. Según su perfil de dolor ('indiferente' 50 % o 'sensible' 50 %), los sensibles se tambalean 1,2 s con cada corte en las extremidades.",
+   "tamanoYPosicion": "Son los colisionadores sólidos que ya existen (cápsulas del torso y las extremidades y la bola de la cabeza), que siguen sirviendo para clavar los ganchos y chocar con ellos.",
+   "regeneracion": "Heridas superficiales: 5 s. Cabeza: 30 s × factor."
+  }
+ ],
+ "tecnicasJugador": [
+  {
+   "nombre": "Tajo a la nuca con balanceo (técnica básica)",
+   "comoEnElAnime": "Anclarse al titán o a un edificio que tenga detrás, recoger cable para coger velocidad y soltarse justo antes de pasar por la nuca, cruzándola en horizontal. El golpe es más fuerte cuanto más rápido vas (dossier 3.1 y 6.4; prompt 3).",
+   "mecanica": "Mantener F carga el tajo: brazos atrás, el cuerpo se enrolla y se reduce un poco la resistencia del aire. Al soltarlo, el tajo dura 0,25 s. En ese tiempo se barren dos cápsulas de cuchilla (1 m desde cada mano, arco de 180° alrededor del jugador) con castShape o intersectionsWithShape contra los sensores de puntos débiles. Daño D = v_rel × 10 × fÁngulo × fFilo × fTécnica, donde v_rel es la velocidad del jugador menos la del punto del titán (m/s), fÁngulo = 0,35 + 0,65·|sin θ| (θ es el ángulo entre la trayectoria y el eje de la columna; perpendicular = 1) y fFilo = 0,5 + 0,5·durabilidad/100. Por debajo de 8 m/s la cuchilla rebota: 0 de daño y −5 de durabilidad. Asistencia: si en el momento de soltar la nuca está a ≤6 m y te acercas a ella, el cuerpo se orienta solo para cruzarla en perpendicular. Animación: giro de cadera de 90–180°, piernas recogidas, la capa se ondula en el sentido del tajo y queda una estela blanca en el arco de las cuchillas.",
+   "controlPropuesto": "F (mantener = preparar, soltar = tajo). Con el mando, el botón lateral."
+  },
+  {
+   "nombre": "Pasada baja a los tendones",
+   "comoEnElAnime": "El atacante de apoyo pasa rasante por detrás de las piernas y corta los tendones de los tobillos o las corvas para tirar al titán, y el rematador le corta la nuca cuando está en el suelo (dossier 3.1; Levi y Mikasa contra el Femenino).",
+   "mecanica": "Si vuelas por debajo de 0,2H de la altura del titán y a menos de 3 m de un tendón o una corva, F lanza un tajo corto (0,15 s, sin carga) que apunta solo al tendón más cercano. Con más de 12 m/s y un buen ángulo supera 0,35U. Con los dos tendones cortados cae de rodillas; el HUD lo indica y marca la nuca baja.",
+   "controlPropuesto": "F al pasar en vuelo bajo (pulsación corta)."
+  },
+  {
+   "nombre": "Cegar (corte a los ojos)",
+   "comoEnElAnime": "Levi y Petra le sacan los ojos al Femenino; en el cuartel de suministros se dispara a los ojos para inmovilizar a los titanes antes del golpe a la nuca.",
+   "mecanica": "Tajo cruzado por delante de la cara (umbral 0,2U, así que cualquier corte por encima de 8 m/s funciona). Es arriesgado porque estás en su cono de visión y al alcance de la mano. Se combina con el cebo: cuando el titán está mirando a otro, puedes atacar desde un lado.",
+   "controlPropuesto": "F pasando por delante de la cara (o fijando el objetivo con Tab)."
+  },
+  {
+   "nombre": "Desarmar (hombros y brazos)",
+   "comoEnElAnime": "Cortar los músculos de los hombros para que los brazos caigan y dejen la nuca al descubierto (Escuadrón de Levi contra el Femenino).",
+   "mecanica": "Tajo al deltoides o al codo con umbral 0,5U. Cada brazo inutilizado quita uno de los dos ataques de agarre. Recomendado contra titanes de 10–15 m antes de ir a la nuca, porque su alcance de agarre es enorme (≈0,45H).",
+   "controlPropuesto": "F apuntando al hombro (Tab para fijar la parte)."
+  },
+  {
+   "nombre": "Ataque giratorio de Levi (Giro espiral)",
+   "comoEnElAnime": "Levi agarra la cuchilla derecha al revés, con el filo hacia fuera, y así corta 'en círculo' a su alrededor sin perder velocidad. Un oficial lo llama una forma 'incorrecta' de agarrar; para él lo único que importa es cortar la nuca (dossier 3.1). Contra el Femenino la ciega y le destroza piernas, brazo y mandíbula en una sola acometida. Fuera del canon, el Tribute Game tiene un ataque giratorio que hace más daño si da en la nuca desde un lado.",
+   "mecanica": "Habilidad que se desbloquea (por ejemplo, tras 10 muertes en la nuca). Requisitos: estar anclado al titán (al menos un gancho en su carne) y recogiendo cable a más de 25 m/s. El jugador gira a 3,5 vueltas/s durante 0,8 s siguiendo la trayectoria del cable. Cada 0,13 s se comprueba un golpe (hasta 6), y cada uno hace D × 0,6 contra cualquier parte que toque en el recorrido (ojos, hombro, tendones, nuca). En la nuca, los golpes se suman a la herida acumulada, así que normalmente la mata si entran 3–4. Coste: 6 de gas; la cuchilla se desgasta ×1,5. Al terminar, 0,4 s de recuperación sin poder cortar. Cámara: barrido orbital rápido y ligero desenfoque radial.",
+   "controlPropuesto": "Doble toque de F mientras recoges cable anclado al titán (alternativa: F + Espacio)."
+  },
+  {
+   "nombre": "Anclarse al titán y orbitarlo",
+   "comoEnElAnime": "Los ganchos se clavan en la carne de los titanes y el combate real consiste en balancearse alrededor de ellos (dossier 2.1–2.2). Wings of Freedom lo hacía fijando partes y orbitando hasta encontrar el ángulo.",
+   "mecanica": "El gancho guarda {titán, hueso o grupo, punto local}; en cada tick, ancla = hueso.matrixWorld × puntoLocal, así que se mueve con el titán. Con un cable anclado al titán, Espacio aplica la componente tangencial que ya existe (fuerzaOrbita) y mantiene el radio. A 20 m/s y unos 12 m de radio sales a ~95°/s, más rápido de lo que gira un titán de 15 m (62°/s): puedes ponerte a su espalda. Si el titán te tira del cable (te arrastra al moverse), el cable aguanta hasta una tensión equivalente a 25 m/s² y por encima se suelta solo. Cámara en modo órbita, encuadrando al jugador y la nuca.",
+   "controlPropuesto": "Clic izq./der. (Q/E) sobre el titán + Espacio para orbitar (controles actuales)."
+  },
+  {
+   "nombre": "Cuchillas que se mellan y recambio",
+   "comoEnElAnime": "Las cuchillas son de acero ultraduro, flexible pero quebradizo: el filo se mella con el uso y acaban rompiéndose. Las de repuesto van en las vainas de los muslos y se cambian en el momento (wiki Vertical maneuvering equipment / Ultrahard steel). Las usadas se tiran.",
+   "mecanica": "Durabilidad 100 por par. Desgaste = 3 + D/50 por golpe útil (una muerte en la nuca de uno de 15 m ≈ −10); ×2 si fÁngulo < 0,5; −40 al golpear piedra, muralla o suelo; si es una superficie endurecida (jefes), se rompe. Con menos de 30: la cuchilla se ve mellada y sale el aviso '¡Cuchilla mellada!' (además fFilo ya reduce el daño). A 0: '¡Cuchilla rota!' y no puedes cortar hasta cambiarlas. El cambio tarda 0,6 s, durante los cuales eres vulnerable y no puedes cortar; las hojas usadas caen y se quedan en el mundo 30 s. Llevas 1 par montado y 4 de repuesto. Se recargan en las cajas de suministro (5 s, se puede interrumpir).",
+   "controlPropuesto": "R = cambiar cuchillas (pasar 'reaparecer' a Retroceso o al menú). En el HUD: barra del par actual + número de repuestos."
+  },
+  {
+   "nombre": "Esquiva in extremis (impulso contra el agarre)",
+   "comoEnElAnime": "Los soldados escapan de la mano en el último instante recogiendo o impulsándose con gas. A.O.T. 2 lo convirtió en el 'Hook Drive': esquivar justo antes del golpe abre un remate fuerte.",
+   "mecanica": "Si impulsas (Espacio) o cambias de ancla en los 0,25 s anteriores a que se cierre la mano, esquivas seguro: 0,4 s de cámara lenta ×0,5 y el siguiente tajo antes de 1,5 s lleva fTécnica 1,25.",
+   "controlPropuesto": "Espacio o un nuevo gancho con buen timing (el HUD marca el destello de la mano antes de que te agarre)."
+  },
+  {
+   "nombre": "Rescate (cortar la mano o la mandíbula de un captor)",
+   "comoEnElAnime": "Un compañero puede salvarte del agarre (dossier). Eren saca a Armin de la boca; Levi le corta la mandíbula al Femenino para liberar a Eren.",
+   "mecanica": "Cuando un titán tiene a alguien en la mano o en la boca, ese punto débil se resalta. Un corte por encima del umbral libera a la víctima: los aliados vuelven a volar y los civiles caen. Si un civil cae desde más de 6 m sin que lo atrapen, queda herido pero vivo, y se cuenta como salvado.",
+   "controlPropuesto": "F sobre la mano o la boca marcadas."
+  },
+  {
+   "nombre": "Bengala cegadora y de señales",
+   "comoEnElAnime": "Las bengalas sirven para avisar con humo (rojo = titán, negro = anormal, morado = emergencia, azul = retirada, verde = cambio de rumbo, amarillo = misión cumplida) y también para tapar la visión del enemigo o frenar a un titán rápido. Con lluvia no sirven (dossier 3.2).",
+   "mecanica": "Disparo balístico a 50 m/s. Si estalla a ≤4 m de la cara, deja ciego al titán 3 s (no es una herida, no hay regeneración). Si se dispara hacia arriba, crea una columna de humo de color que los aliados leen como orden.",
+   "controlPropuesto": "G = disparar el color seleccionado; mantener G = rueda de colores."
+  },
+  {
+   "nombre": "Fijar parte del titán (opcional)",
+   "comoEnElAnime": "Es una ayuda de los juegos de Koei Tecmo (fijar brazos, piernas o nuca y anclarse ahí), no del anime.",
+   "mecanica": "Tab recorre los puntos débiles visibles del titán más cercano que tengas delante. La asistencia de los ganchos y del tajo prioriza la parte fijada. La retícula muestra en verde si con tu velocidad actual el tajo superaría el umbral y en rojo si no.",
+   "controlPropuesto": "Tab (y rueda del ratón para cambiar de parte)."
+  }
+ ],
+ "comportamientoTitanes": [
+  {
+   "estado": "Deambular (inactivo de día)",
+   "canon": "No tienen inteligencia y se mueven sin rumbo; no interactúan con ningún ser vivo que no sea humano: ignoran caballos y animales (wiki Titan).",
+   "implementacion": "Paseo aleatorio por puntos de la llanura o de las calles (cambio de destino cada 8–20 s), a 0,8 + 0,18H m/s. Andar torpe procedural: balanceo lateral de ±6°, brazos colgando con un muelle de retraso, cabeza que bambolea, y cada 10–30 s un traspié o una parada a mirar al cielo. Los caballos y los animales no cuentan como objetivo."
+  },
+  {
+   "estado": "Detectar (vista + concentración de humanos)",
+   "canon": "Se guían sobre todo por la vista y por dónde hay más humanos; tienen olor (Mike los huele). Los anormales van directos a la mayor concentración: la multitud en la puerta de Trost, el centro de la formación, el distrito de Orvud (wiki Abnormal; dossier 4.1).",
+   "implementacion": "Cada 0,25 s, con un rayo de línea de visión desde la cabeza. Cono de ±70° en horizontal, +60°/−40° en vertical (miran hacia arriba), alcance de 35 + 5H m (por la noche ×0,5; el humo de bengala y los edificios tapan). Además, 360° a 6 + 0,8H m (tacto y olor) y oído del gas: 30 m al impulsarse, 15 m al recoger. Reacción de 0,4–1,0 s: gira la cabeza, se queda mirando y luego gira el cuerpo. Prioridad de cada humano = (1 + 0,5·nº de humanos a menos de 15 m de él) / (distancia/10 + 1). Se recalcula cada 1 s con una rejilla espacial de celdas de 20 m, así que las multitudes atraen más."
+  },
+  {
+   "estado": "Perseguir",
+   "canon": "Su cuerpo es ligerísimo para su tamaño, con una movilidad casi humana: corren y saltan más de lo que aparentan. Un ODM es tan rápido o más que un titán; fuera de las murallas no se les deja atrás sin caballo (wiki Titan y VME; wiki Horse).",
+   "implementacion": "Velocidad de 2,5 + 0,55H m/s (4,2 m/s con 3 m, 10,8 m/s con 15 m), aceleración en 0,6 s, giro máximo de 240/sqrt(H) °/s (139°/s con 3 m, 62°/s con 15 m): giran mal, por eso orbitar funciona. Pose de carrera: torso inclinado 25°, brazos agitándose, boca abierta. Esquiva de casas con steering por rayos y una rejilla de flujo de 4 m dentro del distrito; no rompen casas en esta fase. Si pasa 6 s sin verte, va a tu última posición conocida, busca 8 s y vuelve a deambular. Un saltito hacia objetivos altos de hasta 0,3H."
+  },
+  {
+   "estado": "Alargar la mano / agarrar",
+   "canon": "'Agarrar y comer' es su ataque letal. Cortarles los brazos impide que te atrapen (dossier 3.1 y 4.1).",
+   "implementacion": "Se dispara si el objetivo está a ≤0,45H del hombro. Aviso: brazo atrás durante 0,5 + 0,03H s y un destello en la mano en el HUD; luego la mano viaja en 0,35 s, con IK de dos huesos hacia la posición prevista del objetivo. Esfera de captura de 0,06H + 0,5 m en la mano: si el objetivo está dentro cuando se cierra, pasa a AGARRE. Si falla, 1,5 s de recuperación. Con un brazo inutilizado usa el otro; sin brazos, solo embiste con mordisco."
+  },
+  {
+   "estado": "Manotazo",
+   "canon": "Los cegados o los que no alcanzan a agarrar lanzan golpes a ciegas (dossier, prompt 3).",
+   "implementacion": "Contra objetivos que vuelan cerca pero fuera del arco de agarre, o en estado CIEGO hacia la última posición o el ruido. Barrido del antebrazo en 0,3 s: al jugador le hace 30 + 3H de daño y lo empuja a 15 m/s, y le corta los dos cables si lo pilla anclado al brazo."
+  },
+  {
+   "estado": "Morder / devorar",
+   "canon": "Un anormal salta de la nada y atrapa a Thomas con la boca (S1E5); otros llevan a la víctima a la boca y la tragan. No tienen digestivo completo: cuando se llenan, vomitan (wiki Titan y Abnormal).",
+   "implementacion": "Agarre → levantar a la boca (1,0 + 0,05H s) → abrir boca (0,8 s) → tragar. Los de 3–7 m y los anormales también hacen embestida con mordisco directo: alcance 0,5H + 2 m, aviso de 0,4 s, y el objetivo entra en la fase BOCA con una ventana corta. El devorado se resuelve con fundido y sonido, sin gore explícito. Opcional: capacidad de 3–6 humanos; al llenarse, vomita y se queda quieto 5 s (ventana para atacar)."
+  },
+  {
+   "estado": "Caído (tendones cortados)",
+   "canon": "Cortarle los tendones lo tira al suelo antes de rematarlo (dossier 3.1).",
+   "implementacion": "Con un tendón cortado, cojea (×0,45). Con dos, o con una corva, cae de rodillas o se apoya en las manos: nuca a ~0,45H, sin agarrar durante 1,2 s y después solo agarre a ras de suelo. Se levanta en 1,5 s cuando se regenera. Es el estado preferido del rematador aliado."
+  },
+  {
+   "estado": "Ciego",
+   "canon": "Cegar le hace perder el objetivo; el Femenino regenera un solo ojo para contraatacar.",
+   "implementacion": "Pierde el objetivo y se tapa la cara 1 s. Después, manotazos a ciegas hacia la última posición conocida y hacia el ruido de gas a menos de 15 m, durante 12 s × factor. Si recupera un ojo antes (anormales), vuelve a perseguir con medio cono."
+  },
+  {
+   "estado": "Sin brazos",
+   "canon": "Cortarle los brazos impide que te atrape (dossier 3.1).",
+   "implementacion": "Con los brazos colgando no puede agarrar ni dar manotazos. Solo persigue e intenta la embestida con mordisco; la nuca queda despejada."
+  },
+  {
+   "estado": "Bloqueado bajo árbol o muralla (no trepan)",
+   "canon": "Los puros no trepan árboles ni murallas: se quedan abajo estirando los brazos (dossier, prompt 4; patrón del bosque de árboles gigantes).",
+   "implementacion": "Si el objetivo está por encima de la altura que alcanza (H + 0,45H de brazo + salto de 0,3H), va a la base, se queda 'asediando', estira los brazos hacia arriba, araña el tronco y da saltitos. Se juntan varios en la base, y eso es una buena oportunidad: el jugador puede bajar en picado a sus nucas. Solo saltan pegados al tronco los anormales, hasta 1H."
+  },
+  {
+   "estado": "Anormal (modificador)",
+   "canon": "15 % de puros erráticos: andan muy rápido, corren, dan saltos enormes, a veces matan antes de comer, ignoran a humanos sueltos y van a por lugares importantes. Uno corre a cuatro patas a gran velocidad. El anormal de Trost corría tanto que la élite no podía seguirlo. Se avisan con bengala negra (wiki Abnormal; dossier).",
+   "implementacion": "Probabilidad del 15 %. Ignora a humanos sueltos que estén a más de 8 m (70 %) y pesa ×3 las multitudes y los puntos clave (puerta interior, plaza, depósito). Patrones: esprint de ×1,8 durante 3–5 s, carrera a cuatro patas, saltos de hasta 1H de alto y 2H de largo, giros bruscos cada 2–5 s, mordisco sin agarre previo. Regenera ×0,8. El aliado que lo ve dispara una bengala negra y el HUD muestra '¡Titán anormal!'."
+  },
+  {
+   "estado": "Letargo / apagado nocturno",
+   "canon": "Sacan la energía del sol. Sin luz se apagan a ritmos distintos: Sonny se quedó casi en coma tras 1 h y Bean seguía activo a las 3 h. No vale para los Nueve ni para los controlados por el Bestia (wiki Titan).",
+   "implementacion": "Energía solar de 0–100. Al ponerse el sol, cada titán tiene un tiempo aleatorio hasta apagarse de 1–3 h de juego (con el día de 24 min, 1 h de juego = 1 min real). Al 50 % de ese tiempo entra en LETARGO (velocidad ×0,5, detección ×0,5, reacción ×2). Al llegar a 0 se sienta o se tumba en APAGADO: solo gira la cabeza si le cortas y no persigue. Al amanecer reactiva en 2–5 min de juego. Los 'controlados' de fases posteriores ignoran esta regla."
+  },
+  {
+   "estado": "Muerte y evaporación",
+   "canon": "Corte en la nuca: el cuerpo se evapora hasta el esqueleto y desaparece (wiki Titan).",
+   "implementacion": "Cámara lenta ×0,25 durante 0,3 s reales. Cae con IK suelta (1,5–2 s) con polvo al golpear el suelo. Columna de vapor durante 10 s; la carne se desatura y adelgaza; a los 6 s se quitan los colisionadores y se sueltan los ganchos; a los 12 s desaparece. Opcional: un esqueleto gris unos segundos."
+  },
+  {
+   "estado": "Rendimiento / LOD de IA",
+   "canon": "Sin canon; viene del prompt técnico del dossier (hasta 30 titanes activos).",
+   "implementacion": "Máquina de estados por titán con LOD: a menos de 150 m, a 60 Hz; entre 150 y 400 m, a 10 Hz; más lejos, a 2 Hz y solo deambular. Los colisionadores de cada segmento son cuerpos cinemáticos de Rapier (kinematicPositionBased + setNextKinematicTranslation/Rotation desde la matrixWorld del hueso), en lugar de los colisionadores estáticos actuales. Los puntos débiles son colisionadores sensor con etiquetas nuevas (tendon, corva, ojo, hombro, muneca, mandibula)."
+  }
+ ],
+ "agarreYDevorar": "FASES (para el jugador, los aliados y los civiles): 1) AVISO: el brazo se echa atrás durante 0,5 + 0,03H s y el HUD marca la mano con un destello. Si impulsas o cambias de ancla en los últimos 0,25 s, esquivas seguro ('esquiva in extremis'). 2) AGARRE: el puño se cierra con la víctima dentro. Se sueltan los cables del jugador, la cámara pasa a un plano cerrado con temblor, el sonido se ahoga y se oye la respiración. Se dispara automáticamente una bengala morada (emergencia) que alerta al escuadrón. 3) LEVANTAR hacia la boca: 1,0 + 0,05H s. 4) BOCA: se abre durante 0,8 s; en este momento solo te libera un corte en la mandíbula (canon: Levi le abre la boca al Femenino para sacar a Eren) o la muerte del titán. 5) DEVORAR: fundido a negro con sonido, sin gore explícito (como pide el prompt del dossier), y reaparición en el último punto de control o depósito. QTE DEL JUGADOR: ventana total = 2,5 + 0,06H s (2,7 s con 3 m, 3,4 s con 15 m). Hay que pulsar F N = 5 + redondeo(H/3) veces (6 con 3 m, 10 con 15 m); cada pulsación es un corte a los dedos y gasta 2 de durabilidad. Sin cuchillas útiles: forcejear con Espacio 2N veces (casi imposible con los grandes, a propósito). Al pasar el umbral, la mano se abre, caes y puedes volver a enganchar al instante (el gas no se gasta mientras estás agarrado). RESCATE POR UN ALIADO: el aliado libre más cercano a menos de 50 m abandona su tarea; tarda distancia/25 m/s + 0,4 s en llegar y corta la muñeca (80 % de éxito) o la mandíbula si ya estás en la boca (60 %). Si lo consigue, se oye el grito ('¡Te tengo!'); cada rescate exitoso suma confianza en el escuadrón. Si falla, el titán puede agarrar al rescatador con la otra mano. CUANDO TE TOCA SALVAR A OTRO: al agarrar a un aliado o a un civil, el titán resalta su mano y su boca; tienes la misma ventana (3 s para los civiles). Matar al titán también libera a la víctima. Un civil que cae desde más de 6 m queda herido pero vivo; si pasas cerca puedes atraparlo (agarre automático a menos de 2 m) y ponerlo en un tejado. Base canon: S1E5 (Thomas engullido por un anormal; Eren mete el brazo en la boca y saca a Armin, y es engullido en su lugar); el dossier ('QTE de escape; un aliado puede salvarte; si falla, pantalla en negro y sonido'); wiki Titan (no digieren y vomitan al llenarse: opción de 'vomitar' que deja al titán 5 s quieto). Para los aliados, la muerte por devorado es real por defecto, para dar la tensión del anime, con la opción de configuración aliadosInmortales para quien quiera jugar más relajado.",
+ "escuadronAliado": {
+  "roles": [
+   "CEBO: atrae la mirada y la mano del titán. Se queda a 10–14 m delante de la cara, a la altura de la cabeza, con cambios de ancla constantes y esquivando con gas. Tiene prioridad ×2 en la puntuación de objetivo del titán (canon: dossier 3.1; en 'The Defeated' Mikasa distrae mientras Levi corta).",
+   "APOYO (tendones y ojos): pasadas bajas por detrás para cortar tendones y corvas, o tajos cruzados a los ojos y los hombros cuando el cebo tiene la atención del titán. También corta la mano que amenaza a un compañero (rescate).",
+   "REMATADOR: espera más alto y detrás (6–10 m por encima de la nuca, en un tejado, una rama o colgado del propio titán) y se lanza en picado a la nuca cuando el titán está CAÍDO, CIEGO o lleva más de 1,5 s fijado en el cebo. Por defecto el rematador es el jugador y los aliados se adaptan; con la orden 'Matad libremente' lo hace un aliado.",
+   "SEÑALES / ESCOLTA (4.º miembro): dispara bengalas (roja al ver un titán, negra con un anormal, morada en emergencia, azul en retirada), vigila los flancos y, con la orden 'Proteged a los civiles', escolta al grupo de civiles más cercano y cubre como cebo a los titanes que se le acercan. Si falta alguien, ocupa su rol."
+  ],
+  "tacticas": [
+   "Cebo + tendones + nuca (la clásica, dossier 3.1): el cebo se pone delante, el apoyo corta los tendones de Aquiles por detrás, el titán cae de rodillas y el rematador entra en picado. Duración objetivo: 6–10 s por titán de 7–10 m.",
+   "Cegar y desarmar contra los grandes (patrón del Escuadrón de Levi contra el Femenino): primero los ojos, luego los dos hombros para que los brazos caigan, y nuca. Para titanes de 15 m o anormales.",
+   "Emboscada desde arriba (cuartel de suministros, S1E8): se atrae a los titanes a un espacio cerrado o a la base de un árbol, se les ciega (bengala o tajo) y varios soldados caen a la vez sobre las nucas. Si un corte se queda corto (como Sasha y Connie), otro remata antes de 1,5 s, y la herida acumulada lo permite.",
+   "Pinza: dos soldados orbitan en sentidos opuestos; el titán solo puede girar hacia uno (giro máximo de 240/sqrt(H) °/s) y el otro le gana la espalda.",
+   "Rescate prioritario: ante un agarre (bengala morada), el aliado libre más cercano interrumpe lo que esté haciendo y corta la muñeca o la mandíbula.",
+   "Retirada y reabastecimiento: con menos de 20 % de gas o sin cuchillas de repuesto, el aliado se va al depósito más cercano (≈30 s fuera de combate). Con bengala azul, todos suben a los tejados o a la muralla y se reagrupan con el jugador.",
+   "No pelear en llano: en campo abierto (sin anclajes a menos de 40 m) los aliados evitan entrar en combate y llevan al titán hacia casas o árboles (dossier: 'se lleva al titán hacia árboles o estructuras')."
+  ],
+  "ordenesJugador": [
+   "1 · Seguidme / formación: escoltan al jugador a 8–15 m, cubren su espalda y solo atacan a lo que lo amenace.",
+   "2 · Atacad mi objetivo: el titán que hay bajo la retícula (o el fijado con Tab) pasa a ser el objetivo del escuadrón. Los aliados hacen de cebo y de apoyo y le dejan la nuca al jugador.",
+   "3 · Matad libremente: autónomos; eligen objetivos por amenaza y también rematan ellos.",
+   "4 · Proteged a los civiles: escoltan la evacuación más cercana e interceptan a los titanes que se acercan a menos de 60 m de un grupo de civiles.",
+   "5 · Retirada / reagruparse: bengala azul automática; todos a los tejados o la muralla, junto al jugador.",
+   "Extra: mantener T abre una rueda radial con las mismas órdenes. Pulsar T mirando a un titán equivale a 'Atacad mi objetivo'. La bengala de color (G) también es una orden: roja = 'he visto un titán, venid', morada = 'socorro'."
+  ],
+  "comportamientoIA": "Coordinador de escuadrón sobre una pizarra compartida (blackboard), más un árbol de comportamiento por soldado. El COORDINADOR (a 4 Hz) puntúa las amenazas: amenaza = (tamaño/15 + 0,5·anormal + 1,5·civiles a menos de 30 m + 2·si agarra a alguien) / (distancia al jugador/50 + 1). Según la orden activa elige el objetivo y reparte los roles (el cebo es el más sano o con más gas, el apoyo el más rápido). CADA SOLDADO: Seleccionar acción → Desplazarse → Ejecutar → Recuperarse. Para moverse, el modelo barato y robusto es ir saltando entre puntos de anclaje elegidos con rayos (tejados, troncos, el propio titán) a 40 m como máximo. La trayectoria es un arco de Hermite o parabólico a 18–28 m/s con cables visuales falsos hacia el ancla y chorros de gas en los cambios de dirección; en combate orbitan al titán a un radio de 0,6H + 8 m y una altura de 0,7H. Así no hace falta simular la cuerda completa para cada NPC. Los ataques son pasadas con ventanas de 0,2 s. Éxito del rematador: 85 % si el titán está caído o ciego y 50 % si está libre. Un fallo es un corte superficial que deja herida acumulada y puede acabar en agarre: otra ocasión para que el jugador rescate. Recursos de los aliados: gas 100 y 5 pares de cuchillas, con las mismas reglas que el jugador pero abstractas. Avisos por voz o texto: '¡Titán de 7 m a las 3!', '¡Corto tendones!', '¡Está ciego, a la nuca!', '¡Anormal! ¡Bengala negra!', '¡Me ha cogido!'. Modelo: el modeloJugador.ts reutilizado con otro color de capa (Guarnición con las dos rosas rojas durante Trost; Cuerpo de Exploración con las Alas de la Libertad más adelante) y un nombre sobre la cabeza. Por defecto 4 aliados (como el Escuadrón de Levi); pueden morir, con la opción aliadosInmortales. Si muere uno: silencio musical (dossier, audio) y su rol lo ocupa otro."
+ },
+ "civiles": {
+  "comportamiento": "Estados: VIDA NORMAL (andan a 1,3 m/s entre puntos de la ciudad: plaza, pozo, puertas) → ALARMA (suena la campana del distrito o ven un titán a menos de 120 m: miran, señalan, gritan) → HUIDA (corren a 3,5–5,5 m/s; niños y ancianos a 3 m/s, a veces de la mano en grupos de 2–3) → SALVADO al cruzar la puerta interior o llegar al refugio. Pánico: cada segundo hay un 2 % de probabilidad de tropezar (1,5 s en el suelo); si un titán está a menos de 25 m, un 10 % se quedan PARALIZADOS 2–4 s (como Armin cuando su escuadrón muere en el S1E5), y entonces el jugador puede cogerlos al pasar. Gritan si hay un titán a menos de 40 m, con audio espacial. Las multitudes son imanes para los titanes, por la puntuación de concentración, y sobre todo para los anormales: canon, el anormal de Trost corre hacia la multitud de la puerta y la élite no puede seguirlo. AGARRADOS: el titán los levanta a la boca; el jugador o un aliado tiene 3 s para cortar la muñeca, la mandíbula o la nuca. Si no lo consigue: grito cortado, fundido de la figura en la boca y una nube de vapor y rojo breve, sin gore explícito. Contador en el HUD: 'Civiles a salvo X / Víctimas Y'.",
+  "evacuacion": "La puerta exterior del sur (+Z) es la brecha por donde entran los titanes. El punto de evacuación es la PUERTA INTERIOR del norte (−Z, hacia el interior del Muro), igual que en Trost, donde la Guarnición de élite estaba en la retaguardia junto a la puerta norte para proteger la evacuación. Hay refugios secundarios (iglesia y cuartel) donde los civiles atrapados en el sur se esconden y esperan escolta. La puerta tiene un caudal limitado de 3 personas/s, así que se forma un cuello de botella con cola. Evento canon: el carro sobrecargado de un mercader (Dimo Reeves en el S1E6) tapona la puerta y baja el caudal a 0,3/s. Para resolverlo, el jugador habla con él o se le planta delante y la gente pasa. A la vez llega un anormal hacia la multitud, que hay que interceptar antes de que entre en un radio de 30 m. Las órdenes 'Proteged a los civiles' y la Guarnición NPC de la retaguardia ayudan a contener a los titanes en las calles del sur y del centro.",
+  "implementacion": "Grafo de navegación con los ejes de las calles y avenidas que ya genera ciudad.ts. Para la huida, un campo de flujo (Dijkstra hacia la puerta interior y los refugios), recalculado solo cuando un titán bloquea un nodo (coste ×20 en los nodos a menos de 20 m de un titán), y separación tipo boids. De 80 a 150 civiles con InstancedMesh: cápsulas de colores de ropa de época con cabeza, y animación por shader (balanceo de brazos y bote). Se actualizan a 30 Hz si están a menos de 100 m de la cámara y a 5 Hz más lejos. Rejilla espacial compartida con los titanes (celdas de 20 m) para contar concentraciones y para los gritos. Guion del distrito inspirado en la Batalla de Trost (cómo avanza la historia mientras se juega): 1) El Colosal rompe la puerta sur, suena la campana y empieza la alarma. 2) Los titanes entran en oleadas (3–4 titanes cada 60–90 s, hasta 30 activos); el jugador y su escuadrón son la guardia intermedia, entre la vanguardia que cae y la retaguardia de la puerta norte. 3) El carro del mercader y el anormal hacia la multitud. 4) Gas bajo: el depósito de suministros (la plaza actual) está tomado por titanes y hay que recuperarlo con la emboscada del S1E8 (atraerlos, cegarlos y cortar a la vez). 5) Defender el sellado de la brecha (en el canon, Eren titán con la roca, protegido por la Guarnición): proteger un objetivo que se mueve durante X minutos. 6) Llega el Cuerpo de Exploración con Levi (bengala amarilla, misión cumplida) y se pasa a la siguiente fase del juego (expediciones, bosque, Femenino)."
+ },
+ "efectos": [
+  "VAPOR BLANCO DE REGENERACIÓN: en cada herida, 8 sprites/s por cada 0,1U de daño pendiente. Tamaño de 1→4 m × (H/10), vida de 2,5 s, suben a 2 m/s y se dispersan con el viento. El ritmo baja a medida que la herida se cierra. Billboard suave (textura de nube procedural en canvas) con blending normal y depthWrite desactivado, en un pool único de 1.500 partículas (InstancedMesh o Points) reutilizable.",
+  "VAPOR DE MUERTE: columna masiva durante 10 s (60 sprites/s, hasta 0,6H de diámetro y 2–3H de altura) que sale de todo el cuerpo caído. Como se ve desde lejos, sirve también de señal de que ahí ha muerto un titán (en el canon Erwin identifica el vapor de un titán caído a distancia).",
+  "SANGRE ROJA ESTILIZADA Y BREVE: en cada corte, 20–30 gotas (quads de #b3121b) disparadas a 6–12 m/s en la dirección del tajo, con gravedad. Viven 0,7 s y se convierten en una bocanada de vapor. Las cuchillas quedan teñidas de rojo y humean hasta limpiarse en 2 s. Opcional: una salpicadura breve en la pantalla. Que la sangre del titán humee y desaparezca es una licencia visual coherente con el vapor de los titanes en el anime; no he encontrado una cita literal en la wiki. Sin desmembramientos detallados: las extremidades amputadas son trozos lisos que humean.",
+  "ESTELA DEL TAJO: cinta de triángulos blanca y semitransparente siguiendo las puntas de las dos cuchillas durante 0,15 s. Si el corte supera el umbral, un destello rojo en el punto débil y un sonido seco; si se queda corto, chispa gris y 'tic'.",
+  "CUCHILLA MELLADA O ROTA: marcas negras en la textura de la hoja por debajo de 30 % de durabilidad. Al romperse, sonido metálico y 2–3 fragmentos que giran y caen. En el cambio (R), las hojas viejas caen al suelo y se quedan 30 s.",
+  "BENGALAS: proyectil luminoso a 50 m/s hacia arriba que deja una columna de humo de color de 60–100 m (3→12 m de ancho), con deriva de viento. Dura 45 s, se ve hasta 1,5 km (no le afecta la niebla) y tiene un fogonazo de luz puntual al disparar. Colores canon: rojo (titán), negro (anormal), verde (cambio de rumbo), morado (emergencia), azul (retirada), amarillo (misión cumplida). La lluvia las anula (fase de clima).",
+  "CÁMARA Y CUERPO: cámara lenta de 0,3 s (×0,25) al matar a un titán (dossier, cámara); temblor por las pisadas con amplitud 0,02H/max(1, d/10); polvo en los pies de cada pisada y al caer un titán; vapor caliente que distorsiona un poco el aire alrededor de un cadáver (opcional, pase de post-proceso).",
+  "AUDIO DE COMBATE (para acompañar): siseo de gas según la intensidad, golpe húmedo y desgarro en el tajo, 'clang' de cuchilla rota, gritos de civiles con audio espacial, pisadas graves con caída por distancia, bocanada de vapor y la voz del aliado al disparar una bengala."
+ ],
+ "numerosPropuestos": [
+  {
+   "parametro": "combate.dañoPorVelocidad",
+   "valor": "D = v_rel(m/s) × 10 × fÁngulo × fFilo × fTécnica",
+   "razon": "El dossier pide que el daño dependa de la velocidad relativa y del ángulo. Con ×10 los números son legibles (300–450 en un buen tajo), como en los fan games."
+  },
+  {
+   "parametro": "combate.fAngulo",
+   "valor": "0,35 + 0,65·|sin θ| (θ = ángulo con el eje de la columna)",
+   "razon": "Cortar en perpendicular a la nuca da el máximo; un roce paralelo sigue haciendo algo de daño, pero rara vez mata."
+  },
+  {
+   "parametro": "combate.velocidadMinimaCorte",
+   "valor": "8 m/s (por debajo rebota: 0 de daño, −5 de durabilidad)",
+   "razon": "Obliga a usar el balanceo y el gas; atacar parado no corta carne de titán."
+  },
+  {
+   "parametro": "combate.umbralNuca U",
+   "valor": "150 + 10·H → 180 (3 m), 190 (4 m), 220 (7 m), 250 (10 m), 300 (15 m)",
+   "razon": "Con la cuchilla nueva y buen ángulo hace falta ~18 m/s contra uno de 3 m y ~30 m/s contra uno de 15 m. La velocidad máxima de 45 m/s deja margen, pero una cuchilla mellada (fFilo 0,75) obliga a ir a 40 m/s contra uno de 15 m, lo que anima a cambiarla."
+  },
+  {
+   "parametro": "combate.regenHeridaNuca",
+   "valor": "Baja U/6 por segundo, 1 s después del último corte",
+   "razon": "Permite rematar un corte superficial antes de ~1,5 s (canon S1E8: Mikasa y Annie rematan los cortes fallidos de Sasha y Connie)."
+  },
+  {
+   "parametro": "combate.umbralesPartes",
+   "valor": "Tendón 0,35U · corva 0,35U · ojo 0,2U · hombro 0,5U (amputación 1,6U) · muñeca/dedos 0,3U · mandíbula 0,4U",
+   "razon": "Las partes que inmovilizan tienen que ser más fáciles que la nuca para que el combate en equipo tenga sentido."
+  },
+  {
+   "parametro": "titan.nucaTamaño",
+   "valor": "s = sqrt(H/10): largo 1,0·s m × ancho 0,10·s m (0,55×0,055 con 3 m … 1,22×0,12 con 15 m); hitbox de juego: +0,5 m de ancho, +0,3 m de largo, 0,35 + 0,02H de profundidad",
+   "razon": "Canon: 1 m × 10 cm. Lo que hay dentro es una columna humana, así que no crece lineal con H. La holgura equivale al alcance de una cuchilla de ~1 m."
+  },
+  {
+   "parametro": "titan.regeneracion (base)",
+   "valor": "Ojos 12 s · tendón 10 s · corva 12 s · brazo inutilizado 20 s / amputado 30 s · dedos 6 s · mandíbula 8 s · cabeza 30 s; × factor 0,7–1,3 por titán; anormales ×0,8",
+   "razon": "El canon dice 'de segundos a minutos según el titán' y el dossier propone 8–30 s; da tiempo a que el equipo aproveche cada ventana."
+  },
+  {
+   "parametro": "titan.muerte",
+   "valor": "Cámara lenta 0,3 s ×0,25 · caída 1,5–2 s · vapor 10 s · colisionadores fuera a los 6 s · desaparece a los 12 s",
+   "razon": "Dossier: evaporación de unos 10 s y cámara lenta breve al cortar una nuca."
+  },
+  {
+   "parametro": "cuchillas.durabilidad",
+   "valor": "100 por par; 1 par montado + 4 de repuesto; desgaste 3 + D/50 por golpe (×2 con fÁngulo<0,5); −40 contra piedra o suelo; endurecido = se rompe; mellada por debajo de 30",
+   "razon": "Unas 7–10 golpes útiles por par (≈3–4 muertes con preparación) y ~15–20 muertes por carga completa: obliga a reabastecerse, como en Trost."
+  },
+  {
+   "parametro": "cuchillas.tiempoCambio",
+   "valor": "0,6 s (vulnerable, sin cortar); reabastecer en caja 5 s",
+   "razon": "Valor del dossier. Es un riesgo táctico cambiar cerca de un titán."
+  },
+  {
+   "parametro": "titan.tamaños y mezcla",
+   "valor": "3 m 20 % · 4 m 15 % · 7 m 30 % · 10 m 20 % · 15 m 15 %; anormal 15 %",
+   "razon": "Clases canon de 3–5, 7, 10 y 15 m (dossier y wiki: 2–15 m); el 15 % de anormales viene del dossier."
+  },
+  {
+   "parametro": "titan.velocidadAndar",
+   "valor": "0,8 + 0,18·H m/s (1,3 m/s con 3 m; 3,5 m/s con 15 m)",
+   "razon": "Andar torpe y lento cuando no ha detectado a nadie (deambular)."
+  },
+  {
+   "parametro": "titan.velocidadPersecucion",
+   "valor": "2,5 + 0,55·H m/s (4,2 · 4,7 · 6,4 · 8,0 · 10,8 m/s para 3/4/7/10/15 m); aceleración en 0,6 s",
+   "razon": "Cuerpos ligeros con movilidad casi humana: a partir de 7 m alcanzan a un civil que corre (3,5–5,5 m/s) y uno de 15 m alcanza al jugador a pie (7 m/s), pero nunca a un ODM (25–45 m/s)."
+  },
+  {
+   "parametro": "titan.esprintAnormal",
+   "valor": "×1,8 durante 3–5 s cada 8–15 s (≈19 m/s con 15 m), carrera a cuatro patas y saltos de 1H de alto y 2H de largo",
+   "razon": "Canon: el anormal de Trost dejaba atrás a la élite. Sin pasar de los ~21 m/s (75–80 km/h) de un caballo al galope, para que siga habiendo diferencia con la caballería."
+  },
+  {
+   "parametro": "titan.giroMaximo",
+   "valor": "240/sqrt(H) °/s (139 · 120 · 91 · 76 · 62 °/s)",
+   "razon": "Más alto = gira peor (dossier). Así orbitar a 20 m/s con 12 m de radio (~95°/s) te deja a la espalda de los grandes."
+  },
+  {
+   "parametro": "titan.vision",
+   "valor": "Cono de ±70° horizontal, +60°/−40° vertical; alcance 35 + 5·H m (50–110 m); noche ×0,5; reacción 0,4–1,0 s; comprobación cada 0,25 s",
+   "razon": "Se guían sobre todo por la vista; los grandes ven más lejos porque tienen la cabeza más alta."
+  },
+  {
+   "parametro": "titan.sentidosCercanos",
+   "valor": "360° a 6 + 0,8·H m (tacto u olor); ruido de gas a 30 m al impulsarse y 15 m al recoger",
+   "razon": "Tienen olor (canon de Mike) y el dossier propone el ruido de gas como estímulo; castiga abusar del impulso cerca de ellos."
+  },
+  {
+   "parametro": "titan.atraccionMultitud",
+   "valor": "prioridad = (1 + 0,5·humanos a menos de 15 m) / (d/10 + 1); radio de búsqueda 150 m; recálculo 1 s; anormales ×3 a multitudes y puntos clave, ignoran a humanos sueltos a más de 8 m (70 %)",
+   "razon": "Canon: los atraen las concentraciones de humanos; los anormales van a los lugares importantes."
+  },
+  {
+   "parametro": "titan.memoria",
+   "valor": "6 s sin ver → última posición conocida; busca 8 s; luego deambula",
+   "razon": "Permite despistarlos escondiéndose tras casas o subiendo alto, como en el anime (son fáciles de engañar)."
+  },
+  {
+   "parametro": "titan.agarre",
+   "valor": "Alcance 0,45·H desde el hombro; aviso 0,5 + 0,03·H s; la mano viaja en 0,35 s; esfera de captura 0,06·H + 0,5 m; recuperación tras fallar 1,5 s",
+   "razon": "Un aviso legible para poder esquivar; los grandes llegan más lejos pero avisan con más tiempo."
+  },
+  {
+   "parametro": "titan.manotazo",
+   "valor": "Daño 30 + 3·H (39–75), empuje 15 m/s, corta los cables si te pilla anclado al brazo",
+   "razon": "Castiga quedarse delante de un titán cegado o de uno que sale de un agarre fallido."
+  },
+  {
+   "parametro": "titan.mordiscoEmbestida",
+   "valor": "Solo 3–7 m y anormales: alcance 0,5·H + 2 m, aviso 0,4 s",
+   "razon": "Canon S1E5: el anormal que atrapa a Thomas directamente con la boca."
+  },
+  {
+   "parametro": "agarre.QTE",
+   "valor": "Ventana 2,5 + 0,06·H s (2,7–3,4 s); F × (5 + redondeo(H/3)) = 6–10 pulsaciones; sin cuchillas, Espacio × 2N; −2 de durabilidad por pulsación",
+   "razon": "Se puede escapar de los pequeños y de los grandes es difícil; tiene sentido que te salve el escuadrón."
+  },
+  {
+   "parametro": "agarre.rescateAliado",
+   "valor": "Aliado libre a menos de 50 m; llega en d/25 + 0,4 s; éxito 80 % en la muñeca, 60 % en la mandíbula",
+   "razon": "Dossier: 'un aliado puede salvarte'. Un 20–40 % de fallo mantiene la tensión."
+  },
+  {
+   "parametro": "titan.energiaSolar",
+   "valor": "Apagado tras 1–3 h de juego de oscuridad (1–3 min reales con el día de 24 min); letargo al 50 %; reactivación al amanecer en 2–5 min de juego",
+   "razon": "Canon: Sonny se apagó en 1 h y Bean seguía activo a las 3 h. El dossier propone un tiempo de apagado aleatorio por titán."
+  },
+  {
+   "parametro": "titan.perfilDolor",
+   "valor": "50 % indiferente (sin tambaleo) / 50 % sensible (tambaleo 1,2 s con cada corte en las extremidades)",
+   "razon": "Canon: algunos ignoran heridas terribles y otros chillan y se retuercen."
+  },
+  {
+   "parametro": "titan.estomago (opcional)",
+   "valor": "3–6 humanos → vomita y se queda quieto 5 s",
+   "razon": "Canon: sin digestivo completo, regurgitan al llenarse. Da una ventana de ataque."
+  },
+  {
+   "parametro": "titan.maxActivos y LOD",
+   "valor": "30 activos; IA a 60 Hz (<150 m), 10 Hz (150–400 m), 2 Hz (>400 m)",
+   "razon": "Prompt técnico del dossier (hasta 30 titanes) y presupuesto de 60 fps en el navegador."
+  },
+  {
+   "parametro": "titan.oleadasTrost",
+   "valor": "3–4 titanes cada 60–90 s por la brecha sur hasta 30 activos; 1 anormal garantizado en el evento de la puerta interior",
+   "razon": "Ritmo de la Batalla de Trost: la presión crece mientras los civiles evacúan."
+  },
+  {
+   "parametro": "jugador.vida y golpes",
+   "valor": "Vida 100; choque contra el cuerpo de un titán a más de 22 m/s: (v − 22) × 4 de daño; regeneración de vida fuera de combate a partir de 8 s, a 5/s",
+   "razon": "Hace que el control importe sin castigar el roce normal mientras orbitas."
+  },
+  {
+   "parametro": "giroLevi",
+   "valor": "Requiere estar anclado al titán y recoger a más de 25 m/s; 3,5 vueltas/s durante 0,8 s; hasta 6 golpes a D×0,6; coste de 6 de gas; desgaste ×1,5; recuperación 0,4 s; se desbloquea con 10 muertes en la nuca",
+   "razon": "Capta el ataque giratorio con agarre invertido sin que sustituya al tajo básico."
+  },
+  {
+   "parametro": "esquivaInExtremis",
+   "valor": "Ventana de 0,25 s antes del cierre de la mano; cámara lenta ×0,5 durante 0,4 s; siguiente tajo antes de 1,5 s con fTécnica 1,25",
+   "razon": "Premia el timing (inspirado en el Hook Drive de A.O.T. 2)."
+  },
+  {
+   "parametro": "escuadron",
+   "valor": "4 aliados; vuelo de 18–28 m/s; órbita de combate a 0,6·H + 8 m de radio y 0,7·H de alto; cebo a 10–14 m de la cara; rematador 6–10 m por encima de la nuca; éxito de remate 85 % (titán caído o ciego) / 50 % (libre); reabastecen con menos de 20 % de gas (≈30 s fuera)",
+   "razon": "Tamaño de un escuadrón como el de Levi. Los porcentajes dejan protagonismo al jugador y huecos para rescatarlos."
+  },
+  {
+   "parametro": "civiles",
+   "valor": "80–150; andar 1,3 m/s; correr 3,5–5,5 m/s (niños y ancianos 3); alarma a 120 m; grito a 40 m; parálisis 10 % durante 2–4 s con un titán a menos de 25 m; tropiezo 2 %/s; caudal de la puerta 3/s (0,3/s con el carro bloqueándola); ventana de rescate al ser agarrados 3 s",
+   "razon": "Una evacuación con cuello de botella como en Trost, donde los titanes de 7 m o más alcanzan a la gente que corre y hace falta escoltarla."
+  },
+  {
+   "parametro": "bengalas",
+   "valor": "Proyectil a 50 m/s; columna de humo de 60–100 m que dura 45 s y se ve hasta 1,5 km; cegado de 3 s si estalla a 4 m o menos de la cara",
+   "razon": "Dossier: señales de colores y uso para tapar la visión de un titán o frenarlo."
+  },
+  {
+   "parametro": "efectos.particulas",
+   "valor": "Pool de vapor de 1.500 sprites; regeneración a 8/s por cada 0,1U pendiente; muerte a 60/s durante 10 s; sangre de 20–30 gotas que viven 0,7 s",
+   "razon": "Se lee bien a distancia y entra en un único draw call en el navegador."
+  }
+ ],
+ "fuentes": [
+  "Dossier de diseño del usuario: /root/.claude/uploads/4d243384-4963-5adf-b954-af96a82233f5/e0805b01-titan_of_titan.pdf (pp. 6–15: equipo ODM, combate 3.1–3.4, bengalas, titanes puros y anormales, juegos de referencia; pp. 17–21: prompt técnico, secciones 1–11)",
+  "https://attackontitan.fandom.com/wiki/Titan (redirige desde /wiki/Pure_Titan): nuca de 1 m × 10 cm, regeneración de segundos a minutos, evaporación, energía solar (Sonny 1 h / Bean 3 h), cuerpo ligero, dolor variable, olor, vómito, sin interacción con otros seres vivos",
+  "https://attackontitan.fandom.com/wiki/Abnormal: conducta de los anormales, el anormal de Trost hacia la multitud, el cuadrúpedo, Orvud",
+  "https://attackontitan.fandom.com/wiki/Vertical_maneuvering_equipment: cuchillas de acero ultraduro, repuestos en las cajas de los muslos, ganchos que perforan carne de titán, ODM tan rápido o más que un titán, poco eficaz en campo abierto",
+  "https://attackontitan.fandom.com/wiki/Ultrahard_steel",
+  "https://attackontitan.fandom.com/wiki/Battle_of_Trost_District: vanguardia, guardia intermedia y retaguardia; evacuación por la puerta norte; carro de Dimo Reeves; anormal que mata Mikasa; depósito tomado; plan de la roca; llegada de Levi",
+  "https://daddyjim.ai/attack-on-titan/episode/I-Can-Hear-His-Heartbeat-The-Struggle-for-Trost-Part-4: emboscada en el cuartel de suministros (cegar y caer sobre las nucas; cortes fallidos de Sasha y Connie)",
+  "https://www.tvmaze.com/episodes/86785/attack-on-titan-1x08-i-can-hear-his-heartbeat-the-struggle-for-trost-4",
+  "https://daddyjim.ai/attack-on-titan/episode/First-Battle-The-Struggle-for-Trost-Part-1: Thomas devorado; Eren saca a Armin de la boca",
+  "https://angryanimebitches.com/2013/05/shingeki-no-kyoujin-episode-5-the-first-to-fall",
+  "https://daddyjim.ai/attack-on-titan/episode/The-World-the-Girl-Saw-The-Struggle-for-Trost-Part-2: carro del mercader y anormal hacia la puerta",
+  "https://daddyjim.ai/attack-on-titan/episode/Small-Blade-The-Struggle-for-Trost-Part-3: Mikasa se queda sin gas",
+  "https://daddyjim.ai/attack-on-titan/episode/The-Defeated-The-57th-Exterior-Scouting-Mission-Part-6: Levi ciega al Femenino, le corta piernas, brazo y mandíbula y libera a Eren; Mikasa hace de cebo",
+  "https://attackontitan.fandom.com/wiki/Erwin_Smith:_The_57th_Exterior_Scouting_Mission,_Part_4",
+  "https://attackontitan.fandom.com/wiki/Petra_Ral: el Escuadrón de Levi ciega al Femenino y le corta los hombros; regeneración selectiva de un ojo",
+  "https://daddyjim.ai/attack-on-titan/episode/Forest-of-Giant-Trees-The-57th-Exterior-Scouting-Mission-Part-2",
+  "https://attackontitan.fandom.com/wiki/Horse_(Anime): caballos de 75–80 km/h; no se deja atrás a los titanes sin caballo",
+  "https://journals.le.ac.uk/index.php/jist/article/view/725: 'How Fast Can a Titan Run?' (estimación no canónica, solo como referencia)",
+  "https://www.toy-people.com/en/?p=92116: Levi con agarre invertido y tajos en espiral (fuente secundaria)",
+  "https://attack-on-titan-game-tribute.fandom.com/wiki/Special_Abilities?oldid=5101: ataque giratorio del Tribute Game, con más daño en la nuca desde un lado",
+  "https://multiplayer.it/notizie/191817-koei-tecmo-illustra-le-nuove-caratteristiche-di-aot-2-anche-con-alcune-immagini.html: acciones de compañero en A.O.T. 2 (rescate, etc.)",
+  "https://www.gematsu.com/2016/07/attack-titan-details-scout-mode-weapon-upgrades-decisive-battle-signal",
+  "https://primagames.com/tips/attack-titan-game-how-kill-titan-get-materials: en Wings of Freedom un tajo a la nuca a menos de 5–10 m suele bastar",
+  "Nota: la herramienta Firecrawl avisó de que la cuenta conectada tiene pocos créditos; conviene recargar si se va a seguir investigando con ella. Las páginas de fandom no se pudieron abrir con WebFetch (fallo de DNS) y se leyeron con Firecrawl."
+ ]
+}

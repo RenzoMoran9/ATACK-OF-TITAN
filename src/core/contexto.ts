@@ -77,7 +77,7 @@ class TitanFicticio implements TitanAPI {
     return this.posicion.clone().setY(this.altura * 0.85);
   }
   recibirCorte(zona: ZonaTitan, danio: number): ResultadoCorte {
-    if (zona === 'nuca' && danio > 0) {
+    if (zona === 'nuca' && danio >= 150 + 10 * this.altura) {
       this.vivo = false;
       this.estado = 'muerto';
       return { zona, efecto: 'muerte', danio };
