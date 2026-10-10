@@ -37,7 +37,20 @@ export class Particulas {
   private readonly alfa: Float32Array;
   private siguiente = 0;
 
-  constructor(escena: THREE.Scene, private readonly capacidad: number, color = '#ffffff', private readonly crecimiento = 2.2) {
+  private readonly gravedad: number;
+  private readonly alfaMax: number;
+  private readonly amortiguacion: number;
+
+  constructor(
+    escena: THREE.Scene,
+    private readonly capacidad: number,
+    color = '#ffffff',
+    private readonly crecimiento = 2.2,
+    opciones: { gravedad?: number; alfaMax?: number; amortiguacion?: number; aditivo?: boolean } = {},
+  ) {
+    this.gravedad = opciones.gravedad ?? 0;
+    this.alfaMax = opciones.alfaMax ?? 0.75;
+    this.amortiguacion = opciones.amortiguacion ?? 4;
     this.pos = new Float32Array(capacidad * 3);
     this.vel = new Float32Array(capacidad * 3);
     this.vida = new Float32Array(capacidad);
@@ -56,6 +69,7 @@ export class Particulas {
         uniforms: { mapa: { value: texturaParticula() }, color: { value: new THREE.Color(color) } },
         transparent: true,
         depthWrite: false,
+        blending: opciones.aditivo ? THREE.AdditiveBlending : THREE.NormalBlending,
       }),
     );
     this.puntos.frustumCulled = false;
@@ -87,13 +101,15 @@ export class Particulas {
       }
       this.vida[i] -= dt;
       const t = 1 - this.vida[i] / this.vidaMax[i];
-      const amort = Math.max(0, 1 - dt * 4);
+      const amort = Math.max(0, 1 - dt * this.amortiguacion);
+      this.vel[i * 3 + 1] -= this.gravedad * dt;
       for (let k = 0; k < 3; k++) {
         this.vel[i * 3 + k] *= amort;
         this.pos[i * 3 + k] += this.vel[i * 3 + k] * dt;
       }
       this.tam[i] += this.crecimiento * dt;
-      this.alfa[i] = Math.max(0, 0.75 * (1 - t));
+      // aparece rápido y se desvanece despacio
+      this.alfa[i] = Math.max(0, this.alfaMax * Math.min(1, t * 8) * (1 - t));
     }
     const geo = this.puntos.geometry;
     geo.attributes.position.needsUpdate = true;

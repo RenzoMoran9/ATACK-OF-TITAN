@@ -7,6 +7,8 @@ export class BuclePasoFijo {
   private acumulado = 0;
   private ultimo = 0;
   private activo = false;
+  /** Escala del tiempo de juego (cámara lenta < 1). */
+  escalaTiempo = 1;
 
   constructor(
     private readonly paso: number,
@@ -29,7 +31,7 @@ export class BuclePasoFijo {
     let dt = (ahora - this.ultimo) / 1000;
     this.ultimo = ahora;
     if (dt > 0.25) dt = 0.25;
-    this.acumulado += dt;
+    this.acumulado += dt * this.escalaTiempo;
     let pasos = 0;
     while (this.acumulado >= this.paso && pasos < 8) {
       this.actualizar(this.paso);

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { AspectoSoldado, EstadoAnimacion } from '../core/tipos';
 import { texturaEmblema } from '../world/texturas';
 
 /**
@@ -8,7 +9,7 @@ import { texturaEmblema } from '../world/texturas';
  * carcasa del equipo en la parte baja de la espalda. Mira hacia +Z; origen en los pies.
  */
 
-const COLORES = {
+const COLORES_BASE = {
   piel: '#e8c6a6',
   pelo: '#2b1d14',
   chaqueta: '#b58c5c',
@@ -46,7 +47,9 @@ export class ModeloJugador {
   private readonly brazos: THREE.Group[] = [];
   private paso = 0;
 
-  constructor() {
+  constructor(aspecto: AspectoSoldado = {}) {
+    const COLORES = { ...COLORES_BASE, ...(aspecto.piel ? { piel: aspecto.piel } : {}), ...(aspecto.pelo ? { pelo: aspecto.pelo } : {}), ...(aspecto.capa ? { capa: aspecto.capa } : {}) };
+    if (aspecto.escala) this.grupo.scale.setScalar(aspecto.escala);
     const lam = (c: string, extra: THREE.MeshLambertMaterialParameters = {}) => new THREE.MeshLambertMaterial({ color: c, ...extra });
     const piel = lam(COLORES.piel);
     const chaqueta = lam(COLORES.chaqueta);
@@ -185,7 +188,11 @@ export class ModeloJugador {
    * Animación procedural mínima: zancada en el suelo, piernas recogidas en el aire,
    * inclinación por aceleración y capa que ondea con la velocidad.
    */
-  animar(dt: number, t: number, velocidad: THREE.Vector3, enSuelo: boolean, inclinacion: number): void {
+  animar(e: EstadoAnimacion): void {
+    const { dt, t, vel: velocidad, enSuelo } = e;
+    const r = this.grupo.rotation.y;
+    const frente = new THREE.Vector3(Math.sin(r), 0, Math.cos(r));
+    const inclinacion = THREE.MathUtils.clamp(e.acel.dot(frente) * 0.02, -0.35, 0.5) + (enSuelo ? 0 : 0.15);
     const vh = Math.hypot(velocidad.x, velocidad.z);
     if (enSuelo && vh > 0.3) {
       this.paso += dt * vh * 1.6;

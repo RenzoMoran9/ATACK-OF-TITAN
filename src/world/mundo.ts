@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { Config } from '../core/config';
 import type { Fisica } from '../core/fisica';
 import { crearRng } from '../core/rng';
-import { Titan } from '../titans/titan';
+import { Navegacion } from '../core/navegacion';
+import type { OpcionesTitan } from '../core/tipos';
 import { Antorchas } from './antorchas';
 import { Bosque } from './bosque';
 import { construirCiudad, type DatosCiudad } from './ciudad';
@@ -29,7 +30,10 @@ export interface Mundo {
   ciudad: DatosCiudad;
   muralla: DatosMuralla;
   bosque: Bosque;
-  titanes: Titan[];
+  /** Titanes de referencia del modo libre y de las capturas (?cam=titan). */
+  titanesReferencia: OpcionesTitan[];
+  /** Rejilla de navegación para titanes y civiles. */
+  nav: Navegacion;
   antorchas: Antorchas;
   inicio: THREE.Vector3;
   puntos: Record<string, PuntoCamara>;
@@ -66,19 +70,33 @@ export function construirMundo(escena: THREE.Scene, fisica: Fisica, cfg: Config)
   antorchas.construir();
   escena.add(antorchas.grupo);
 
-  // Titanes de referencia en la llanura (inmóviles en la fase 1)
-  const titanes = [
-    new Titan(escena, fisica, new THREE.Vector3(-38, 0, 330), -Math.PI / 2, { altura: 15, variante: 0, piel: '#f2d2bf', pelo: null }),
-    new Titan(escena, fisica, new THREE.Vector3(34, 0, 296), -2.3, { altura: 7, variante: 1, piel: '#ebc6b0', pelo: '#3b2a1e' }),
+  // Titanes de referencia en la llanura (los crea el gestor de titanes)
+  const titanesReferencia: OpcionesTitan[] = [
+    { posicion: new THREE.Vector3(-38, 0, 330), rumbo: -Math.PI / 2, altura: 15, semilla: 1 },
+    { posicion: new THREE.Vector3(34, 0, 296), rumbo: -2.3, altura: 7, semilla: 2 },
   ];
 
+  const nav = construirNavegacion(ciudad, bosque, R, T);
   const inicio = new THREE.Vector3(0, 0, 14);
-  const puntos = calcularPuntos(ciudad, bosque, titanes, R, H, T);
-  return { mats, ciudad, muralla, bosque, titanes, antorchas, inicio, puntos };
+  const puntos = calcularPuntos(ciudad, bosque, titanesReferencia[0], R, H, T);
+  return { mats, ciudad, muralla, bosque, titanesReferencia, nav, antorchas, inicio, puntos };
 }
 
 /** Posiciones fijas de jugador + cámara para depurar y sacar capturas (?cam=...). */
-function calcularPuntos(ciudad: DatosCiudad, bosque: Bosque, titanes: Titan[], R: number, H: number, T: number): Record<string, PuntoCamara> {
+/** Rejilla de 3 m: casas, iglesia, pozo, depósito, muralla (con las dos puertas cerradas) y troncos. */
+function construirNavegacion(ciudad: DatosCiudad, bosque: Bosque, R: number, T: number): Navegacion {
+  const nav = new Navegacion({ x0: -420, x1: 420, z0: -320, z1: 900 }, 3);
+  for (const c of ciudad.casas) nav.bloquearCaja(c.x, c.z, c.ancho / 2, c.fondo / 2, c.rotY);
+  nav.bloquearCaja(0, -62, 9, 17); // nave de la iglesia
+  nav.bloquearCaja(0, -62 + 17 + 4, 4.5, 4.5); // torre
+  nav.bloquearCirculo(0, 0, 2.6); // pozo
+  nav.bloquearCaja(ciudad.deposito.x, ciudad.deposito.z, 3, 2.4);
+  nav.bloquearAnillo(R, R + T + 1);
+  for (const a of bosque.datos.arboles) nav.bloquearCirculo(a.x, a.z, a.radio * 1.4);
+  return nav;
+}
+
+function calcularPuntos(ciudad: DatosCiudad, bosque: Bosque, titan: OpcionesTitan, R: number, H: number, T: number): Record<string, PuntoCamara> {
   const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
   const rumboHacia = (desde: THREE.Vector3, hacia: THREE.Vector3) => Math.atan2(hacia.x - desde.x, hacia.z - desde.z);
   const puntos: Record<string, PuntoCamara> = {};
@@ -136,16 +154,16 @@ function calcularPuntos(ciudad: DatosCiudad, bosque: Bosque, titanes: Titan[], R
   puntos.bosque = { jugador: mejor, rumbo: 0, camara: mejor.clone().add(v(1.2, 2.0, -6.5)), mirar: mejor.clone().add(v(0, 24, 60)) };
 
   // Titán: el jugador a sus pies, la cámara detrás encuadrando la cara
-  const t = titanes[0];
-  const frente = v(Math.sin(t.grupo.rotation.y), 0, Math.cos(t.grupo.rotation.y));
+  const rumboT = titan.rumbo ?? 0;
+  const frente = v(Math.sin(rumboT), 0, Math.cos(rumboT));
   const lateralT = v(frente.z, 0, -frente.x);
-  const pieTitan = t.posicion.clone().addScaledVector(frente, 8).addScaledVector(lateralT, 1.5);
-  const cara = t.cara();
+  const pieTitan = titan.posicion.clone().addScaledVector(frente, 8).addScaledVector(lateralT, 1.5);
+  const alturaCara = titan.altura * 0.84;
   puntos.titan = {
     jugador: pieTitan,
-    rumbo: rumboHacia(pieTitan, t.posicion),
-    camara: t.posicion.clone().addScaledVector(frente, 21).addScaledVector(lateralT, 5).add(v(0, 2.2, 0)),
-    mirar: v(cara.x, cara.y * 0.72, cara.z),
+    rumbo: rumboHacia(pieTitan, titan.posicion),
+    camara: titan.posicion.clone().addScaledVector(frente, 21).addScaledVector(lateralT, 5).add(v(0, 2.2, 0)),
+    mirar: titan.posicion.clone().add(v(0, alturaCara * 0.72, 0)),
   };
 
   // Jugador: primer plano en la plaza, tres cuartos de frente

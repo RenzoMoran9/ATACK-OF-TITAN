@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { config } from '../core/config';
 import type { Entrada } from '../core/entrada';
 import type { Fisica } from '../core/fisica';
+import { nuevoId } from '../core/poblacion';
+import type { JugadorAPI, TitanAPI } from '../core/tipos';
 import { DepositoGas } from './gas';
 import { ModeloJugador } from './modeloJugador';
 import { EquipoODM, type Lado } from './odm';
@@ -23,7 +25,52 @@ export interface Mirada {
 
 const MITAD_ALTURA_CENTRO = 0.85; // del suelo al centro de la cápsula
 
-export class Jugador {
+export class Jugador implements JugadorAPI {
+  // ── Humano / JugadorAPI ──
+  readonly id = nuevoId();
+  readonly tipo = 'jugador' as const;
+  readonly nombre = 'Tú';
+  vivo = true;
+  agarradoPor: TitanAPI | null = null;
+  salud = 100;
+  readonly saludMax = 100;
+  paresRepuesto = 4;
+  filo = 1;
+  get posicion(): THREE.Vector3 {
+    return this.pos;
+  }
+  get velocidad(): THREE.Vector3 {
+    return this.vel;
+  }
+  alSerAgarrado(titan: TitanAPI): void {
+    this.agarradoPor = titan;
+    this.odm.liberarTodo();
+  }
+  alSerSoltado(): void {
+    this.agarradoPor = null;
+  }
+  alSerDevorado(): void {
+    this.agarradoPor = null;
+    this.vivo = false;
+  }
+  fijarPosicion(p: THREE.Vector3): void {
+    this.pos.copy(p);
+    this.vel.set(0, 0, 0);
+    this.cuerpo.setNextKinematicTranslation({ x: p.x, y: p.y, z: p.z });
+  }
+  reabastecer(): void {
+    this.gas.recargar(this.gas.capacidad);
+    this.paresRepuesto = 4;
+    this.filo = 1;
+  }
+  revivir(pies: THREE.Vector3, rumbo?: number): void {
+    this.vivo = true;
+    this.salud = this.saludMax;
+    this.agarradoPor = null;
+    this.reabastecer();
+    this.teletransportar(pies, rumbo);
+  }
+
   readonly pos = new THREE.Vector3();
   readonly posPrevia = new THREE.Vector3();
   readonly vel = new THREE.Vector3();
@@ -40,7 +87,8 @@ export class Jugador {
   private readonly controlador: RAPIER.KinematicCharacterController;
   private readonly chorros: Particulas;
   private velPrevia = new THREE.Vector3();
-  private inclinacion = 0;
+  /** Aceleración suavizada (para la pose). */
+  private readonly acel = new THREE.Vector3();
   private readonly tmp = new THREE.Vector3();
 
   constructor(escena: THREE.Scene, fisica: Fisica, inicio: THREE.Vector3) {
@@ -174,8 +222,7 @@ export class Jugador {
     }
     // Inclinación por aceleración horizontal (hacia delante del modelo)
     const acel = this.vel.clone().sub(this.velPrevia).divideScalar(dt);
-    const frente = new THREE.Vector3(Math.sin(this.rumbo), 0, Math.cos(this.rumbo));
-    this.inclinacion = THREE.MathUtils.clamp(acel.dot(frente) * 0.02, -0.35, 0.5) + (this.enSuelo ? 0 : 0.15);
+    this.acel.lerp(acel, Math.min(1, dt * 10));
 
     if (this.odm.impulsando) this.emitirChorro(dirImpulso.clone().negate(), 10);
     else if (this.odm.recogiendo && Math.random() < 0.5) this.emitirChorro(this.vel.clone().normalize().negate(), 5);
@@ -195,7 +242,22 @@ export class Jugador {
     g.position.copy(this.posRender).y -= MITAD_ALTURA_CENTRO;
     g.rotation.y = this.rumbo;
     g.updateMatrixWorld(true);
-    this.modelo.animar(dt, t, this.vel, this.enSuelo, this.inclinacion);
+    this.modelo.animar({
+      dt,
+      t,
+      vel: this.vel,
+      acel: this.acel,
+      enSuelo: this.enSuelo,
+      anclas: this.odm.anclados.map((g) => g.ancla),
+      recogiendo: this.odm.recogiendo,
+      impulsando: this.odm.impulsando,
+      corte: null,
+      giro: false,
+      agarrado: false,
+      muerto: false,
+      aterrizaje: null,
+      impactoAterrizaje: 0,
+    });
     g.updateMatrixWorld(true);
     this.odm.dibujar(this.salidaModelo, this.pos);
     this.chorros.actualizar(dt);

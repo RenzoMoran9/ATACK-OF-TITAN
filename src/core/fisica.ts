@@ -20,6 +20,8 @@ export interface ImpactoRayo {
   distancia: number;
   etiqueta: Etiqueta;
   collider: RAPIER.Collider;
+  /** Objeto 3D que se mueve con este colisionador (partes de titán), si lo hay. */
+  objeto: THREE.Object3D | null;
 }
 
 type V3 = { x: number; y: number; z: number };
@@ -32,6 +34,8 @@ const quatY = (rotY: number) => new THREE.Quaternion().setFromAxisAngle(new THRE
  */
 export class Fisica {
   readonly etiquetas = new Map<number, Etiqueta>();
+  /** Colisionadores que se mueven con un objeto 3D (los ganchos anclados lo siguen). */
+  readonly objetos = new Map<number, THREE.Object3D>();
   private readonly rayo = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
 
   private constructor(readonly mundo: RAPIER.World) {}
@@ -45,6 +49,31 @@ export class Fisica {
     const c = this.mundo.createCollider(desc, cuerpo);
     this.etiquetas.set(c.handle, etiqueta);
     return c;
+  }
+
+  /** Asocia un colisionador a un objeto 3D: un gancho anclado en él se moverá con el objeto. */
+  asociar(collider: RAPIER.Collider, objeto: THREE.Object3D): void {
+    this.objetos.set(collider.handle, objeto);
+  }
+
+  /** Cuerpo cinemático (por posición) para colisionadores que se mueven (titanes). */
+  crearCinematico(): RAPIER.RigidBody {
+    return this.mundo.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased());
+  }
+
+  eliminarCuerpo(cuerpo: RAPIER.RigidBody): void {
+    for (let i = 0; i < cuerpo.numColliders(); i++) {
+      const c = cuerpo.collider(i);
+      this.etiquetas.delete(c.handle);
+      this.objetos.delete(c.handle);
+    }
+    this.mundo.removeRigidBody(cuerpo);
+  }
+
+  eliminarCollider(c: RAPIER.Collider): void {
+    this.etiquetas.delete(c.handle);
+    this.objetos.delete(c.handle);
+    this.mundo.removeCollider(c, false);
   }
 
   caja(centro: V3, mitad: V3, etiqueta: Etiqueta, rot: number | THREE.Quaternion = 0): RAPIER.Collider {
@@ -89,6 +118,7 @@ export class Fisica {
       distancia: t,
       etiqueta: this.etiquetas.get(hit.collider.handle) ?? 'otro',
       collider: hit.collider,
+      objeto: this.objetos.get(hit.collider.handle) ?? null,
     };
   }
 

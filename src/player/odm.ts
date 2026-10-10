@@ -19,6 +19,8 @@ export interface Apunte {
   valido: boolean;
   punto: THREE.Vector3 | null;
   etiqueta: Etiqueta | null;
+  /** Objeto móvil (parte de titán) al que pertenece el punto, si lo hay. */
+  objeto: THREE.Object3D | null;
 }
 
 const PUNTOS_CABLE = 18;
@@ -31,6 +33,10 @@ class Gancho {
   recorrido = 0;
   distanciaObjetivo = 0;
   readonly ancla = new THREE.Vector3();
+  /** Si el ancla está en algo que se mueve (un titán), su punto en coordenadas locales del objeto. */
+  objetoAncla: THREE.Object3D | null = null;
+  readonly anclaLocal = new THREE.Vector3();
+  etiquetaAncla: Etiqueta | null = null;
   longitud = 0;
   bobina = 0;
   tenso = false;
@@ -65,8 +71,8 @@ export interface ContextoODM {
 export class EquipoODM {
   readonly ganchos: [Gancho, Gancho];
   readonly apuntes: [Apunte, Apunte] = [
-    { valido: false, punto: null, etiqueta: null },
-    { valido: false, punto: null, etiqueta: null },
+    { valido: false, punto: null, etiqueta: null, objeto: null },
+    { valido: false, punto: null, etiqueta: null, objeto: null },
   ];
   /** Para el HUD y los chorros de gas. */
   impulsando = false;
@@ -100,10 +106,11 @@ export class EquipoODM {
         apunte.valido = true;
         apunte.punto = central.punto;
         apunte.etiqueta = central.etiqueta;
+        apunte.objeto = central.objeto;
         return;
       }
       // Cono de asistencia
-      let mejor: { punto: THREE.Vector3; etiqueta: Etiqueta; puntos: number } | null = null;
+      let mejor: { punto: THREE.Vector3; etiqueta: Etiqueta; objeto: THREE.Object3D | null; puntos: number } | null = null;
       const lateral = new THREE.Vector3().crossVectors(dir, arribaCam).normalize();
       const arriba = new THREE.Vector3().crossVectors(lateral, dir).normalize();
       for (const grados of [o.asistenciaGrados * 0.5, o.asistenciaGrados]) {
@@ -114,17 +121,19 @@ export class EquipoODM {
           const hit = this.fisica.lanzarRayo(origenCam, d, maxRayo, this.excluir());
           if (!hit || hit.punto.distanceTo(posJugador) > alcance) continue;
           const puntos = hit.punto.y + (hit.etiqueta === 'titan' || hit.etiqueta === 'nuca' ? 40 : 0);
-          if (!mejor || puntos > mejor.puntos) mejor = { punto: hit.punto, etiqueta: hit.etiqueta, puntos };
+          if (!mejor || puntos > mejor.puntos) mejor = { punto: hit.punto, etiqueta: hit.etiqueta, objeto: hit.objeto, puntos };
         }
       }
       if (mejor) {
         apunte.valido = true;
         apunte.punto = mejor.punto;
         apunte.etiqueta = mejor.etiqueta;
+        apunte.objeto = mejor.objeto;
       } else {
         apunte.valido = false;
         apunte.punto = central ? central.punto : null;
         apunte.etiqueta = central ? central.etiqueta : null;
+        apunte.objeto = central ? central.objeto : null;
       }
     });
   }
@@ -146,8 +155,17 @@ export class EquipoODM {
         const apunte = this.apuntes[i];
         g.punta.copy(origen);
         g.recorrido = 0;
+        g.objetoAncla = null;
+        g.etiquetaAncla = null;
         if (apunte.valido && apunte.punto) {
           g.objetivo = apunte.punto.clone();
+          g.etiquetaAncla = apunte.etiqueta;
+          if (apunte.objeto) {
+            g.objetoAncla = apunte.objeto;
+            g.objetoAncla.updateWorldMatrix(true, false);
+            g.anclaLocal.copy(apunte.punto);
+            g.objetoAncla.worldToLocal(g.anclaLocal);
+          }
           g.dir.copy(g.objetivo).sub(origen).normalize();
           g.distanciaObjetivo = origen.distanceTo(g.objetivo);
         } else {
@@ -160,7 +178,26 @@ export class EquipoODM {
 
       if ((g.estado === 'volando' || g.estado === 'anclado') && !mantenido) g.estado = 'volviendo';
 
+      // Ancla sobre algo que se mueve (titán): el punto viaja con el objeto; si desaparece, se suelta.
+      if (g.objetoAncla && (g.estado === 'volando' || g.estado === 'anclado')) {
+        if (!g.objetoAncla.parent || !g.objetoAncla.visible) {
+          g.estado = 'volviendo';
+          g.objetoAncla = null;
+        } else {
+          const p = g.objetoAncla.localToWorld(g.anclaLocal.clone());
+          if (g.estado === 'anclado') g.ancla.copy(p);
+          if (g.objetivo) g.objetivo.copy(p);
+        }
+      }
+
       if (g.estado === 'volando') {
+        if (g.objetivo) {
+          // el blanco puede moverse: recalcular dirección y distancia restante
+          const origen = salida(g.lado);
+          g.distanciaObjetivo = origen.distanceTo(g.objetivo);
+          g.dir.copy(g.objetivo).sub(origen).normalize();
+          g.recorrido = Math.min(g.recorrido, g.distanciaObjetivo);
+        }
         g.recorrido = Math.min(g.distanciaObjetivo, g.recorrido + o.velocidadGancho * dt);
         g.punta.copy(salida(g.lado)).addScaledVector(g.dir, g.recorrido);
         if (g.recorrido >= g.distanciaObjetivo) {
@@ -221,6 +258,7 @@ export class EquipoODM {
   liberarTodo(): void {
     for (const g of this.ganchos) {
       g.estado = 'listo';
+      g.objetoAncla = null;
       g.linea.visible = false;
       g.cabeza.visible = false;
     }

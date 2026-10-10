@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Fisica } from '../core/fisica';
 import type { Antorchas } from './antorchas';
-import { Lote, cajaUV, matriz } from './geometria';
+import { Lote, cajaUV, colorear, matriz } from './geometria';
 import type { Materiales } from './materiales';
 
 /**
@@ -16,10 +16,28 @@ export interface DatosMuralla {
   altura: number;
   /** Ángulo (rad) de cada cañón; 0 = sur (+Z). */
   canones: number[];
+  /** Puerta exterior (sur), cara de fuera. */
   puerta: THREE.Vector3;
+  /** Puerta interior (norte) por donde se evacúa a los civiles; punto en la cara de dentro. */
+  puertaEvacuacion: THREE.Vector3;
+  anchoPuerta: number;
+  /** ¿La puerta sur está rota (brecha abierta)? */
+  readonly rota: boolean;
+  /** Destruye la hoja de la puerta sur: escombros y paso libre para los titanes. */
+  romperPuerta(): void;
+  /** Reconstruye la hoja (al reiniciar un capítulo). */
+  repararPuerta(): void;
+}
+
+/** Hoja de una puerta: malla propia y colisionador, para poder romperla. */
+interface Hoja {
+  malla: THREE.Mesh;
+  collider: import('@dimforge/rapier3d-compat').Collider | null;
+  desc: { centro: THREE.Vector3; mitad: THREE.Vector3; theta: number };
 }
 
 const SEGMENTOS = 72;
+const SEGMENTO_NORTE = SEGMENTOS / 2; // θ = π
 const ANCHO_PUERTA = 18;
 const ALTO_PASO = 26;
 const ELEVACION_PUERTA = 7;
@@ -33,7 +51,7 @@ export function construirMuralla(escena: THREE.Scene, fisica: Fisica, mats: Mate
   const piedra = new Lote();
   const hierro = new Lote();
   const madera = new Lote();
-  const puerta = new Lote();
+  const hojas: Hoja[] = [];
   const Rm = R + T / 2;
   const mitadAng = Math.PI / SEGMENTOS;
   const L = 2 * (R + T) * Math.tan(mitadAng) + 0.3;
@@ -57,8 +75,9 @@ export function construirMuralla(escena: THREE.Scene, fisica: Fisica, mats: Mate
   for (let s = 0; s < SEGMENTOS; s++) {
     const theta = (s / SEGMENTOS) * Math.PI * 2;
     const c = puntoAnillo(theta, Rm);
-    if (s === 0) {
-      construirPuerta(theta, Rm, L, H, T, piedra, puerta, hierro, fisica, colorMuro);
+    if (s === 0 || s === SEGMENTO_NORTE) {
+      // Sur: puerta exterior enorme, levantada 7 m. Norte: puerta interior de evacuación, levantada 4 m.
+      hojas.push(construirPuerta(theta, Rm, L, H, T, s === 0 ? ELEVACION_PUERTA : 4, piedra, hierro, fisica, colorMuro, escena, mats));
     } else {
       piedra.añadir(colorMuro(cajaUV(L, H, T, 24), H), matriz(c.x, H / 2, c.z, theta));
       fisica.caja({ x: c.x, y: H / 2, z: c.z }, { x: L / 2, y: H / 2, z: T / 2 }, 'muralla', theta);
@@ -85,7 +104,6 @@ export function construirMuralla(escena: THREE.Scene, fisica: Fisica, mats: Mate
     piedra.crearMesh(mats.muralla),
     hierro.crearMesh(mats.hierro),
     madera.crearMesh(mats.madera),
-    puerta.crearMesh(mats.puerta),
   );
 
   const pp = puntoAnillo(0, R + T + 2);
@@ -95,14 +113,74 @@ export function construirMuralla(escena: THREE.Scene, fisica: Fisica, mats: Mate
   antorchas.antorcha(pi.x - ANCHO_PUERTA / 2 - 2, 3, pi.z);
   antorchas.antorcha(pi.x + ANCHO_PUERTA / 2 + 2, 3, pi.z);
 
-  return { radioInterior: R, radioExterior: R + T, altura: H, canones, puerta: puntoAnillo(0, R + T) };
+  const pn = puntoAnillo(Math.PI, R - 2);
+  antorchas.antorcha(pn.x - ANCHO_PUERTA / 2 - 2, 3, pn.z);
+  antorchas.antorcha(pn.x + ANCHO_PUERTA / 2 + 2, 3, pn.z);
+
+  const sur = hojas[0];
+  const escombros = new THREE.Group();
+  escena.add(escombros);
+  const piedrasEscombro: import('@dimforge/rapier3d-compat').Collider[] = [];
+  let rota = false;
+  return {
+    radioInterior: R,
+    radioExterior: R + T,
+    altura: H,
+    canones,
+    puerta: puntoAnillo(0, R + T),
+    puertaEvacuacion: puntoAnillo(Math.PI, R - 1),
+    anchoPuerta: ANCHO_PUERTA,
+    get rota() {
+      return rota;
+    },
+    romperPuerta() {
+      if (rota) return;
+      rota = true;
+      sur.malla.visible = false;
+      if (sur.collider) fisica.eliminarCollider(sur.collider);
+      sur.collider = null;
+      // Escombros de piedra y astillas de la hoja esparcidos hacia dentro
+      const radial = new THREE.Vector3(0, 0, 1);
+      const tangente = new THREE.Vector3(1, 0, 0);
+      const matPiedra = mats.muralla;
+      const matMadera = mats.puerta;
+      let semilla = 7;
+      const azar = () => ((semilla = (semilla * 16807) % 2147483647) / 2147483647);
+      for (let k = 0; k < 26; k++) {
+        const madera = k % 3 === 0;
+        const s3 = madera ? new THREE.Vector3(1.2 + azar() * 4, 0.6, 0.8 + azar()) : new THREE.Vector3(1 + azar() * 3, 0.8 + azar() * 2.2, 1 + azar() * 3);
+        const m = new THREE.Mesh(cajaUV(s3.x, s3.y, s3.z, madera ? 4 : 24), madera ? matMadera : matPiedra);
+        if (!madera) colorear(m.geometry, new THREE.Color(0.85, 0.83, 0.8));
+        else colorear(m.geometry, new THREE.Color(1, 1, 1));
+        const d = (R + T / 2) - 6 - azar() * 30;
+        const lado = (azar() - 0.5) * (ANCHO_PUERTA + 10);
+        const p = radial.clone().multiplyScalar(d).addScaledVector(tangente, lado);
+        m.position.set(p.x, s3.y / 2, p.z);
+        m.rotation.set((azar() - 0.5) * 0.4, azar() * 3, (azar() - 0.5) * 0.4);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        escombros.add(m);
+        if (!madera && s3.y > 1.4) piedrasEscombro.push(fisica.caja({ x: p.x, y: s3.y / 2, z: p.z }, { x: s3.x / 2, y: s3.y / 2, z: s3.z / 2 }, 'otro', m.rotation.y));
+      }
+    },
+    repararPuerta() {
+      if (!rota) return;
+      rota = false;
+      sur.malla.visible = true;
+      sur.collider = fisica.caja(sur.desc.centro, sur.desc.mitad, 'puerta', sur.desc.theta);
+      for (const c of piedrasEscombro) fisica.eliminarCollider(c);
+      piedrasEscombro.length = 0;
+      for (const m of [...escombros.children]) escombros.remove(m);
+    },
+  };
 }
 
 function construirPuerta(
-  theta: number, Rm: number, L: number, H: number, T: number,
-  piedra: Lote, puerta: Lote, hierro: Lote, fisica: Fisica,
+  theta: number, Rm: number, L: number, H: number, T: number, elevacion: number,
+  piedra: Lote, hierro: Lote, fisica: Fisica,
   colorMuro: (g: THREE.BufferGeometry, alto: number) => THREE.BufferGeometry,
-): void {
+  escena: THREE.Scene, mats: Materiales,
+): Hoja {
   const tangente = new THREE.Vector3(Math.cos(theta), 0, -Math.sin(theta));
   const radial = new THREE.Vector3(Math.sin(theta), 0, Math.cos(theta));
   const centro = puntoAnillo(theta, Rm);
@@ -123,13 +201,21 @@ function construirPuerta(
   // Hoja de la puerta: madera con flejes de hierro, levantada ELEVACION_PUERTA metros
   const altoHoja = ALTO_PASO + 2;
   const hoja = centro.clone().addScaledVector(radial, T / 2 + 0.9);
-  puerta.añadir(cajaUV(ANCHO_PUERTA + 1.2, altoHoja, 1.2, 4), matriz(hoja.x, ELEVACION_PUERTA + altoHoja / 2, hoja.z, theta));
-  fisica.caja({ x: hoja.x, y: ELEVACION_PUERTA + altoHoja / 2, z: hoja.z }, { x: (ANCHO_PUERTA + 1.2) / 2, y: altoHoja / 2, z: 0.6 }, 'puerta', theta);
+  const geoHoja = colorear(cajaUV(ANCHO_PUERTA + 1.2, altoHoja, 1.2, 4), new THREE.Color(1, 1, 1));
+  const malla = new THREE.Mesh(geoHoja, mats.puerta);
+  malla.position.set(hoja.x, elevacion + altoHoja / 2, hoja.z);
+  malla.rotation.y = theta;
+  malla.castShadow = true;
+  malla.receiveShadow = true;
+  escena.add(malla);
+  const desc = { centro: malla.position.clone(), mitad: new THREE.Vector3((ANCHO_PUERTA + 1.2) / 2, altoHoja / 2, 0.6), theta };
+  const collider = fisica.caja(desc.centro, desc.mitad, 'puerta', theta);
   // Guías verticales de hierro a ambos lados
   for (const lado of [-1, 1]) {
     const g = hoja.clone().addScaledVector(tangente, lado * (ANCHO_PUERTA / 2 + 1.0)).addScaledVector(radial, 0.3);
     hierro.añadir(cajaUV(0.6, H - 4, 0.6, 1), matriz(g.x, (H - 4) / 2, g.z, theta), new THREE.Color('#26272a'));
   }
+  return { malla, collider, desc };
 }
 
 function construirCanon(theta: number, R: number, T: number, H: number, hierro: Lote, madera: Lote): void {

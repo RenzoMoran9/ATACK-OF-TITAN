@@ -2,8 +2,12 @@ import * as THREE from 'three';
 import { BuclePasoFijo } from './core/bucle';
 import { config } from './core/config';
 import { urlDepuracion, type Hora } from './core/depuracion';
+import { CivilesNulos, EscuadronNulo, TitanesNulos, type ContextoJuego, type Reloj } from './core/contexto';
 import { Entrada } from './core/entrada';
+import { Eventos } from './core/eventos';
 import { Fisica } from './core/fisica';
+import { Poblacion } from './core/poblacion';
+import { Efectos } from './combat/efectos';
 import { CamaraTercera } from './player/camara';
 import { Jugador } from './player/jugador';
 import { Hud } from './ui/hud';
@@ -53,6 +57,42 @@ async function iniciar(): Promise<void> {
   const rig = new CamaraTercera(camara, fisica, () => jugador.collider);
   const entrada = new Entrada(renderer.domElement);
   const hud = new Hud(document.body, urlDepuracion.hud);
+
+  // ── Contexto de juego compartido por todos los sistemas ──
+  const poblacion = new Poblacion();
+  poblacion.agregarHumano(jugador);
+  let restanteLenta = 0;
+  const bucleRef: { escalaTiempo: number } = { escalaTiempo: 1 };
+  const reloj: Reloj = {
+    t: 0,
+    get escala() {
+      return bucleRef.escalaTiempo;
+    },
+    camaraLenta(escala, segundosReales) {
+      bucleRef.escalaTiempo = escala;
+      restanteLenta = segundosReales;
+    },
+  };
+  const ctx: ContextoJuego = {
+    escena,
+    camara,
+    fisica,
+    nav: mundo.nav,
+    poblacion,
+    eventos: new Eventos(),
+    efectos: new Efectos(escena),
+    mundo,
+    entrada,
+    reloj,
+    jugador,
+    titanes: new TitanesNulos(poblacion),
+    escuadron: new EscuadronNulo(),
+    civiles: new CivilesNulos(),
+    esDeNoche: () => cielo.esDeNoche,
+  };
+  // Modo libre: los titanes de referencia en la llanura
+  for (const o of mundo.titanesReferencia) ctx.titanes.generar(o);
+  if (urlDepuracion.cam) ctx.titanes.congelado = true;
 
   const cambiarHora = (h: Hora) => {
     cielo.aplicar(h, renderer);
@@ -110,7 +150,11 @@ async function iniciar(): Promise<void> {
   let tiempo = 0;
   let fotogramas = 0;
   const actualizar = (dt: number) => {
+    reloj.t += dt;
     jugador.paso(dt, entrada, { dir: rig.dir, yaw: rig.yaw });
+    ctx.titanes.actualizar(dt);
+    ctx.escuadron.actualizar(dt);
+    ctx.civiles.actualizar(dt);
     fisica.paso(dt);
     // Recarga de gas junto al depósito de la plaza
     const dep = mundo.ciudad.deposito;
@@ -122,6 +166,10 @@ async function iniciar(): Promise<void> {
 
   const dibujar = (alfa: number, dt: number) => {
     tiempo += dt;
+    if (restanteLenta > 0) {
+      restanteLenta -= dt;
+      if (restanteLenta <= 0) bucleRef.escalaTiempo = 1;
+    }
     const { dx, dy } = entrada.raton();
     // Flechas: giro de cámara alternativo (útil cuando el visor no permite capturar el ratón)
     const fx = (entrada.mantenida('ArrowRight') ? 1 : 0) - (entrada.mantenida('ArrowLeft') ? 1 : 0);
@@ -132,7 +180,10 @@ async function iniciar(): Promise<void> {
     jugador.odm.apuntar(camara.position, rig.dir, camara.up, jugador.pos);
     cielo.seguir(jugador.posRender, camara);
     mundo.antorchas.actualizar(dt, camara.position, tiempo);
-    for (const t of mundo.titanes) t.actualizar(tiempo);
+    ctx.titanes.dibujar(dt, tiempo);
+    ctx.escuadron.dibujar(dt, tiempo);
+    ctx.civiles.dibujar(dt, tiempo);
+    ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
     hud.actualizar(dt, jugador, camara, window.innerWidth, window.innerHeight);
     renderer.render(escena, camara);
     if (pasosEnFotograma > 0) {
@@ -161,7 +212,12 @@ async function iniciar(): Promise<void> {
       apuntes: jugador.odm.apuntes.map((a) => a.valido),
     }),
   };
-  new BuclePasoFijo(1 / config.fisica.hz, actualizar, dibujar).iniciar();
+  const bucle = new BuclePasoFijo(1 / config.fisica.hz, actualizar, dibujar);
+  Object.defineProperty(bucleRef, 'escalaTiempo', {
+    get: () => bucle.escalaTiempo,
+    set: (v: number) => (bucle.escalaTiempo = v),
+  });
+  bucle.iniciar();
 }
 
 iniciar().catch((e) => {
