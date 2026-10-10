@@ -49,6 +49,8 @@ export interface ContextoJuego {
   titanes: GestorTitanesAPI;
   escuadron: EscuadronAPI;
   civiles: CivilesAPI;
+  /** Dónde reaparece el jugador si lo devoran (lo mueven las misiones). */
+  puntoReaparicion: THREE.Vector3;
   esDeNoche(): boolean;
 }
 

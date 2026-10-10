@@ -42,8 +42,11 @@ export class Jugador implements JugadorAPI {
   get velocidad(): THREE.Vector3 {
     return this.vel;
   }
-  alSerAgarrado(titan: TitanAPI): void {
+  /** Brazo del titán que lo sujeta (cortarlo lo libera). */
+  brazoAgarre: 'brazoIzq' | 'brazoDer' = 'brazoDer';
+  alSerAgarrado(titan: TitanAPI, brazo: 'brazoIzq' | 'brazoDer'): void {
     this.agarradoPor = titan;
+    this.brazoAgarre = brazo;
     this.odm.liberarTodo();
   }
   alSerSoltado(): void {

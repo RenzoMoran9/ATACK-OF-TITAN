@@ -88,6 +88,7 @@ async function iniciar(): Promise<void> {
     titanes: new TitanesNulos(poblacion),
     escuadron: new EscuadronNulo(),
     civiles: new CivilesNulos(),
+    puntoReaparicion: mundo.inicio.clone(),
     esDeNoche: () => cielo.esDeNoche,
   };
   // Modo libre: los titanes de referencia en la llanura

@@ -20,8 +20,11 @@ export interface Humano {
   readonly vivo: boolean;
   /** Titán que lo tiene en la mano (null si está libre). */
   readonly agarradoPor: TitanAPI | null;
-  /** Lo llama el titán al cerrar la mano sobre él. Mientras dure, el titán fija su posición con `fijarPosicion`. */
-  alSerAgarrado(titan: TitanAPI): void;
+  /**
+   * Lo llama el titán al cerrar la mano sobre él (`brazo` = la zona del brazo que lo sujeta;
+   * cortarla lo libera). Mientras dure, el titán fija su posición con `fijarPosicion`.
+   */
+  alSerAgarrado(titan: TitanAPI, brazo: 'brazoIzq' | 'brazoDer'): void;
   /** El titán lo suelta (le cortaron el brazo/dedos, murió o lo lanzó). */
   alSerSoltado(): void;
   /** El titán se lo come: muere. */
