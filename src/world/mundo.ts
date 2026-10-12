@@ -25,8 +25,16 @@ export interface PuntoCamara {
   mirar: THREE.Vector3;
 }
 
+/** Punto de recarga de gas y cuchillas (el depósito de la plaza, puestos de avanzada…). */
+export interface Deposito {
+  pos: THREE.Vector3;
+  nombre: string;
+}
+
 export interface Mundo {
   mats: Materiales;
+  /** Todos los puntos de recarga; el primero es el depósito de la plaza de Trost. */
+  depositos: Deposito[];
   ciudad: DatosCiudad;
   muralla: DatosMuralla;
   bosque: Bosque;
@@ -79,7 +87,22 @@ export function construirMundo(escena: THREE.Scene, fisica: Fisica, cfg: Config)
   const nav = construirNavegacion(ciudad, bosque, R, T);
   const inicio = new THREE.Vector3(0, 0, 14);
   const puntos = calcularPuntos(ciudad, bosque, titanesReferencia[0], R, H, T);
-  return { mats, ciudad, muralla, bosque, titanesReferencia, nav, antorchas, inicio, puntos };
+  const depositos: Deposito[] = [{ pos: ciudad.deposito.clone(), nombre: 'Depósito de la plaza' }];
+  return { mats, depositos, ciudad, muralla, bosque, titanesReferencia, nav, antorchas, inicio, puntos };
+}
+
+/** El depósito más cercano a `p` (distancia horizontal). */
+export function depositoMasCercano(mundo: Mundo, p: THREE.Vector3): { deposito: Deposito; distancia: number } {
+  let mejor = mundo.depositos[0];
+  let d = Infinity;
+  for (const dep of mundo.depositos) {
+    const x = Math.hypot(dep.pos.x - p.x, dep.pos.z - p.z);
+    if (x < d) {
+      d = x;
+      mejor = dep;
+    }
+  }
+  return { deposito: mejor, distancia: d };
 }
 
 /** Posiciones fijas de jugador + cámara para depurar y sacar capturas (?cam=...). */

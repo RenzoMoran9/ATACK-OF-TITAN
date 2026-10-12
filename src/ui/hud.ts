@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { ContextoJuego } from '../core/contexto';
 import type { Campana } from '../missions/campana';
 import type { Jugador } from '../player/jugador';
+import { depositoMasCercano } from '../world/mundo';
 
 /**
  * HUD: gas (dos cilindros), cuchillas, vida, retícula con indicador de anclaje por gancho,
@@ -140,8 +141,8 @@ export class Hud {
       lineas.push(`<div>${texto} <i>${Math.round(equipo.distancia)} m ${flecha(equipo.equipo.pos)}</i></div>`);
     }
     if (campana?.depositoDisponible() ?? true) {
-      const dep = ctx.mundo.ciudad.deposito;
-      lineas.push(`<div>Depósito de suministros <i>${Math.round(dep.distanceTo(jugador.pos))} m ${flecha(dep)}</i></div>`);
+      const { deposito, distancia } = depositoMasCercano(ctx.mundo, jugador.pos);
+      lineas.push(`<div>${deposito.nombre} <i>${Math.round(distancia)} m ${flecha(deposito.pos)}</i></div>`);
     } else lineas.push('<div class="apagado">Depósito tomado por titanes: despéjalo</div>');
     if (vacio) lineas.push('<div class="apagado">A pie: WASD para correr, Shift para saltar; busca un tejado</div>');
     const html = lineas.join('');

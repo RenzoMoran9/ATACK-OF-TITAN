@@ -103,6 +103,8 @@ export interface TitanAPI {
   /** Altura en metros (3–15 para puros). */
   readonly altura: number;
   readonly anormal: boolean;
+  /** Corre a cuatro patas (anormal rápido de los bosques). */
+  readonly cuadrupedo?: boolean;
   /** Pies del titán en mundo. */
   readonly posicion: THREE.Vector3;
   /** Hacia dónde mira (rad, 0 = +Z). */
@@ -203,6 +205,8 @@ export interface OpcionesTitan {
   rumbo?: number;
   /** Semilla para variar proporciones y cara. */
   semilla?: number;
+  /** Anormal que corre a cuatro patas, muy rápido (bosques). Implica `anormal`. */
+  cuadrupedo?: boolean;
 }
 
 export interface GestorTitanesAPI {

@@ -24,7 +24,7 @@ import { Pantallas } from './ui/pantallas';
 import { crearPanel } from './ui/panel';
 import { Cielo } from './world/cielo';
 import { ajustarNoche } from './world/materiales';
-import { construirMundo } from './world/mundo';
+import { construirMundo, depositoMasCercano } from './world/mundo';
 
 declare global {
   interface Window {
@@ -220,9 +220,9 @@ async function iniciar(): Promise<void> {
     ctx.civiles.actualizar(dt);
     campana?.actualizar(dt);
     fisica.paso(dt);
-    // Recarga de gas y cuchillas junto al depósito de la plaza
-    const dep = mundo.ciudad.deposito;
-    const enDeposito = Math.hypot(jugador.pos.x - dep.x, jugador.pos.z - dep.z) < config.gas.radioRecarga && jugador.pos.y < 3;
+    // Recarga de gas y cuchillas junto a un depósito (plaza o puestos de avanzada)
+    const dep = depositoMasCercano(mundo, jugador.pos);
+    const enDeposito = dep.distancia < config.gas.radioRecarga && jugador.pos.y < dep.deposito.pos.y + 3;
     jugador.recargarEnDeposito(dt, enDeposito && (campana?.depositoDisponible() ?? true));
     pasosEnFotograma++;
   };
