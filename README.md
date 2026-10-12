@@ -41,6 +41,7 @@ npm run dev                       # http://localhost:5173
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
 | **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
 | **Tab** | A quién mandas: todo el escuadrón → cada soldado → todos. Los demás conservan su orden (Todos + 5 = te vas solo; Tab hasta Mikasa + 1 = te la llevas) |
+| **M** | Mapa del territorio (bosques, río, lugares, escuadrón, titanes cercanos, puntos de recarga) |
 | **Retroceso** | Reaparecer en el punto de control |
 | Ratón / **flechas** | Cámara (las flechas sirven si el navegador no deja capturar el ratón) |
 | **F1** o **P** | Panel de ajustes (todos los valores de `src/data/config.json`, en caliente) |
@@ -75,10 +76,26 @@ va a la nuca cuando el titán no le mira. Rescatan a quien esté en la mano de u
 1. **Cadetes del 104.º** — entrenamiento con siluetas de madera en el linde del bosque: nuca, tendones, ojos y cambio de cuchillas.
 2. **Defensa de Trost** — el Titán Colosal revienta la puerta sur; cubres la evacuación hacia la puerta norte, suena la
    campana de retirada con los cilindros vacíos, recuperáis el depósito de suministros y escapáis por la muralla norte.
-3. **Modo libre** — llanura al sur con titanes de todos los tamaños.
+3. **Exploración: territorio perdido** — mundo abierto al sur de Trost (ver abajo): 14 lugares por descubrir.
+
+## Mundo abierto
+
+Unos 4 × 4 km alrededor de Trost, con el territorio perdido al sur:
+
+- **Seis bosques**, la zona más peligrosa del juego: tres de árboles gigantes de 80–90 m (el Bosque de los Árboles
+  Gigantes junto a la puerta, el Gigante del Oeste y el Gigante del Sur) y tres densos de 25–45 m (Pinar Negro,
+  Hayedo de la Bruma y Bosque del Norte). Bajo las copas la luz baja y la niebla se cierra. Allí el poblador de
+  titanes genera el doble y pico que en la llanura, y casi todos son anormales: el 40 % son **titanes que corren a
+  cuatro patas** (13–28 m/s), se agazapan un instante (aviso «¡Corre a cuatro patas!») y saltan a morder. Si fallan,
+  derrapan: es el momento de cortarles la nuca o una pata delantera, que los tumba.
+- **Lugares**: aldeas abandonadas (de Pastores y del Molino), las ruinas del Castillo de Utgard, el río con el Puente
+  de Piedra, tres puestos de avanzada (recargan gas y cuchillas) y el campamento de la Legión de Reconocimiento.
+- Arboledas por toda la llanura, montes al fondo y viento en contra si te sales de la región.
+- **Brújula** arriba (Trost, recarga más cercana, lugares, escuadrón, titanes cercanos) y **mapa** con M.
 
 Los siguientes arcos (la Titán Hembra en el bosque, el asalto a Stohess, la recuperación de Shiganshina) están en el plan
-de la historia para las próximas fases.
+de la historia para las próximas fases; el mundo abierto ya tiene el escenario de la 57.ª expedición (bosques gigantes,
+Castillo de Utgard).
 
 ## Modo de depuración por URL
 

@@ -35,7 +35,7 @@ declare global {
   interface Window {
     /** true cuando la escena está construida y se han dibujado varios fotogramas (lo usa scripts/capturas.ts). */
     __juegoListo?: boolean;
-    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown };
+    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown };
   }
 }
 
@@ -308,6 +308,7 @@ async function iniciar(): Promise<void> {
     ctx,
     campana,
     rig,
+    mando,
   };
   const bucle = new BuclePasoFijo(1 / config.fisica.hz, actualizar, dibujar);
   Object.defineProperty(bucleRef, 'escalaTiempo', {
