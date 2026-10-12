@@ -550,3 +550,30 @@ export function texturaCaraTitan(variante: number): THREE.CanvasTexture {
     }
   });
 }
+
+/** Agua del río: azul verdoso con ondas alargadas claras. Un mosaico = 16 m. */
+export function texturaAgua(): THREE.CanvasTexture {
+  return textura('agua', 256, 256, (ctx, w, h, rng) => {
+    ctx.fillStyle = '#3b5d6a';
+    ctx.fillRect(0, 0, w, h);
+    manchas(ctx, w, h, rng, 25, ['#2f4f5c', '#47707c', '#355866'], 20, 70, 0.5);
+    for (let i = 0; i < 260; i++) {
+      ctx.strokeStyle = rng.elegir(['#7fa3ad', '#a9c6cc', '#5d8592']);
+      ctx.globalAlpha = rng.rango(0.15, 0.45);
+      ctx.lineWidth = rng.rango(0.8, 2);
+      const x = rng.rango(0, w);
+      const y = rng.rango(0, h);
+      const l = rng.rango(6, 22);
+      const curva = rng.rango(1, 3);
+      for (const ox of [-w, 0, w]) {
+        for (const oy of [-h, 0, h]) {
+          ctx.beginPath();
+          ctx.moveTo(x + ox - l / 2, y + oy);
+          ctx.quadraticCurveTo(x + ox, y + oy - curva, x + ox + l / 2, y + oy);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  });
+}

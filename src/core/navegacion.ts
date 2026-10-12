@@ -7,6 +7,10 @@ import * as THREE from 'three';
  * - Mapa de holgura: distancia (m) de cada celda al obstáculo más cercano, para que un
  *   titán de 15 m solo pase por donde cabe y un civil pueda meterse por un callejón.
  * - A* de 8 vecinos con poda por línea de visión para rutas suaves.
+ *
+ * Con el mundo abierto la rejilla cubre 4 km × 4 km (≈1,8 millones de celdas de 3 m, unos
+ * 9 MB). La holgura se limita a HOLGURA_MAX: así, al abrir o cerrar la puerta (o bloquear
+ * cualquier cosa después de construir) solo se recalcula la ventana tocada y no la rejilla entera.
  */
 
 export interface Limites {
@@ -17,6 +21,8 @@ export interface Limites {
 }
 
 const INF = 1e9;
+/** Holgura máxima calculada (m). Ningún agente necesita más (el titán de 15 m usa 2,6). */
+export const HOLGURA_MAX = 30;
 
 class MonticuloMin {
   private readonly ids: number[] = [];
@@ -72,7 +78,10 @@ export class Navegacion {
   readonly alto: number;
   private readonly ocupado: Uint8Array;
   private holgura: Float32Array;
-  private sucio = true;
+  /** Hay que recalcular toda la holgura (al construir). */
+  private todoSucio = true;
+  /** Ventana de celdas tocadas desde el último cálculo (cambios en caliente). */
+  private zonaSucia: { i0: number; i1: number; j0: number; j1: number } | null = null;
 
   constructor(readonly limites: Limites, readonly celda = 3) {
     this.ancho = Math.ceil((limites.x1 - limites.x0) / celda);
@@ -97,6 +106,25 @@ export class Navegacion {
   private dentro(i: number, j: number): boolean {
     return i >= 0 && j >= 0 && i < this.ancho && j < this.alto;
   }
+  private get sucio(): boolean {
+    return this.todoSucio || this.zonaSucia !== null;
+  }
+  /** Anota las celdas tocadas para recalcular solo esa zona. */
+  private marcar(xa: number, xb: number, za: number, zb: number): void {
+    if (this.todoSucio) return;
+    const i0 = this.ix(xa);
+    const i1 = this.ix(xb);
+    const j0 = this.iz(za);
+    const j1 = this.iz(zb);
+    const z = this.zonaSucia;
+    if (!z) this.zonaSucia = { i0, i1, j0, j1 };
+    else {
+      z.i0 = Math.min(z.i0, i0);
+      z.i1 = Math.max(z.i1, i1);
+      z.j0 = Math.min(z.j0, j0);
+      z.j1 = Math.max(z.j1, j1);
+    }
+  }
 
   // ── Construcción ──
 
@@ -116,7 +144,16 @@ export class Navegacion {
         if (Math.abs(lx) <= hx && Math.abs(lz) <= hz) this.ocupado[j * this.ancho + i] = valor;
       }
     }
-    this.sucio = true;
+    this.marcar(cx - r, cx + r, cz - r, cz + r);
+  }
+
+  /** Bloquea la celda que contiene el punto (troncos finos que no tapan ningún centro de celda). */
+  bloquearPunto(x: number, z: number): void {
+    const i = this.ix(x);
+    const j = this.iz(z);
+    if (!this.dentro(i, j)) return;
+    this.ocupado[j * this.ancho + i] = 1;
+    this.marcar(x, x, z, z);
   }
 
   bloquearCirculo(cx: number, cz: number, radio: number, valor = 1): void {
@@ -126,7 +163,7 @@ export class Navegacion {
         if (Math.hypot(this.cx(i) - cx, this.cz(j) - cz) <= radio) this.ocupado[j * this.ancho + i] = valor;
       }
     }
-    this.sucio = true;
+    this.marcar(cx - radio, cx + radio, cz - radio, cz + radio);
   }
 
   /**
@@ -150,7 +187,7 @@ export class Navegacion {
         this.ocupado[j * this.ancho + i] = valor;
       }
     }
-    this.sucio = true;
+    this.marcar(-r1, r1, -r1, r1);
   }
 
   /** Marca o libera el arco de la puerta (para abrir la brecha). */
@@ -167,15 +204,47 @@ export class Navegacion {
         if (Math.abs(d * r) < ancho / 2) this.ocupado[j * this.ancho + i] = valor;
       }
     }
-    this.sucio = true;
+    this.marcar(-r1, r1, -r1, r1);
   }
 
-  /** Recalcula la holgura (transformada de distancia chaflán 3-4, en metros). */
+  /** Recalcula la holgura donde haga falta (toda la rejilla al construir; si no, la ventana tocada). */
   private recalcular(): void {
-    const w = this.ancho;
-    const h = this.alto;
-    const d = this.holgura;
-    for (let k = 0; k < d.length; k++) d[k] = this.ocupado[k] ? 0 : INF;
+    if (this.todoSucio) {
+      this.transformar(0, this.ancho - 1, 0, this.alto - 1, 0);
+    } else if (this.zonaSucia) {
+      // la holgura de una celda solo depende de obstáculos a menos de HOLGURA_MAX: se calcula
+      // en la zona ampliada dos veces ese radio y se escribe la ampliada una vez
+      const m = Math.ceil(HOLGURA_MAX / this.celda) + 1;
+      const z = this.zonaSucia;
+      this.transformar(z.i0 - m, z.i1 + m, z.j0 - m, z.j1 + m, m);
+    }
+    this.todoSucio = false;
+    this.zonaSucia = null;
+  }
+
+  /**
+   * Transformada de distancia chaflán 3-4 (en metros) sobre la ventana [i0..i1]×[j0..j1]
+   * ampliada `borde` celdas por cada lado; escribe solo la ventana sin ampliar.
+   */
+  private transformar(ei0: number, ei1: number, ej0: number, ej1: number, borde: number): void {
+    const W = this.ancho;
+    ei0 = Math.max(0, ei0);
+    ej0 = Math.max(0, ej0);
+    ei1 = Math.min(W - 1, ei1);
+    ej1 = Math.min(this.alto - 1, ej1);
+    if (ei0 > ei1 || ej0 > ej1) return;
+    const i0 = Math.max(0, ei0 - borde);
+    const j0 = Math.max(0, ej0 - borde);
+    const i1 = Math.min(W - 1, ei1 + borde);
+    const j1 = Math.min(this.alto - 1, ej1 + borde);
+    const w = i1 - i0 + 1;
+    const h = j1 - j0 + 1;
+    const todo = w === W && h === this.alto;
+    const d = todo ? this.holgura : new Float32Array(w * h);
+    for (let j = 0; j < h; j++) {
+      const fila = (j + j0) * W + i0;
+      for (let i = 0; i < w; i++) d[j * w + i] = this.ocupado[fila + i] ? 0 : INF;
+    }
     const a = this.celda;
     const b = this.celda * Math.SQRT2;
     for (let j = 0; j < h; j++) {
@@ -207,8 +276,13 @@ export class Navegacion {
       }
     }
     // la holgura se mide desde el borde de la celda bloqueada, no desde su centro
-    for (let k = 0; k < d.length; k++) if (d[k] > 0) d[k] = Math.max(0.01, d[k] - this.celda * 0.5);
-    this.sucio = false;
+    const medio = this.celda * 0.5;
+    for (let j = ej0; j <= ej1; j++) {
+      for (let i = ei0; i <= ei1; i++) {
+        const v = d[(j - j0) * w + (i - i0)];
+        this.holgura[j * W + i] = v > 0 ? Math.min(HOLGURA_MAX, Math.max(0.01, v - medio)) : 0;
+      }
+    }
   }
 
   // ── Consultas ──
