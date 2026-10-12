@@ -11,6 +11,7 @@ import { Efectos } from './combat/efectos';
 import { CamaraTercera } from './player/camara';
 import { Jugador } from './player/jugador';
 import { Campana } from './missions/campana';
+import { GestorCiviles } from './npc/civiles';
 import { CapEntrenamiento } from './missions/capitulos/entrenamiento';
 import { CapLibre } from './missions/capitulos/libre';
 import { CapTrost } from './missions/capitulos/trost';
@@ -95,6 +96,7 @@ async function iniciar(): Promise<void> {
     puntoReaparicion: mundo.inicio.clone(),
     esDeNoche: () => cielo.esDeNoche,
   };
+  ctx.civiles = new GestorCiviles(ctx);
   jugador.conectar(ctx);
   const hud = new Hud(document.body, urlDepuracion.hud, ctx);
   // Órdenes al escuadrón con 1-4
