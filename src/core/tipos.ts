@@ -169,6 +169,14 @@ export interface EstadoAnimacion {
   aterrizaje: number | null;
   /** Velocidad vertical al aterrizar (m/s, positiva hacia abajo), para graduar la flexión. */
   impactoAterrizaje: number;
+  /** Dirección del empuje de gas (para elegir la variante de la pose de impulso). */
+  dirImpulso?: THREE.Vector3;
+  /** Punto que mira la cabeza (lo que apunta la cámara, un titán...). */
+  mirar?: THREE.Vector3;
+  /** Filo del par montado (0 = sin hojas). */
+  filo?: number;
+  /** Punto que se va a cortar: decide el sentido del barrido. */
+  objetivoCorte?: THREE.Vector3 | null;
 }
 
 /** Aspecto de un soldado (jugador o aliado). Todo opcional: por defecto, el uniforme del jugador. */
@@ -180,6 +188,8 @@ export interface AspectoSoldado {
   peloLargo?: boolean;
   /** Escala de altura (1 = 1,7 m). */
   escala?: number;
+  /** Color de bufanda (la roja de Mikasa). */
+  bufanda?: string;
 }
 
 // ───────────────────────── Gestores (los implementa cada sistema) ─────────────────────────

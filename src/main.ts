@@ -4,6 +4,7 @@ import { config } from './core/config';
 import { urlDepuracion, type Hora } from './core/depuracion';
 import { CivilesNulos, EscuadronNulo, TitanesNulos, type ContextoJuego, type Reloj } from './core/contexto';
 import { GestorTitanes } from './titans/gestor';
+import { LaboratorioPoses } from './player/laboratorio';
 import { Entrada } from './core/entrada';
 import { Eventos } from './core/eventos';
 import { Fisica } from './core/fisica';
@@ -110,10 +111,15 @@ async function iniciar(): Promise<void> {
 
   // Capturas (?cam=...): escena fija con los titanes de referencia congelados, sin menús.
   // Si no, campaña por capítulos con su menú.
-  const modoCaptura = urlDepuracion.cam !== null;
+  const modoCaptura = urlDepuracion.cam !== null || urlDepuracion.poses;
   let campana: Campana | null = null;
   let pantallas: Pantallas | null = null;
-  if (modoCaptura) {
+  let laboratorio: LaboratorioPoses | null = null;
+  if (urlDepuracion.poses) {
+    laboratorio = new LaboratorioPoses(escena, mundo.inicio.clone().add(new THREE.Vector3(0, 0, 20)));
+    jugador.teletransportar(mundo.inicio.clone().add(new THREE.Vector3(30, 0, 40)));
+    rig.fijarPose(laboratorio.camara, laboratorio.mirar);
+  } else if (modoCaptura) {
     for (const o of mundo.titanesReferencia) ctx.titanes.generar(o);
     ctx.titanes.congelado = true;
   } else {
@@ -219,7 +225,8 @@ async function iniciar(): Promise<void> {
     const fx = (entrada.mantenida('ArrowRight') ? 1 : 0) - (entrada.mantenida('ArrowLeft') ? 1 : 0);
     const fy = (entrada.mantenida('ArrowDown') ? 1 : 0) - (entrada.mantenida('ArrowUp') ? 1 : 0);
     rig.girar(dx + fx * 900 * dt, dy + fy * 600 * dt);
-    jugador.dibujar(alfa, dt, tiempo);
+    jugador.dibujar(alfa, dt * bucleRef.escalaTiempo, tiempo);
+    laboratorio?.actualizar(dt, tiempo);
     rig.sacudida = jugador.combate?.sacudida ?? 0;
     rig.agarrado = jugador.agarradoPor !== null;
     rig.actualizar(dt, jugador.posRender, jugador.vel);

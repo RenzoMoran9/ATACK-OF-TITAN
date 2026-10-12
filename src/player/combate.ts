@@ -64,6 +64,8 @@ const TEXTOS: Partial<Record<EfectoCorte, string>> = {
 export class CombateJugador {
   readonly cuchillas = new Cuchillas();
   tajo: Tajo | null = null;
+  /** Punto débil al que va el tajo en curso (para el sentido del barrido en la animación). */
+  objetivoTajo: THREE.Vector3 | null = null;
   preparando = false;
   private tPreparacion = 0;
   muertesNuca = 0;
@@ -136,6 +138,7 @@ export class CombateJugador {
     this.tajo = { t: 0, dur: giro ? DURACION_GIRO : DURACION_TAJO, giro, carga, golpes: 0, golpeados: new Set() };
     // Impulso asistido hacia el punto débil más prometedor que tengas delante (prioriza la nuca)
     const objetivo = this.mejorPuntoCercano(8, mirada);
+    this.objetivoTajo = objetivo ? objetivo.centro.clone() : null;
     if (objetivo && !giro) {
       const dir = this.tmp.copy(objetivo.centro).sub(this.c.pos);
       const d = dir.length();

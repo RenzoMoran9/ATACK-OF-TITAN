@@ -4,6 +4,7 @@
  *   ?hora=dia|atardecer|noche                               iluminación inicial
  *   ?debug=1                                                abre el panel F1 al cargar
  *   ?hud=0                                                  oculta el HUD
+ *   ?poses                                                  laboratorio de poses del soldado
  */
 export type Hora = 'dia' | 'atardecer' | 'noche';
 
@@ -16,8 +17,9 @@ const [h1, h2] = window.location.hash.replace(/^#/, '').toLowerCase().split('-')
 const horaUrl = params.get('hora');
 
 export const urlDepuracion = {
-  cam: params.get('cam') ?? (h1 && !esHora(h1) ? h1 : null),
+  cam: params.get('cam') ?? (h1 && !esHora(h1) && h1 !== 'poses' ? h1 : null),
   hora: (esHora(horaUrl) ? horaUrl : esHora(h1) ? h1 : esHora(h2) ? h2 : 'dia') as Hora,
   debug: params.get('debug') === '1',
   hud: params.get('hud') !== '0',
+  poses: params.has('poses') || h1 === 'poses',
 };

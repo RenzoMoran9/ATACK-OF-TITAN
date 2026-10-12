@@ -180,6 +180,8 @@ export class Jugador implements JugadorAPI {
   private velPrevia = new THREE.Vector3();
   /** Aceleración suavizada (para la pose). */
   private readonly acel = new THREE.Vector3();
+  private readonly dirImpulso = new THREE.Vector3(0, 1, 0);
+  private readonly dirMirada = new THREE.Vector3(0, 0, 1);
   private readonly tmp = new THREE.Vector3();
 
   constructor(escena: THREE.Scene, private readonly fisica: Fisica, inicio: THREE.Vector3) {
@@ -263,6 +265,8 @@ export class Jugador implements JugadorAPI {
 
     // Impulso: hacia donde pulsas, o hacia donde miras si no pulsas nada
     const dirImpulso = deseo.lengthSq() > 0 ? deseo.clone().setY(Math.max(0.12, mirada.dir.y * 0.6)).normalize() : mirada.dir.clone();
+    this.dirImpulso.copy(dirImpulso);
+    this.dirMirada.copy(mirada.dir);
     this.odm.actualizar(dt, { pos: this.pos, vel: this.vel, gas: this.gas, entrada, dirImpulso }, this.salida, mirada.dir);
     const tirando = this.odm.recogiendo || this.odm.impulsando;
 
@@ -404,6 +408,10 @@ export class Jugador implements JugadorAPI {
       muerto: !this.vivo,
       aterrizaje: this.tAterrizaje,
       impactoAterrizaje: this.impactoAterrizaje,
+      dirImpulso: this.dirImpulso,
+      mirar: this.posRender.clone().addScaledVector(this.dirMirada, 40),
+      filo: this.combate?.cuchillas.rota ? 0 : 1,
+      objetivoCorte: this.combate?.objetivoTajo ?? null,
     });
     g.updateMatrixWorld(true);
     this.odm.dibujar(this.salidaModelo, this.pos);
