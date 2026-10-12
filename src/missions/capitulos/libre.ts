@@ -1,60 +1,117 @@
 import * as THREE from 'three';
+import { Poblador } from '../../titans/poblador';
+import type { Lugar } from '../../world/lugares';
 import type { ApiCapitulo, Capitulo } from '../campana';
-import { Silueta } from '../silueta';
 
 /**
- * Modo libre: el distrito en un día cualquiera. Vecinos en las calles, tu escuadrón
- * contigo y titanes rondando fuera de la muralla y por el bosque. Sin objetivos.
+ * Exploración del territorio perdido: mundo abierto al sur de Trost. Empiezas fuera de la
+ * puerta sur con tu escuadrón; el poblador mantiene titanes alrededor (muchos más, y más
+ * rápidos, dentro de los bosques) y hay lugares por descubrir: bosques, aldeas abandonadas,
+ * el Castillo de Utgard, el puente, los puestos de avanzada y el campamento de la Legión.
+ * Sin derrota: si te devoran, vuelves al último lugar seguro.
  */
 export class CapLibre implements Capitulo {
   readonly id = 'libre' as const;
-  readonly titulo = 'Modo libre';
-  readonly epoca = 'Año 850 · Entre misiones';
+  readonly titulo = 'Exploración: territorio perdido';
+  readonly epoca = 'Año 850 · Más allá de la muralla';
   readonly intro =
-    'Un día de calma tensa. Los vecinos hacen su vida dentro de la muralla y tu escuadrón espera órdenes. ' +
-    'Fuera, en la llanura y entre los árboles gigantes, los titanes vagan buscando gente. Sal a cazarlos cuando quieras.';
+    'Al sur de Trost se extiende lo que la humanidad perdió: llanuras, aldeas vacías, las ruinas del Castillo de Utgard ' +
+    'y bosques donde los titanes acechan entre los troncos — algunos corren a cuatro patas. Explora con tu escuadrón: ' +
+    'M abre el mapa, 5 los deja esperando si quieres ir solo, 6 los manda a un punto, 8 los pone a explorar. ' +
+    'Los puestos de avanzada recargan gas y cuchillas.';
 
   private api!: ApiCapitulo;
-  private siluetas: Silueta[] = [];
-  private reloj = 0;
+  private poblador: Poblador | null = null;
+  private tRevisar = 0;
+  private enBosque: string | null = null;
 
   iniciar(api: ApiCapitulo): void {
     this.api = api;
     const ctx = api.ctx;
-    const inicio = ctx.mundo.inicio.clone();
-    ctx.jugador.revivir(inicio, Math.PI);
+    const m = ctx.mundo.muralla;
+    for (const l of ctx.mundo.lugares) l.descubierto = false;
+    // Fuera de la puerta sur, mirando al territorio
+    const inicio = new THREE.Vector3(6, 0, m.radioExterior + 30);
+    ctx.jugador.revivir(inicio, 0);
     api.puntoControl(inicio);
     ctx.escuadron.crear(
       [
-        { nombre: 'Mikasa', rol: 'rematador', aspecto: { pelo: '#121214', peloLargo: false, escala: 0.98 } },
-        { nombre: 'Armin', rol: 'cebo', aspecto: { pelo: '#e3c873', escala: 0.95 } },
-        { nombre: 'Jean', rol: 'apoyo', aspecto: { pelo: '#9a7a52', escala: 1.04 } },
-        { nombre: 'Connie', rol: 'apoyo', aspecto: { pelo: '#3a3a3a', escala: 0.92 } },
+        { nombre: 'Mikasa', rol: 'rematador' },
+        { nombre: 'Armin', rol: 'cebo' },
+        { nombre: 'Jean', rol: 'apoyo' },
+        { nombre: 'Connie', rol: 'apoyo' },
       ],
-      inicio.clone().add(new THREE.Vector3(4, 0, 4)),
+      inicio.clone().add(new THREE.Vector3(-5, 0, -4)),
     );
-    ctx.civiles.generar(40, new THREE.Vector3(0, 0, 0), 150);
-    for (const o of ctx.mundo.titanesReferencia) ctx.titanes.generar(o);
-    ctx.titanes.generarGrupo(5, new THREE.Vector3(0, 0, 360), 90, [3, 4, 7, 10, 15], 0.15);
-    this.siluetas = [new Silueta(ctx, new THREE.Vector3(-60, 0, 300), 7, Math.PI), new Silueta(ctx, new THREE.Vector3(60, 0, 300), 10, Math.PI)];
-    api.objetivo('Modo libre', 'Caza titanes fuera de la muralla. 1-4: órdenes al escuadrón');
+    // La vida sigue dentro de la muralla
+    ctx.civiles.generar(30, new THREE.Vector3(0, 0, 0), 150);
+    this.poblador = new Poblador(ctx);
+    this.enBosque = null;
+    this.tRevisar = 0;
+    this.actualizarObjetivo();
   }
 
   actualizar(dt: number): void {
-    for (const s of this.siluetas) s.actualizar(dt);
-    // Mantener la llanura poblada: si quedan pocos, llegan más desde el sur
-    this.reloj += dt;
-    if (this.reloj > 20) {
-      this.reloj = 0;
-      const ctx = this.api.ctx;
-      if (ctx.poblacion.titanesVivos - this.siluetas.filter((s) => s.vivo).length < 5) {
-        ctx.titanes.generarGrupo(3, new THREE.Vector3((Math.random() - 0.5) * 300, 0, 700), 60, [3, 4, 7, 10, 15], 0.15);
-      }
+    this.poblador?.actualizar(dt);
+    this.tRevisar -= dt;
+    if (this.tRevisar > 0) return;
+    this.tRevisar = 0.5;
+    const ctx = this.api.ctx;
+    const p = ctx.jugador.posicion;
+    // Descubrir lugares al acercarse
+    for (const l of ctx.mundo.lugares) {
+      if (l.descubierto || !this.cerca(l, p)) continue;
+      l.descubierto = true;
+      this.api.mensaje(`Descubierto: ${l.nombre}`, 3.5);
+      if (l.tipo === 'puesto') this.api.mensaje('Aquí puedes recargar gas y cuchillas', 3);
+      this.actualizarObjetivo();
     }
+    // Aviso al entrar en un bosque: es lo más peligroso del territorio
+    const bosque = ctx.mundo.bosques.find((b) => b.contiene(p.x, p.z));
+    const nombre = bosque?.nombre ?? null;
+    if (nombre && nombre !== this.enBosque) {
+      this.api.mensaje(`${nombre}: aquí acechan anormales y titanes que corren a cuatro patas`, 4);
+      // reaparecer en un sitio seguro si te devoran ahí dentro
+      this.api.puntoControl(this.lugarSeguro(p));
+    }
+    this.enBosque = nombre;
   }
 
   terminar(): void {
-    for (const s of this.siluetas) s.eliminar();
-    this.siluetas = [];
+    this.poblador?.limpiar();
+    this.poblador = null;
+  }
+
+  private cerca(l: Lugar, p: THREE.Vector3): boolean {
+    if (l.tipo === 'bosque') {
+      const i = Number(l.id.replace('bosque', ''));
+      const b = this.api.ctx.mundo.bosques[i];
+      if (b) return b.contiene(p.x, p.z);
+    }
+    return Math.hypot(l.pos.x - p.x, l.pos.z - p.z) < l.radio + 60;
+  }
+
+  /** El lugar descubierto más cercano fuera de los bosques (o la puerta sur). */
+  private lugarSeguro(p: THREE.Vector3): THREE.Vector3 {
+    const ctx = this.api.ctx;
+    let mejor = new THREE.Vector3(6, 0, ctx.mundo.muralla.radioExterior + 30);
+    let d = mejor.distanceTo(p);
+    for (const l of ctx.mundo.lugares) {
+      if (!l.descubierto || l.tipo === 'bosque') continue;
+      const x = Math.hypot(l.pos.x - p.x, l.pos.z - p.z);
+      if (x < d) {
+        d = x;
+        mejor = ctx.nav.puntoLibreCercano(l.pos.x, l.pos.z, 1.5) ?? l.pos.clone().setY(0);
+      }
+    }
+    return mejor;
+  }
+
+  private actualizarObjetivo(): void {
+    const lugares = this.api.ctx.mundo.lugares;
+    const hechos = lugares.filter((l) => l.descubierto).length;
+    const titulo = hechos === lugares.length ? 'Territorio explorado por completo' : 'Explora el territorio perdido';
+    this.api.objetivo(titulo, `Descubiertos ${hechos}/${lugares.length} · M: mapa`);
+    if (hechos === lugares.length && hechos > 0) this.api.mensaje('¡Has recorrido todo el territorio! Sigue cazando titanes si quieres.', 4);
   }
 }

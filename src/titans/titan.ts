@@ -9,14 +9,23 @@ import type { EstadoTitan, Humano, OpcionesTitan, PuntoDebil, ResultadoCorte, Ti
 import {
   alcanceAgarre,
   alcanceCercano,
+  alcanceSalto,
   alcanceVista,
   alturaAlcance,
+  alturaSalto,
+  AVISO_SALTO,
   avisoAgarre,
+  duracionSalto,
   enCono,
+  galope,
   girarHacia,
+  giroCuadrupedo,
   giroMaximo,
   prioridad,
+  radioMordisco,
   velocidadAndar,
+  velocidadAndarCuadrupedo,
+  velocidadCuadrupedo,
   velocidadPersecucion,
 } from './ia';
 import { COMPLEXIONES, ModeloTitan, poseReposo, variarProporciones, type PoseTitan } from './modelo';
@@ -37,7 +46,8 @@ interface Punto extends PuntoDebil {
   activo: boolean;
 }
 
-type FaseAgarre = 'aviso' | 'golpe' | 'recuperar' | 'levantar' | 'boca' | 'masticar';
+/** Bípedo: aviso → golpe → levantar → boca → masticar. Cuadrúpedo: agazapar → salto → zarandeo → masticar. */
+type FaseAgarre = 'aviso' | 'golpe' | 'recuperar' | 'levantar' | 'boca' | 'masticar' | 'agazapar' | 'salto' | 'zarandeo';
 
 interface Agarre {
   fase: FaseAgarre;
@@ -46,8 +56,12 @@ interface Agarre {
   victima: Humano | null;
   /** Dónde intenta cerrar la mano. */
   blanco: THREE.Vector3;
-  /** Posición de la mano al empezar cada fase (para interpolar). */
+  /** Posición de la mano al empezar cada fase (para interpolar); en el salto, de los pies. */
   desde: THREE.Vector3;
+  /** Cuadrúpedo: atrapa con la boca. */
+  conBoca?: boolean;
+  /** Cuadrúpedo: dónde caen los pies al terminar el salto. */
+  destino?: THREE.Vector3;
 }
 
 const PIELES = ['#f2d2bf', '#ebc6b0', '#e9c1a7', '#f0d6c6', '#e2b89e', '#efcdb6'];
@@ -61,6 +75,8 @@ export class Titan implements TitanAPI {
   readonly id = nuevoId();
   readonly altura: number;
   readonly anormal: boolean;
+  /** Anormal que corre a cuatro patas (bosques). */
+  readonly cuadrupedo: boolean;
   readonly posicion: THREE.Vector3;
   rumbo: number;
   estado: EstadoTitan = 'deambular';
@@ -119,6 +135,9 @@ export class Titan implements TitanAPI {
 
   // animación
   private fase = 0;
+  private faseGalope = 0;
+  /** Altura de la raíz sobre el suelo durante el salto del cuadrúpedo. */
+  private alturaSaltoActual = 0;
   private t = 0;
   private readonly pose: PoseTitan = poseReposo();
   private tMuerte = 0;
@@ -132,16 +151,18 @@ export class Titan implements TitanAPI {
     const rng = crearRng(semilla);
     this.azar = rng.siguiente;
     this.altura = o.altura;
-    this.anormal = o.anormal ?? false;
+    this.cuadrupedo = o.cuadrupedo ?? false;
+    this.anormal = (o.anormal ?? false) || this.cuadrupedo;
     this.posicion = o.posicion.clone().setY(0);
     this.rumbo = o.rumbo ?? rng.rango(-Math.PI, Math.PI);
     this.factorRegen = rng.rango(0.7, 1.3) * (this.anormal ? 0.8 : 1);
     this.radioNav = Math.max(0.6, 0.17 * this.altura);
-    this.ignoraSueltos = this.anormal && rng.siguiente() < 0.7;
+    this.ignoraSueltos = this.anormal && !this.cuadrupedo && rng.siguiente() < 0.7;
     this.tPercepcion = rng.rango(0, 0.25);
     this.apagadoEn = rng.rango(25, 80);
 
-    const complexion = this.altura <= 5 ? (rng.siguiente() < 0.6 ? 1 : 0) : rng.siguiente() < 0.65 ? 0 : 1;
+    // los cuadrúpedos, larguiruchos: patas largas y aspecto más inquietante
+    const complexion = this.cuadrupedo ? 0 : this.altura <= 5 ? (rng.siguiente() < 0.6 ? 1 : 0) : rng.siguiente() < 0.65 ? 0 : 1;
     const prop = variarProporciones(COMPLEXIONES[complexion], this.azar);
     this.modelo = new ModeloTitan(this.altura, prop, {
       piel: rng.elegir(PIELES),
@@ -271,7 +292,12 @@ export class Titan implements TitanAPI {
       this.regen.set(zona, tiempo);
       this.brazoInutil[i] = tiempo;
       this.amputado[i] = amputa;
-      if (this.agarre?.victima && this.agarre.brazo === i) this.soltarVictima();
+      if (this.agarre?.victima && this.agarre.brazo === i && !this.agarre.conBoca) this.soltarVictima();
+      // al cuadrúpedo le falta una pata delantera: se desploma hacia delante
+      if (this.cuadrupedo) {
+        this.derribar(tiempo * 0.6);
+        return { zona, efecto: 'derribo', danio };
+      }
       return { zona, efecto: 'brazo', danio };
     }
     return { zona, efecto: 'superficial', danio };
@@ -356,7 +382,7 @@ export class Titan implements TitanAPI {
     this.sincronizarCuerpos(false);
     // con alguien en la mano, lo llevamos con nosotros
     const a = this.agarre;
-    if (a?.victima) a.victima.fijarPosicion(this.modelo.posMano(a.brazo, this.tmp).clone());
+    if (a?.victima) a.victima.fijarPosicion((a.conBoca ? this.modelo.posBoca(this.tmp) : this.modelo.posMano(a.brazo, this.tmp)).clone());
   }
 
   private regenerar(dt: number): void {
@@ -465,7 +491,9 @@ export class Titan implements TitanAPI {
       if (!visible) continue;
       const vecinos = ctx.poblacion.humanosCerca(h.posicion, 15).length - 1;
       if (this.ignoraSueltos && vecinos === 0 && d > 8) continue;
-      const pr = prioridad(d, vecinos, { anormal: this.anormal, cebo: this.distraccion?.h === h });
+      let pr = prioridad(d, vecinos, { anormal: this.anormal, cebo: this.distraccion?.h === h });
+      // el cuadrúpedo caza soldados (y al jugador) antes que a civiles
+      if (this.cuadrupedo) pr *= h.tipo === 'civil' ? 0.5 : 2;
       if (pr > mejorP) {
         mejorP = pr;
         mejor = h;
@@ -496,6 +524,10 @@ export class Titan implements TitanAPI {
   }
 
   private intentarAgarrar(): void {
+    if (this.cuadrupedo) {
+      this.intentarSalto();
+      return;
+    }
     const obj = this.objetivo;
     if (!obj || this.tTambaleo > 0) return;
     const H = this.altura;
@@ -519,11 +551,90 @@ export class Titan implements TitanAPI {
     this.estado = 'agarrar';
   }
 
+  /** Cuadrúpedo: delante y a tiro, se agazapa (aviso) y salta a morder. */
+  private intentarSalto(): void {
+    const obj = this.objetivo;
+    if (!obj || this.tTambaleo > 0) return;
+    const H = this.altura;
+    const cabeza = this.cabeza();
+    const dx = obj.posicion.x - cabeza.x;
+    const dz = obj.posicion.z - cabeza.z;
+    if (Math.hypot(dx, dz) > alcanceSalto(H) || obj.posicion.y > 0.9 * H + 4) return;
+    if (Math.cos(Math.atan2(dx, dz) - this.rumbo) < Math.cos(0.7)) return;
+    this.agarre = { fase: 'agazapar', t: 0, brazo: 1, victima: null, blanco: obj.posicion.clone(), desde: this.posicion.clone(), conBoca: true };
+    this.estado = 'agarrar';
+  }
+
+  /** Salto y mordisco del cuadrúpedo (el resto de fases las comparte con el bípedo). */
+  private mantenerSalto(a: Agarre, dt: number): boolean {
+    const H = this.altura;
+    const obj = this.objetivo;
+    switch (a.fase) {
+      case 'agazapar':
+        if (obj) {
+          a.blanco.copy(obj.posicion).addScaledVector(obj.velocidad, 0.35);
+          this.rumbo = girarHacia(this.rumbo, Math.atan2(a.blanco.x - this.posicion.x, a.blanco.z - this.posicion.z), giroCuadrupedo(H) * dt);
+        }
+        if (a.t >= AVISO_SALTO) {
+          // los pies caen donde la boca alcance al blanco
+          const cabeza = this.cabeza();
+          const adelanto = Math.hypot(cabeza.x - this.posicion.x, cabeza.z - this.posicion.z);
+          const dir = a.blanco.clone().sub(this.posicion).setY(0);
+          const largo = dir.length();
+          if (largo > 1e-3) dir.divideScalar(largo);
+          const destino = this.posicion.clone().addScaledVector(dir, Math.max(0, largo - adelanto * 0.9)).setY(0);
+          const libre = this.ctx.nav.libre(destino.x, destino.z, this.radioNav * 0.7) ? destino : (this.ctx.nav.puntoLibreCercano(destino.x, destino.z, this.radioNav * 0.7, 6) ?? this.posicion.clone());
+          a.destino = libre.setY(0);
+          a.desde.copy(this.posicion);
+          a.fase = 'salto';
+          a.t = 0;
+        }
+        return true;
+      case 'salto': {
+        const dur = duracionSalto(H);
+        const k = Math.min(1, a.t / dur);
+        this.posicion.lerpVectors(a.desde, a.destino ?? a.desde, k).setY(0);
+        this.alturaSaltoActual = alturaSalto(H) * Math.sin(Math.PI * k);
+        if (k < 1) return true;
+        this.alturaSaltoActual = 0;
+        this.ctx.efectos.vapor(this.posicion.clone().setY(0.5), 6, 0.15 * H, 3);
+        const boca = this.modelo.posBoca(this.tmp);
+        if (obj && obj.vivo && !obj.agarradoPor && boca.distanceTo(obj.posicion) < radioMordisco(H)) {
+          a.victima = obj;
+          obj.alSerAgarrado(this, 'brazoDer');
+          this.punto('manoDer').activo = true;
+          this.punto('mandibula').activo = true;
+          this.ctx.eventos.emit({ tipo: 'humanoAgarrado', humano: obj, titan: this });
+          this.estado = 'comer';
+          this.cambiarFase(a, 'zarandeo');
+        } else this.cambiarFase(a, 'recuperar'); // derrapa: ventana para cortarle
+        return true;
+      }
+      case 'zarandeo':
+        if (!this.victimaValida(a)) return true;
+        if (a.t >= 1.3) {
+          const v = a.victima!;
+          a.victima = null;
+          this.punto('manoDer').activo = false;
+          this.punto('mandibula').activo = false;
+          v.alSerDevorado();
+          this.ctx.eventos.emit({ tipo: 'humanoDevorado', humano: v, titan: this });
+          this.ctx.efectos.sangre(this.modelo.posBoca(this.tmp).clone(), new THREE.Vector3(0, -1, 0), 10);
+          this.objetivo = null;
+          this.cambiarFase(a, 'masticar');
+        }
+        return true;
+      default:
+        return false;
+    }
+  }
+
   /** Secuencia del agarre: aviso → golpe → (fallo) recuperar | levantar → boca → masticar. */
   private mantenerAgarre(dt: number): void {
     const a = this.agarre;
     if (!a) return;
     a.t += dt;
+    if (this.cuadrupedo && this.mantenerSalto(a, dt)) return;
     const H = this.altura;
     const obj = this.objetivo;
     switch (a.fase) {
@@ -547,7 +658,7 @@ export class Titan implements TitanAPI {
         }
         break;
       case 'recuperar':
-        if (a.t >= 1.5) {
+        if (a.t >= (a.conBoca ? 1.2 : 1.5)) {
           this.agarre = null;
           this.estado = this.objetivo ? 'perseguir' : 'deambular';
         }
@@ -611,8 +722,8 @@ export class Titan implements TitanAPI {
     if (!quieto) {
       if (this.estado === 'perseguir' && this.objetivo) {
         meta = this.objetivo.posicion.clone().setY(0);
-        velObjetivo = velocidadPersecucion(H);
-        // ya lo tiene delante: frena y se encara en vez de pisarlo
+        velObjetivo = this.cuadrupedo ? velocidadCuadrupedo(H) : velocidadPersecucion(H);
+        // ya lo tiene delante: frena y se encara en vez de pisarlo (el cuadrúpedo salta)
         const dh = meta.distanceTo(this.posicion);
         if (dh < 0.3 * H + 1) velObjetivo *= THREE.MathUtils.clamp((dh - 0.15 * H) / (0.15 * H + 1), 0, 1);
         // fuera de su alcance (tejado alto, rama, muralla): asedio en la base
@@ -622,21 +733,21 @@ export class Titan implements TitanAPI {
         }
       } else if (this.ultimaPos) {
         meta = this.ultimaPos.clone().setY(0);
-        velObjetivo = velocidadPersecucion(H) * 0.7;
+        velObjetivo = (this.cuadrupedo ? velocidadCuadrupedo(H) : velocidadPersecucion(H)) * 0.7;
         if (meta.distanceTo(this.posicion) < 3) this.ultimaPos = null;
       } else {
         // deambular: hacia multitudes cercanas (las huelen) o a un punto al azar
         this.tDestino -= dt;
         if (!this.destino || this.tDestino <= 0 || this.destino.distanceTo(this.posicion) < 3) this.elegirDestino();
         meta = this.destino;
-        velObjetivo = velocidadAndar(H);
+        velObjetivo = this.cuadrupedo ? velocidadAndarCuadrupedo(H) : velocidadAndar(H);
       }
     }
 
     // cojera con un tendón cortado
     if (ZONAS_TENDON.some((z) => z.startsWith('tendon') && !this.punto(z).activo)) velObjetivo *= 0.45;
-    // anormales: esprints y giros bruscos
-    if (this.anormal && velObjetivo > 0) {
+    // anormales: esprints y giros bruscos (el cuadrúpedo ya va a tope)
+    if (this.anormal && !this.cuadrupedo && velObjetivo > 0) {
       this.tSprint -= dt;
       if (this.tSprint <= 0) {
         this.sprint = this.sprint > 0 ? 0 : 3 + this.azar() * 2;
@@ -654,8 +765,8 @@ export class Titan implements TitanAPI {
       if (this.tDesvio < 1.5) this.desvio *= Math.max(0, 1 - dt * 3);
     }
 
-    // aceleración en ~0,6 s
-    this.velocidad += (velObjetivo - this.velocidad) * Math.min(1, dt / 0.6);
+    // aceleración en ~0,6 s (0,3 s a cuatro patas)
+    this.velocidad += (velObjetivo - this.velocidad) * Math.min(1, dt / (this.cuadrupedo ? 0.3 : 0.6));
     if (!meta || this.velocidad < 0.05) {
       if (meta && (this.asediando || this.estado === 'perseguir')) this.encarar(meta, dt);
       return;
@@ -674,7 +785,7 @@ export class Titan implements TitanAPI {
       if (d > 1e-3 && d < minimo) dir.addScaledVector(lejos.divideScalar(d), (minimo - d) / minimo);
     }
     const rumboObj = Math.atan2(dir.x, dir.z) + this.desvio;
-    this.rumbo = girarHacia(this.rumbo, rumboObj, giroMaximo(H) * dt);
+    this.rumbo = girarHacia(this.rumbo, rumboObj, (this.cuadrupedo ? giroCuadrupedo(H) : giroMaximo(H)) * dt);
     // avanza en la dirección en que mira (gira mal: por eso orbitarlo funciona)
     const avance = new THREE.Vector3(Math.sin(this.rumbo), 0, Math.cos(this.rumbo)).multiplyScalar(this.velocidad * dt);
     const nueva = this.posicion.clone().add(avance);
@@ -693,7 +804,7 @@ export class Titan implements TitanAPI {
 
   private encarar(meta: THREE.Vector3, dt: number): void {
     const objetivo = Math.atan2(meta.x - this.posicion.x, meta.z - this.posicion.z);
-    this.rumbo = girarHacia(this.rumbo, objetivo, giroMaximo(this.altura) * dt);
+    this.rumbo = girarHacia(this.rumbo, objetivo, (this.cuadrupedo ? giroCuadrupedo(this.altura) : giroMaximo(this.altura)) * dt);
   }
 
   /** Siguiente punto de la ruta A* (recalcula cada ~1 s o si la meta se mueve). */
@@ -741,6 +852,10 @@ export class Titan implements TitanAPI {
   // ─────────────────────────── Animación ───────────────────────────
 
   private animar(dt: number, velocidad: number): void {
+    if (this.cuadrupedo) {
+      this.suavizar(this.poseCuadrupedo(dt, velocidad), dt);
+      return;
+    }
     const H = this.altura;
     const L = this.modelo.L;
     const p = poseReposo();
@@ -917,7 +1032,137 @@ export class Titan implements TitanAPI {
       p.boca = 0.1;
     }
 
-    // Suavizado de la pose (exponencial, independiente de los FPS)
+    this.suavizar(p, dt);
+  }
+
+  /**
+   * A cuatro patas: cuerpo horizontal colgado de los hombros, manos y pies plantados por IK
+   * en un galope «bound» (pares delantero y trasero alternos) con la columna flexionando,
+   * cabeza baja y boca abierta. Agazapado antes del salto, estirado en el aire, zarandeo con
+   * la presa, tumbado sobre el vientre si cae.
+   */
+  private poseCuadrupedo(dt: number, v: number): PoseTitan {
+    const H = this.altura;
+    const m = this.modelo;
+    const L = m.L;
+    const p = poseReposo();
+    const brazoTotal = L.brazo + L.antebrazo;
+    const torsoLargo = L.hombroY - L.cadera;
+    const piernaTotal = L.muslo + L.espinilla;
+    const hCadera = 0.78 * piernaTotal;
+    // inclinación del tronco para que las manos lleguen al suelo con el codo algo doblado
+    const a = Math.acos(THREE.MathUtils.clamp((0.85 * brazoTotal - hCadera) / torsoLargo, 0.05, 0.6));
+    const frente = new THREE.Vector3(Math.sin(this.rumbo), 0, Math.cos(this.rumbo));
+    const lado = new THREE.Vector3(Math.cos(this.rumbo), 0, -Math.sin(this.rumbo));
+    const ag = this.agarre;
+    const tumbado = this.estado === 'derribado' || this.estado === 'apagado';
+
+    p.pelvisX = a;
+    p.pelvisY = hCadera - L.cadera;
+    p.cabezaX = -(a - 0.2);
+    p.cabezaZ = 0.08;
+    p.boca = 0.55;
+
+    if (tumbado) {
+      // sobre el vientre, patas abiertas, la nuca a la vista
+      p.pelvisX = Math.PI / 2;
+      p.pelvisY = 0.12 * H - L.cadera;
+      p.cabezaX = -(Math.PI / 2 - 0.35);
+      p.boca = this.estado === 'apagado' ? 0.1 : 0.4 + 0.15 * Math.sin(this.t * 3);
+      for (let i = 0; i < 2; i++) {
+        const s = i === 0 ? 1 : -1;
+        const hom = m.hombros[i].getWorldPosition(new THREE.Vector3());
+        const cad = m.caderas[i].getWorldPosition(new THREE.Vector3());
+        p.ikMano[i] = hom.addScaledVector(frente, 0.22 * H).addScaledVector(lado, s * 0.12 * H).setY(0.04 * H);
+        p.ikPie[i] = cad.addScaledVector(frente, -0.3 * H).addScaledVector(lado, s * 0.08 * H).setY(0.035 * H);
+      }
+      return p;
+    }
+
+    // Galope: fase del ciclo y zancada coherentes con la velocidad (sin patinar)
+    const { zancada, frecuencia } = galope(v, H);
+    this.faseGalope = (this.faseGalope + frecuencia * dt) % 1;
+    const corre = THREE.MathUtils.clamp(v / (0.5 * velocidadCuadrupedo(H)), 0, 1);
+    const φ = this.faseGalope * Math.PI * 2;
+    p.pelvisX = a + 0.08 * Math.sin(φ) * corre;
+    p.pelvisY -= 0.03 * H * Math.abs(Math.sin(φ)) * corre;
+    p.torsoX = 0.1 * Math.sin(φ + 1) * corre;
+    p.cabezaX += 0.08 * Math.sin(2 * φ) * corre;
+    p.cabezaY = Math.sin(this.t * 0.8 + this.id) * 0.25 * (1 - corre);
+    p.boca = 0.55 + 0.3 * corre;
+    const apoyo = 0.45;
+    const pisada = (u: number) => {
+      // apoyada: la pata va de delante a atrás respecto al cuerpo; en el aire vuelve y se levanta
+      if (u < apoyo) return { avance: zancada * (0.5 - u / apoyo), alto: 0 };
+      const k = (u - apoyo) / (1 - apoyo);
+      return { avance: zancada * (k - 0.5), alto: 0.12 * H * Math.sin(Math.PI * k) * Math.min(1, corre * 3) };
+    };
+    for (let i = 0; i < 2; i++) {
+      const s = i === 0 ? 1 : -1;
+      const desfase = i === 0 ? 0 : 0.08;
+      const hom = m.hombros[i].getWorldPosition(new THREE.Vector3());
+      const cad = m.caderas[i].getWorldPosition(new THREE.Vector3());
+      const delante = pisada((this.faseGalope + desfase) % 1);
+      const detras = pisada((this.faseGalope + 0.5 + desfase) % 1);
+      p.ikMano[i] = hom.addScaledVector(frente, 0.05 * H + delante.avance).addScaledVector(lado, s * 0.04 * H).setY(0.045 * H + delante.alto);
+      p.ikPie[i] = cad.addScaledVector(frente, 0.08 * H + detras.avance).addScaledVector(lado, s * 0.02 * H).setY(0.035 * H + detras.alto);
+    }
+
+    // Mira a su presa
+    if (this.objetivo && this.estado !== 'cegado') {
+      const local = this.modelo.raiz.worldToLocal(this.objetivo.posicion.clone());
+      p.cabezaY = THREE.MathUtils.clamp(Math.atan2(local.x, local.z), -0.8, 0.8);
+    }
+    if (this.estado === 'cegado') {
+      p.cabezaY = Math.sin(this.t * 2.6) * 0.7;
+      p.boca = 0.8;
+    }
+
+    if (ag) {
+      switch (ag.fase) {
+        case 'agazapar': {
+          // se encoge sobre las patas, cabeza al suelo: aviso de que va a saltar
+          const k = THREE.MathUtils.smoothstep(ag.t, 0, AVISO_SALTO);
+          p.pelvisY -= 0.12 * H * k;
+          p.pelvisX = a + 0.12 * k;
+          p.cabezaX -= 0.15 * k;
+          p.boca = 0.9;
+          break;
+        }
+        case 'salto':
+          // estirado en el aire: brazos al frente, piernas atrás
+          for (let i = 0; i < 2; i++) {
+            const s = i === 0 ? 1 : -1;
+            const hom = m.hombros[i].getWorldPosition(new THREE.Vector3());
+            const cad = m.caderas[i].getWorldPosition(new THREE.Vector3());
+            p.ikMano[i] = hom.addScaledVector(frente, 0.32 * H).addScaledVector(lado, s * 0.06 * H).add(new THREE.Vector3(0, -0.12 * H, 0));
+            p.ikPie[i] = cad.addScaledVector(frente, -0.3 * H).addScaledVector(lado, s * 0.03 * H).add(new THREE.Vector3(0, -0.12 * H, 0));
+          }
+          p.pelvisX = a + 0.15;
+          p.boca = 1;
+          break;
+        case 'zarandeo':
+          p.cabezaY = 0.55 * Math.sin(ag.t * 15);
+          p.cabezaX -= 0.25;
+          p.boca = 0.35;
+          p.torsoX += 0.08 * Math.sin(ag.t * 15);
+          break;
+        case 'recuperar':
+          p.pelvisY -= 0.05 * H * (1 - THREE.MathUtils.smoothstep(ag.t, 0, 1.2));
+          p.boca = 0.3;
+          break;
+        case 'masticar':
+          p.boca = 0.35 + 0.35 * Math.abs(Math.sin(ag.t * 9));
+          p.cabezaX += 0.1 + 0.08 * Math.sin(ag.t * 9);
+          break;
+      }
+    }
+    if (this.tTambaleo > 0) p.torsoZ += Math.sin(this.t * 14) * 0.1;
+    return p;
+  }
+
+  /** Suavizado de la pose hacia `p` (exponencial, independiente de los FPS). */
+  private suavizar(p: PoseTitan, dt: number): void {
     const k = 1 - Math.exp(-dt * 10);
     const cur = this.pose;
     const mezclar = (x: number, y: number) => x + (y - x) * k;
@@ -940,6 +1185,7 @@ export class Titan implements TitanAPI {
       cur.hombroZ[i] = mezclar(cur.hombroZ[i], p.hombroZ[i]);
       cur.codo[i] = mezclar(cur.codo[i], p.codo[i]);
       cur.ikMano[i] = p.ikMano[i];
+      cur.ikPie[i] = p.ikPie[i];
     }
   }
 
@@ -948,12 +1194,25 @@ export class Titan implements TitanAPI {
   private morirPaso(dt: number): void {
     this.tMuerte += dt;
     const t = this.tMuerte;
-    // cae hacia delante en ~1,6 s y se queda tendido mientras se evapora
-    this.pose.caida = 1.45 * Math.pow(THREE.MathUtils.clamp(t / 1.6, 0, 1), 2);
+    const caer = Math.pow(THREE.MathUtils.clamp(t / 1.6, 0, 1), 2);
     this.pose.boca = 0.6;
     this.pose.ikMano = [null, null];
-    this.pose.hombroX = [-0.6, -0.4];
-    this.pose.rodilla = [0.3, 0.5];
+    this.pose.ikPie = [null, null];
+    this.alturaSaltoActual = 0;
+    if (this.cuadrupedo) {
+      // se desploma de lado con las patas encogidas
+      this.pose.caidaLado = 1.4 * caer;
+      this.pose.pelvisY = THREE.MathUtils.lerp(this.pose.pelvisY, 0.1 * this.altura - this.modelo.L.cadera, Math.min(1, dt * 3));
+      this.pose.cadera = [-1.1, -0.9];
+      this.pose.rodilla = [1.3, 1.1];
+      this.pose.hombroX = [-1.3, -1.1];
+      this.pose.codo = [-0.9, -0.7];
+    } else {
+      // cae hacia delante en ~1,6 s y se queda tendido mientras se evapora
+      this.pose.caida = 1.45 * caer;
+      this.pose.hombroX = [-0.6, -0.4];
+      this.pose.rodilla = [0.3, 0.5];
+    }
     if (t > 1.6 && t - dt <= 1.6) this.ctx.efectos.vapor(this.posicion.clone().setY(1), 20, this.altura * 0.2, 6);
     this.modelo.evaporacion(THREE.MathUtils.clamp((t - 2) / 10, 0, 1));
     if (t > 6 && !this.sinColisiones) this.quitarColisiones();
@@ -985,6 +1244,7 @@ export class Titan implements TitanAPI {
 
   private colocarRaiz(): void {
     this.modelo.raiz.position.copy(this.posicion);
+    this.modelo.raiz.position.y += this.alturaSaltoActual;
     this.modelo.raiz.rotation.y = this.rumbo;
   }
 
@@ -1036,6 +1296,6 @@ export class Titan implements TitanAPI {
 
   /** Mano útil con la que atrapa (para el HUD: destello antes del cierre). */
   get avisando(): boolean {
-    return this.agarre?.fase === 'aviso';
+    return this.agarre?.fase === 'aviso' || this.agarre?.fase === 'agazapar';
   }
 }

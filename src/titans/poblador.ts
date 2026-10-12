@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { ContextoJuego } from '../core/contexto';
 import type { TitanAPI } from '../core/tipos';
+import { cajaForma } from '../world/formas';
 
 /**
  * Poblador de titanes del mundo abierto: mantiene vivo el territorio alrededor del jugador.
@@ -37,6 +38,8 @@ export const REGLAS: Record<ZonaPoblador, ReglasZona> = {
 
 export const TOPE_TOTAL = 16;
 export const RADIO_MIN = 250;
+/** En los bosques se ve poco (niebla bajo las copas): pueden salir mucho más cerca. */
+export const RADIO_MIN_BOSQUE = 110;
 export const RADIO_MAX = 700;
 export const RADIO_RETIRADA = 1100;
 /** Hasta aquí desde el centro de Trost cuenta como «junto a la muralla». */
@@ -116,7 +119,9 @@ export class Poblador {
     if (!this.activo) return;
     this.espera -= dt;
     if (this.espera > 0) return;
-    this.espera = 1.5;
+    // dentro de un bosque el poblador se da más prisa: es la zona más peligrosa
+    const j = this.ctx.jugador.posicion;
+    this.espera = this.ctx.mundo.bosques.some((b) => b.contiene(j.x, j.z)) ? 0.7 : 1.5;
     this.retirarLejanos();
     this.contar();
     const vivos = this.porZona.bosque + this.porZona.llanura + this.porZona.muralla;
@@ -166,12 +171,15 @@ export class Poblador {
     this.matriz.multiplyMatrices(camara.projectionMatrix, camara.matrixWorldInverse);
     this.frustum.setFromProjectionMatrix(this.matriz);
     const muralla = ctx.mundo.muralla.radioExterior + 25;
-    // primero se buscan sitios fuera de cámara; si no hay, vale cualquiera
+    // primero se buscan sitios fuera de cámara; si no hay, vale cualquiera. La mitad de los
+    // intentos van directos a los bosques cercanos (si no, desde dentro de un bosque casi
+    // todos los sitios del anillo caerían fuera de él)
     for (let intento = 0; intento < 24; intento++) {
+      const enBosque = intento % 2 === 0 ? this.sitioEnBosque(p) : null;
       const a = this.azar() * Math.PI * 2;
       const r = RADIO_MIN + (RADIO_MAX - RADIO_MIN) * Math.sqrt(this.azar());
-      const x = p.x + Math.cos(a) * r;
-      const z = p.z + Math.sin(a) * r;
+      const x = enBosque ? enBosque.x : p.x + Math.cos(a) * r;
+      const z = enBosque ? enBosque.z : p.z + Math.sin(a) * r;
       if (Math.hypot(x, z) < muralla) continue;
       const lim = ctx.nav.limites;
       if (x < lim.x0 + 20 || x > lim.x1 - 20 || z < lim.z0 + 20 || z > lim.z1 - 20) continue;
@@ -201,6 +209,27 @@ export class Poblador {
       this.porZona[zona] += hechos;
       if (hechos > 0) return;
     }
+  }
+
+  /** Un punto dentro de un bosque cercano, a RADIO_MIN_BOSQUE–RADIO_MAX del jugador (o null). */
+  private sitioEnBosque(p: THREE.Vector3): { x: number; z: number } | null {
+    const cerca = this.ctx.mundo.bosques.filter((b) => {
+      const c = cajaForma(b.forma);
+      const dx = Math.max(c.x0 - p.x, 0, p.x - c.x1);
+      const dz = Math.max(c.z0 - p.z, 0, p.z - c.z1);
+      return Math.hypot(dx, dz) < RADIO_MAX;
+    });
+    if (cerca.length === 0) return null;
+    const b = cerca[Math.floor(this.azar() * cerca.length)];
+    const c = cajaForma(b.forma);
+    for (let k = 0; k < 10; k++) {
+      const x = c.x0 + (c.x1 - c.x0) * this.azar();
+      const z = c.z0 + (c.z1 - c.z0) * this.azar();
+      if (!b.contiene(x, z)) continue;
+      const d = Math.hypot(x - p.x, z - p.z);
+      if (d >= RADIO_MIN_BOSQUE && d <= RADIO_MAX) return { x, z };
+    }
+    return null;
   }
 }
 

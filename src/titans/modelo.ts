@@ -89,8 +89,12 @@ export interface PoseTitan {
   codo: [number, number];
   /** Objetivo de IK para la mano (en mundo); si está, sustituye a hombro/codo. */
   ikMano: [THREE.Vector3 | null, THREE.Vector3 | null];
+  /** Objetivo de IK para el pie (en mundo, a cuatro patas); si está, sustituye a cadera/rodilla/tobillo. */
+  ikPie: [THREE.Vector3 | null, THREE.Vector3 | null];
   /** Caída al morir (rotación de la raíz hacia delante). */
   caida: number;
+  /** Caída de lado (rotación de la raíz sobre su eje delantero; el cuadrúpedo muere así). */
+  caidaLado: number;
 }
 
 export function poseReposo(): PoseTitan {
@@ -102,7 +106,9 @@ export function poseReposo(): PoseTitan {
     cadera: [-0.05, -0.05], caderaZ: [0.04, -0.04], rodilla: [0.1, 0.1], tobillo: [-0.05, -0.05],
     hombroX: [-0.1, -0.1], hombroZ: [0.12, -0.12], codo: [-0.15, -0.15],
     ikMano: [null, null],
+    ikPie: [null, null],
     caida: 0,
+    caidaLado: 0,
   };
 }
 
@@ -184,6 +190,8 @@ export class ModeloTitan {
     const hombroY = p.hombroY * H;
     this.L = { muslo, espinilla, brazo, antebrazo, rc, cadera: caderaY, hombroY };
 
+    // guiñada primero: la caída es hacia delante del titán, no hacia el norte
+    this.raiz.rotation.order = 'YXZ';
     this.raiz.add(this.pelvis);
     this.pelvis.position.y = caderaY;
 
@@ -277,6 +285,7 @@ export class ModeloTitan {
   /** Aplica la pose. `matrizMundoRaiz` ya debe estar al día (posición y rumbo). */
   aplicar(pose: PoseTitan): void {
     this.raiz.rotation.x = pose.caida;
+    this.raiz.rotation.z = pose.caidaLado;
     this.pelvis.position.y = this.L.cadera + pose.pelvisY;
     this.pelvis.rotation.set(pose.pelvisX, 0, pose.pelvisZ);
     this.torso.rotation.set(pose.torsoX, pose.torsoY, pose.torsoZ);
@@ -288,14 +297,51 @@ export class ModeloTitan {
       this.caderas[i].rotation.set(pose.cadera[i], 0, pose.caderaZ[i]);
       this.rodillas[i].rotation.set(pose.rodilla[i], 0, 0);
       this.tobillos[i].rotation.set(pose.tobillo[i], 0, 0);
-      const ik = pose.ikMano[i];
-      if (ik) this.resolverBrazo(i, ik);
-      else {
+      if (!pose.ikMano[i]) {
         this.hombros[i].rotation.set(pose.hombroX[i], 0, pose.hombroZ[i]);
         this.codos[i].rotation.set(pose.codo[i], 0, 0);
       }
     }
+    // la IK necesita las matrices de pelvis y torso ya al día
     this.raiz.updateMatrixWorld(true);
+    if (pose.ikMano[0] || pose.ikMano[1] || pose.ikPie[0] || pose.ikPie[1]) {
+      for (let i = 0; i < 2; i++) {
+        const mano = pose.ikMano[i];
+        if (mano) this.resolverBrazo(i, mano);
+        const pie = pose.ikPie[i];
+        if (pie) this.resolverPierna(i, pie);
+      }
+      this.raiz.updateMatrixWorld(true);
+    }
+  }
+
+  /**
+   * IK de la pierna hacia un punto del suelo (rodilla hacia delante del titán) y pie plano:
+   * las patas traseras del cuadrúpedo.
+   */
+  private resolverPierna(i: number, objetivo: THREE.Vector3): void {
+    const cad = this.caderas[i];
+    const t = this.pelvis.worldToLocal(objetivo.clone());
+    const d = t.sub(cad.position);
+    const h = d.length();
+    if (h < 1e-4) return;
+    const { raiz } = ikDosHuesos(this.L.muslo, this.L.espinilla, h);
+    const dn = d.clone().divideScalar(h);
+    // polo: hacia delante del titán (en mundo), pasado al marco de la pelvis
+    const qPelvis = this.pelvis.getWorldQuaternion(this.tmpQ).invert();
+    const polo = new THREE.Vector3(0, 0.2, 1).applyQuaternion(this.raiz.getWorldQuaternion(new THREE.Quaternion())).applyQuaternion(qPelvis).normalize();
+    const eje = new THREE.Vector3().crossVectors(dn, polo);
+    if (eje.lengthSq() < 1e-6) eje.set(1, 0, 0);
+    eje.normalize();
+    const u = dn.clone().applyAxisAngle(eje, raiz);
+    cad.quaternion.setFromUnitVectors(ABAJO, u);
+    const rodillaPos = cad.position.clone().addScaledVector(u, this.L.muslo);
+    const w = d.clone().add(cad.position).sub(rodillaPos).normalize();
+    const wLocal = w.applyQuaternion(new THREE.Quaternion().copy(cad.quaternion).invert());
+    this.rodillas[i].quaternion.setFromUnitVectors(ABAJO, wLocal);
+    // pie plano: deshace la rotación acumulada de pelvis, cadera y rodilla
+    const acumulada = new THREE.Quaternion().setFromEuler(this.pelvis.rotation).multiply(cad.quaternion).multiply(this.rodillas[i].quaternion);
+    this.tobillos[i].quaternion.copy(acumulada.invert());
   }
 
   /** IK de dos huesos del brazo hacia un punto del mundo (codo hacia fuera y abajo). */

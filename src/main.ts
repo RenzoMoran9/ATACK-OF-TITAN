@@ -21,11 +21,15 @@ import { CapLibre } from './missions/capitulos/libre';
 import { CapTrost } from './missions/capitulos/trost';
 import { Hud } from './ui/hud';
 import { MandoEscuadron } from './ui/ordenes';
+import { Brujula } from './ui/brujula';
+import { Mapa } from './ui/mapa';
 import { Pantallas } from './ui/pantallas';
 import { crearPanel } from './ui/panel';
 import { Cielo } from './world/cielo';
 import { ajustarNoche } from './world/materiales';
-import { construirMundo, depositoMasCercano } from './world/mundo';
+import { actualizarMundo, ajustarHoraMundo, construirMundo, depositoMasCercano } from './world/mundo';
+import { AmbienteBosque } from './world/ambiente';
+import { aplicarLimite, puntoDentro } from './world/region';
 
 declare global {
   interface Window {
@@ -111,10 +115,14 @@ async function iniciar(): Promise<void> {
   ctx.suministros = new Suministros(ctx);
   jugador.conectar(ctx);
   const hud = new Hud(document.body, urlDepuracion.hud, ctx);
+  // Orientación en el mundo abierto: brújula arriba y mapa con M
+  const brujula = new Brujula(document.body, urlDepuracion.hud);
+  const mapa = new Mapa(document.body);
   // ── Órdenes al escuadrón: 1-8 a la selección, Tab elige a quién (src/ui/ordenes.ts) ──
   const mando = new MandoEscuadron(ctx, () => ({ origen: camara.position, dir: rig.dir, excluir: jugador.collider }));
   // Muerte del jugador: fundido y reaparición
   let muertoDesde = -1;
+  let avisoBorde = false;
 
   // Capturas (?cam=...): escena fija con los titanes de referencia congelados, sin menús.
   // Si no, campaña por capítulos con su menú.
@@ -135,11 +143,14 @@ async function iniciar(): Promise<void> {
     pantallas = new Pantallas(campana, () => entrada.capturar());
   }
 
+  // Bajo las copas de los bosques la niebla se cierra y la luz baja (src/world/ambiente.ts)
+  const ambiente = new AmbienteBosque(escena, cielo.sol, cielo.hemi, mundo.bosques);
   const cambiarHora = (h: Hora) => {
     cielo.aplicar(h, renderer);
     ajustarNoche(mundo.mats, cielo.esDeNoche);
     mundo.antorchas.encender(cielo.esDeNoche);
-    mundo.bosque.ajustarHora(h, cielo.dirSol);
+    ajustarHoraMundo(mundo, h, cielo.dirSol);
+    ambiente.tomarBase(cielo.esDeNoche);
   };
   const irA = (nombre: string) => {
     const p = mundo.puntos[nombre];
@@ -197,6 +208,7 @@ async function iniciar(): Promise<void> {
     }
     reloj.t += dt;
     mando.actualizar();
+    if (entrada.consumir('KeyM')) mapa.alternar();
     // G: recoger el equipo de un caído o, si no hay ninguno al lado, pedir gas a un compañero
     if (entrada.consumir('KeyG') && jugador.vivo) {
       const recogido = ctx.suministros.recoger();
@@ -205,6 +217,16 @@ async function iniciar(): Promise<void> {
       else if (!ctx.escuadron.pedirGas()) ctx.eventos.emit({ tipo: 'mensaje', texto: 'Nadie del escuadrón puede pasarte gas ahora', segundos: 2.5 });
     }
     jugador.paso(dt, entrada, { dir: rig.dir, yaw: rig.yaw });
+    // Borde de la región: viento en contra y, muy lejos, de vuelta dentro
+    const fuera = aplicarLimite(jugador.pos, jugador.vel, dt);
+    if (fuera > 0 && !avisoBorde) {
+      avisoBorde = true;
+      ctx.eventos.emit({ tipo: 'mensaje', texto: 'Más allá no queda nada que explorar: el viento te empuja de vuelta', segundos: 3 });
+    } else if (fuera === 0) avisoBorde = false;
+    if (fuera >= 1) {
+      const dentro = puntoDentro(jugador.pos.x, jugador.pos.z);
+      jugador.teletransportar(new THREE.Vector3(dentro.x, 0, dentro.z));
+    }
     if (!jugador.vivo) {
       if (muertoDesde < 0) muertoDesde = reloj.t;
       else if (reloj.t - muertoDesde > 3.5) {
@@ -245,9 +267,13 @@ async function iniciar(): Promise<void> {
     jugador.odm.apuntar(camara.position, rig.dir, camara.up, jugador.pos);
     cielo.seguir(jugador.posRender, camara);
     mundo.antorchas.actualizar(dt, camara.position, tiempo);
+    ambiente.actualizar(dt, camara.position);
+    actualizarMundo(mundo, dt, camara.position, escena.fog instanceof THREE.Fog ? escena.fog.far : 3000);
     ctx.titanes.dibujar(dt, tiempo);
     ctx.escuadron.dibujar(dt, tiempo);
     mando.dibujar(tiempo);
+    brujula.actualizar(ctx, rig.yaw);
+    mapa.actualizar(ctx, rig.yaw);
     ctx.civiles.dibujar(dt, tiempo);
     ctx.suministros.dibujar(tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);

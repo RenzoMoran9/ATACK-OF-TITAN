@@ -615,3 +615,133 @@ body {
   flex-basis: 100%;
 }
 /* ── fin del panel del escuadrón ── */
+
+/* ───── Brújula y mapa del mundo abierto ───── */
+.hud-brujula {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(400px, 38vw);
+  height: 40px;
+  pointer-events: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  background: linear-gradient(90deg, rgba(10, 14, 20, 0), rgba(10, 14, 20, 0.45) 20%, rgba(10, 14, 20, 0.45) 80%, rgba(10, 14, 20, 0));
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+.hud-brujula .cardinal {
+  position: absolute;
+  bottom: 4px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  letter-spacing: 1px;
+  opacity: 0.75;
+}
+.hud-brujula .cardinal.mayor {
+  font-size: 15px;
+  opacity: 1;
+}
+.hud-brujula .marca {
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  font-size: 10px;
+  white-space: nowrap;
+  padding-top: 10px;
+  opacity: 0.9;
+}
+.hud-brujula .marca::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border-radius: 50%;
+  background: #ffffff;
+}
+.hud-brujula .marca.trost::before {
+  border-radius: 1px;
+  transform: rotate(45deg);
+  background: #f1d48a;
+}
+.hud-brujula .marca.deposito::before {
+  border-radius: 1px;
+  background: #9ee07a;
+}
+.hud-brujula .marca.lugar.oculto {
+  opacity: 0.45;
+}
+.hud-brujula .marca.soldado::before {
+  background: #7fe39a;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+}
+.hud-brujula .marca.equipo::before {
+  background: #cfe7a0;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+}
+.hud-brujula .marca.titan::before {
+  background: #e0453a;
+}
+.hud-brujula .marca.titan.cuadrupedo::before {
+  border-radius: 0;
+  width: 0;
+  height: 0;
+  background: none;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 9px solid #e0453a;
+  margin-left: -5px;
+}
+
+.hud-mapa {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(8, 10, 12, 0.55);
+  pointer-events: none;
+  z-index: 5;
+}
+.hud-mapa canvas {
+  width: min(82vh, 86vw);
+  height: min(82vh, 86vw);
+  border: 2px solid rgba(232, 222, 200, 0.7);
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
+}
+.hud-mapa .pie {
+  font-size: 13px;
+  text-shadow: 0 1px 2px #000;
+}
+.hud-mapa .pie b {
+  padding: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 3px;
+}
+.hud-mapa .l-jugador {
+  color: #ffffff;
+}
+.hud-mapa .l-soldado {
+  color: #7fe39a;
+}
+.hud-mapa .l-titan,
+.hud-mapa .l-cuadrupedo {
+  color: #e0453a;
+}
+.hud-mapa .l-deposito {
+  color: #9ee07a;
+}
+.hud-mapa[hidden],
+.hud-brujula[hidden],
+.hud-brujula [hidden] {
+  display: none;
+}

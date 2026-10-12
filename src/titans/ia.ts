@@ -58,3 +58,37 @@ export function girarHacia(actual: number, objetivo: number, maximo: number): nu
   d = Math.atan2(Math.sin(d), Math.cos(d));
   return actual + THREE.MathUtils.clamp(d, -maximo, maximo);
 }
+
+// ── Anormal a cuatro patas (bosques) ──
+
+/** Carrera a cuatro patas: 6 + 1,9·H m/s, hasta 28 (13,6 con 4 m; 25 con 10 m). */
+export const velocidadCuadrupedo = (H: number): number => Math.min(28, 6 + 1.9 * H);
+
+/** Paseo a cuatro patas, agazapado: 1,2 + 0,25·H m/s. */
+export const velocidadAndarCuadrupedo = (H: number): number => 1.2 + 0.25 * H;
+
+/** Gira el doble que un bípedo de su tamaño. */
+export const giroCuadrupedo = (H: number): number => 2 * giroMaximo(H);
+
+/** Distancia (desde la cabeza) a la que se agazapa y salta a morder: 0,9·H + 3 m. */
+export const alcanceSalto = (H: number): number => 0.9 * H + 3;
+
+/** Agazapado antes del salto (aviso): 0,25 s. Vuelo del salto: 0,35 + 0,02·H s. */
+export const AVISO_SALTO = 0.25;
+export const duracionSalto = (H: number): number => 0.35 + 0.02 * H;
+
+/** Altura del arco del salto: 0,4·H. */
+export const alturaSalto = (H: number): number => 0.4 * H;
+
+/** Radio de captura del mordisco alrededor de la boca: 0,15·H + 1,5 m. */
+export const radioMordisco = (H: number): number => 0.15 * H + 1.5;
+
+/**
+ * Zancada del galope: lo que avanza el cuerpo con una pata apoyada (fracción `apoyo` del
+ * ciclo). Con poca velocidad el ciclo se alarga hasta 1,2 s; la zancada no pasa de 0,5·H.
+ * Devuelve la zancada (m) y los ciclos por segundo.
+ */
+export function galope(v: number, H: number, apoyo = 0.45): { zancada: number; frecuencia: number } {
+  const zancada = THREE.MathUtils.clamp(v * apoyo * 1.2, 0.02 * H, 0.5 * H);
+  return { zancada, frecuencia: Math.max(1 / 1.2, (v * apoyo) / zancada) };
+}

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { alcanceVista, enCono, girarHacia, giroMaximo, prioridad, velocidadAndar, velocidadPersecucion } from './ia';
+import { alcanceSalto, alcanceVista, enCono, galope, girarHacia, giroCuadrupedo, giroMaximo, prioridad, velocidadAndar, velocidadCuadrupedo, velocidadPersecucion } from './ia';
 
 describe('números de los titanes', () => {
   it('velocidades de la investigación', () => {
@@ -43,5 +43,29 @@ describe('girarHacia', () => {
   it('limita el giro y toma el camino corto', () => {
     expect(girarHacia(0, 1, 0.2)).toBeCloseTo(0.2, 6);
     expect(girarHacia(3, -3, 0.5)).toBeGreaterThan(3); // cruzando ±π
+  });
+});
+
+describe('anormal a cuatro patas', () => {
+  it('corre mucho más que un bípedo y tiene tope', () => {
+    expect(velocidadCuadrupedo(4)).toBeCloseTo(13.6, 6);
+    expect(velocidadCuadrupedo(10)).toBeCloseTo(25, 6);
+    expect(velocidadCuadrupedo(15)).toBe(28);
+    for (const H of [4, 7, 10, 12]) expect(velocidadCuadrupedo(H)).toBeGreaterThan(2 * velocidadPersecucion(H));
+  });
+  it('gira mejor y salta desde lejos', () => {
+    expect(giroCuadrupedo(8)).toBeCloseTo(2 * giroMaximo(8), 6);
+    expect(alcanceSalto(10)).toBeCloseTo(12, 6);
+  });
+  it('galope: la pata apoyada no patina', () => {
+    for (const [v, H] of [[25, 10], [13, 4], [3, 8]] as const) {
+      const { zancada, frecuencia } = galope(v, H);
+      // lo que avanza el cuerpo durante el apoyo (0,45 del ciclo) = zancada
+      expect((v * 0.45) / frecuencia).toBeLessThanOrEqual(zancada + 1e-9);
+      expect(zancada).toBeLessThanOrEqual(0.5 * H + 1e-9);
+    }
+  });
+  it('parado no hay zancada que valga más de un 2 % de H', () => {
+    expect(galope(0, 10).zancada).toBeCloseTo(0.2, 6);
   });
 });

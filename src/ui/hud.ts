@@ -208,8 +208,10 @@ export class Hud {
     this.panelGas(ctx, jugador, campana);
 
     // Aviso de anormal cercano
-    const anormalCerca = ctx.poblacion.titanes.some((t) => t.vivo && t.anormal && t.posicion.distanceTo(jugador.pos) < 120);
-    this.anormal.hidden = !anormalCerca;
+    const anormalCerca = ctx.poblacion.titanes.filter((t) => t.vivo && t.anormal && t.posicion.distanceTo(jugador.pos) < 120);
+    this.anormal.hidden = anormalCerca.length === 0;
+    const texto = anormalCerca.some((t) => t.cuadrupedo) ? '¡Corre a cuatro patas!' : '¡Titán anormal!';
+    if (this.anormal.textContent !== texto) this.anormal.textContent = texto;
 
     // QTE de agarre
     const qte = jugador.combate?.qte;
