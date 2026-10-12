@@ -34,10 +34,11 @@ export class Efectos {
   }
 
   /** Salpicadura de sangre roja, corta y estilizada, en la dirección del corte. */
-  sangre(pos: THREE.Vector3, dir: THREE.Vector3, cantidad = 18): void {
+  /** Salpicadura de sangre; `escala` agranda las gotas (el mordisco de un titán se ve de lejos). */
+  sangre(pos: THREE.Vector3, dir: THREE.Vector3, cantidad = 18, escala = 1): void {
     for (let i = 0; i < cantidad; i++) {
       this.tmp.copy(dir).normalize().multiplyScalar(4 + Math.random() * 8).add(new THREE.Vector3((Math.random() - 0.5) * 4, Math.random() * 4, (Math.random() - 0.5) * 4));
-      this.sangreP.emitir(pos, this.tmp, 0.45 + Math.random() * 0.3, 0.08 + Math.random() * 0.12, 1);
+      this.sangreP.emitir(pos, this.tmp, 0.45 + Math.random() * 0.3 * escala, (0.08 + Math.random() * 0.12) * escala, 1);
     }
   }
 

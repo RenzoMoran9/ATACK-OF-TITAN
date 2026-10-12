@@ -65,7 +65,10 @@ export class Jugador implements JugadorAPI {
     // cae de la mano con un pequeño impulso
     this.vel.set((Math.random() - 0.5) * 4, 3, (Math.random() - 0.5) * 4);
   }
+  /** Titán que lo devoró (la cámara se queda mirando cómo mastica). */
+  devoradoPor: TitanAPI | null = null;
   alSerDevorado(): void {
+    this.devoradoPor = this.agarradoPor;
     this.agarradoPor = null;
     this.morir();
   }
@@ -85,6 +88,7 @@ export class Jugador implements JugadorAPI {
   }
   revivir(pies: THREE.Vector3, rumbo?: number): void {
     this.vivo = true;
+    this.devoradoPor = null;
     this.salud = this.saludMax;
     this.agarradoPor = null;
     this.modelo.grupo.visible = true;
@@ -99,6 +103,7 @@ export class Jugador implements JugadorAPI {
   private sinDanio = 99;
   private tiempo = 0;
   private ultimoShiftAire = -9;
+  private ultimoGolpeTitan = -9;
   private tAterrizaje: number | null = null;
   private impactoAterrizaje = 0;
   private rodando = 0;
@@ -324,7 +329,11 @@ export class Jugador implements JugadorAPI {
       if (vn < 0) {
         // estrellarse contra un titán a mucha velocidad duele
         const etiqueta = col.collider ? this.fisica.etiquetas.get(col.collider.handle) : undefined;
-        if ((etiqueta === 'titan' || etiqueta === 'nuca') && -vn > 22) this.herir((-vn - 22) * 4, 'Te has estrellado contra un titán');
+        // rozar o chocar con la carne no mata: solo un golpe muy fuerte duele, y poco
+        if ((etiqueta === 'titan' || etiqueta === 'nuca') && -vn > 32 && this.tiempo - this.ultimoGolpeTitan > 0.8) {
+          this.ultimoGolpeTitan = this.tiempo;
+          this.herir(Math.min(20, (-vn - 32) * 1.5), 'Te has estrellado contra un titán');
+        }
         this.vel.addScaledVector(n, -vn);
       }
     }

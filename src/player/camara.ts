@@ -28,6 +28,14 @@ export class CamaraTercera {
   sacudida = 0;
   /** Con el jugador en la mano de un titán: se aleja y no choca con su cuerpo. */
   agarrado = false;
+  /**
+   * Plano cinematográfico (agarre y mordisco de un titán): la cámara viaja hasta `pos` y mira
+   * a `mirar`. Lo calcula main.ts cada fotograma; null = cámara normal.
+   */
+  encuadre: { pos: THREE.Vector3; mirar: THREE.Vector3 } | null = null;
+  private cineActivo = false;
+  private readonly cinePos = new THREE.Vector3();
+  private readonly cineMirar = new THREE.Vector3();
   private hombroActual = 0.5;
   private alejamiento = 0;
   private alabeo = 0;
@@ -102,6 +110,12 @@ export class CamaraTercera {
       return;
     }
 
+    if (this.encuadre) {
+      this.cinematica(dt);
+      return;
+    }
+    this.cineActivo = false;
+
     const cp = Math.cos(this.pitch);
     this.dir.set(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), -Math.cos(this.yaw) * cp);
     this.derecha.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
@@ -161,6 +175,36 @@ export class CamaraTercera {
 
     if (Math.abs(cam.fov - this.fov) > 0.05) {
       cam.fov = this.fov;
+      cam.updateProjectionMatrix();
+    }
+  }
+
+  /** Viaja suave hasta el encuadre y lo mantiene; yaw/pitch lo siguen para volver sin salto. */
+  private cinematica(dt: number): void {
+    const cam = this.camara;
+    const e = this.encuadre!;
+    if (!this.cineActivo) {
+      this.cineActivo = true;
+      this.cinePos.copy(cam.position);
+      this.cineMirar.copy(cam.position).addScaledVector(this.dir, 10);
+    }
+    this.cinePos.lerp(e.pos, 1 - Math.exp(-dt * 2.5));
+    this.cineMirar.lerp(e.mirar, 1 - Math.exp(-dt * 6));
+    cam.position.copy(this.cinePos);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(this.cineMirar);
+    this.dir.copy(this.cineMirar).sub(this.cinePos).normalize();
+    this.yaw = Math.atan2(-this.dir.x, -this.dir.z);
+    this.pitch = Math.asin(THREE.MathUtils.clamp(this.dir.y, -1, 1));
+    this.distanciaActual = Math.max(this.distanciaActual, 3);
+    if (this.sacudida > 0.01) {
+      const a = this.sacudida * this.sacudida * 0.03;
+      cam.rotation.z += a * Math.sin(this.t * 41);
+      cam.rotation.x += a * Math.sin(this.t * 33 + 1.7);
+    }
+    const fov = config.camara.fovBase - 8;
+    if (Math.abs(cam.fov - fov) > 0.05) {
+      cam.fov += (fov - cam.fov) * Math.min(1, dt * 3);
       cam.updateProjectionMatrix();
     }
   }

@@ -114,6 +114,8 @@ export interface TitanAPI {
   readonly puntosDebiles: readonly PuntoDebil[];
   /** Humano al que persigue ahora mismo (o null). */
   readonly objetivo: Humano | null;
+  /** Está a punto de agarrar (brazo atrás o agazapado para saltar): el HUD avisa. */
+  readonly avisando?: boolean;
   /** Centro de la cabeza en mundo. */
   cabeza(): THREE.Vector3;
   /** Aplica un corte a una zona. El titán decide el efecto (regenera, cae, muere…). */

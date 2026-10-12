@@ -123,6 +123,29 @@ async function iniciar(): Promise<void> {
   // Muerte del jugador: fundido y reaparición
   let muertoDesde = -1;
   let avisoBorde = false;
+  /**
+   * Plano del titán que te tiene en la mano (o que te está masticando): tres cuartos de
+   * frente, a la altura de su cara, para ver la mano, la boca y el mordisco.
+   */
+  const encuadreTitan = (): { pos: THREE.Vector3; mirar: THREE.Vector3 } | null => {
+    const titan = jugador.agarradoPor ?? (!jugador.vivo ? jugador.devoradoPor : null);
+    if (!titan) return null;
+    const H = titan.altura;
+    const cabeza = titan.cabeza();
+    const frente = new THREE.Vector3(Math.sin(titan.rumbo), 0, Math.cos(titan.rumbo));
+    const derecha = new THREE.Vector3(Math.cos(titan.rumbo), 0, -Math.sin(titan.rumbo));
+    const deseo = cabeza.clone().addScaledVector(frente, 0.35 * H + 2.5).addScaledVector(derecha, -(0.25 * H + 1.5)).add(new THREE.Vector3(0, 0.02 * H, 0));
+    // que no se meta en una pared o un tejado entre la cara del titán y la cámara
+    const hacia = deseo.clone().sub(cabeza);
+    const largo = hacia.length();
+    hacia.divideScalar(largo);
+    // el rayo sale ya fuera de la cabeza del titán (si no, chocaría con ella)
+    const choque = fisica.lanzarRayo(cabeza.clone().addScaledVector(hacia, 0.2 * H), hacia, largo - 0.2 * H, jugador.collider);
+    const pos = choque && choque.etiqueta !== 'titan' && choque.etiqueta !== 'nuca' ? choque.punto.addScaledVector(hacia, -1) : deseo;
+    pos.y = Math.max(pos.y, 1.5);
+    const mirar = jugador.agarradoPor ? cabeza.clone().lerp(jugador.posRender, 0.4) : cabeza;
+    return { pos, mirar };
+  };
 
   // Capturas (?cam=...): escena fija con los titanes de referencia congelados, sin menús.
   // Si no, campaña por capítulos con su menú.
@@ -262,6 +285,7 @@ async function iniciar(): Promise<void> {
     laboratorio?.actualizar(dt, tiempo);
     rig.sacudida = jugador.combate?.sacudida ?? 0;
     rig.agarrado = jugador.agarradoPor !== null;
+    rig.encuadre = encuadreTitan();
     rig.actualizar(dt, jugador.posRender, jugador.vel);
     // con la cámara metida en el personaje (rincones), se oculta para no tapar la vista
     jugador.modelo.grupo.visible = jugador.vivo && rig.distancia > 0.8;

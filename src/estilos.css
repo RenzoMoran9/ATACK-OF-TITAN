@@ -289,7 +289,7 @@ body {
 .hud-qte {
   position: absolute;
   left: 50%;
-  top: 64%;
+  top: 78%;
   transform: translateX(-50%);
   text-align: center;
 }
@@ -319,6 +319,36 @@ body {
   font-size: 34px;
   letter-spacing: 6px;
   color: #e9d6cf;
+  /* se deja ver el mordisco y cómo mastica antes de fundir a negro */
+  animation: fundido-muerte 3.4s ease-in forwards;
+}
+@keyframes fundido-muerte {
+  0%,
+  45% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Aviso de agarre: bordes rojos y texto grande */
+.hud-peligro {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 120px 30px rgba(200, 20, 10, 0.55);
+  animation: latido 0.35s ease-in-out infinite;
+}
+.hud-peligro .texto {
+  position: absolute;
+  left: 50%;
+  top: 64%;
+  transform: translateX(-50%);
+  font-size: 22px;
+  letter-spacing: 3px;
+  color: #ffd2c8;
+  text-shadow: 0 0 8px #000, 0 2px 3px #000;
 }
 
 /* Pantallas: menú, presentación, pausa, victoria, derrota */

@@ -73,8 +73,8 @@ export const giroCuadrupedo = (H: number): number => 2 * giroMaximo(H);
 /** Distancia (desde la cabeza) a la que se agazapa y salta a morder: 0,9·H + 3 m. */
 export const alcanceSalto = (H: number): number => 0.9 * H + 3;
 
-/** Agazapado antes del salto (aviso): 0,25 s. Vuelo del salto: 0,35 + 0,02·H s. */
-export const AVISO_SALTO = 0.25;
+/** Agazapado antes del salto (aviso legible para esquivarlo): 0,55 s. Vuelo del salto: 0,35 + 0,02·H s. */
+export const AVISO_SALTO = 0.55;
 export const duracionSalto = (H: number): number => 0.35 + 0.02 * H;
 
 /** Altura del arco del salto: 0,4·H. */

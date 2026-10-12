@@ -38,6 +38,7 @@ export class Hud {
   private readonly escuadron: PanelEscuadron;
   private readonly sinGas: HTMLDivElement;
   private readonly anormal: HTMLDivElement;
+  private readonly peligro: HTMLDivElement;
   private readonly muerte: HTMLDivElement;
   private acumFps = 0;
   private framesFps = 0;
@@ -52,6 +53,7 @@ export class Hud {
       <div class="hud-objetivo"><div class="titulo"></div><div class="detalle"></div></div>
       <div class="hud-mensajes"></div>
       <div class="hud-anormal" hidden>¡Titán anormal!</div>
+      <div class="hud-peligro" hidden><div class="texto">¡Va a por ti! ¡Apártate o sube!</div></div>
       <div class="hud-equipo">
         <div class="hud-gas">
           <div class="cilindro"><div class="relleno"></div></div>
@@ -97,6 +99,7 @@ export class Hud {
     this.escuadron = new PanelEscuadron(this.raiz);
     this.sinGas = q('.hud-sin-gas');
     this.anormal = q('.hud-anormal');
+    this.peligro = q('.hud-peligro');
     this.muerte = q('.hud-muerte');
     ctx.eventos.on('mensaje', (e) => this.mensaje(e.texto, e.segundos ?? 3));
   }
@@ -206,6 +209,10 @@ export class Hud {
       }
     }
     this.panelGas(ctx, jugador, campana);
+
+    // Aviso de agarre: un titán va a cerrar la mano (o a saltar) sobre ti
+    const teAtrapa = jugador.vivo && !jugador.agarradoPor && ctx.poblacion.titanes.some((t) => t.vivo && t.avisando && t.objetivo === jugador);
+    this.peligro.hidden = !teAtrapa;
 
     // Aviso de anormal cercano
     const anormalCerca = ctx.poblacion.titanes.filter((t) => t.vivo && t.anormal && t.posicion.distanceTo(jugador.pos) < 120);

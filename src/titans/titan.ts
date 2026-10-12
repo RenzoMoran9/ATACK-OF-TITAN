@@ -71,6 +71,13 @@ const BASE_REGEN: Partial<Record<ZonaTitan, number>> = {
   tendonIzq: 10, tendonDer: 10, corvaIzq: 12, corvaDer: 12, ojoIzq: 12, ojoDer: 12, brazoIzq: 20, brazoDer: 20, manoIzq: 6, manoDer: 6, mandibula: 8,
 };
 
+/** Segundos dentro de la fase 'boca' en los que se cierra la mandíbula. */
+const MORDISCO = 1.2;
+/** Lo que dura masticar y tragar. */
+const MASTICAR = 2.4;
+/** Levantar a la presa hasta la cara: con el mordisco, siempre algo más que el QTE (2,5 + 0,06·H s). */
+const duracionLevantar = (H: number): number => 1.6 + 0.06 * H;
+
 export class Titan implements TitanAPI {
   readonly id = nuevoId();
   readonly altura: number;
@@ -624,6 +631,7 @@ export class Titan implements TitanAPI {
       }
       case 'zarandeo':
         if (!this.victimaValida(a)) return true;
+        if (Math.floor(a.t / 0.5) !== Math.floor((a.t - dt) / 0.5)) this.salpicar(2);
         // dura lo mismo que el QTE de soltarse (2,5 + 0,06·H s)
         if (a.t >= 2.8 + 0.06 * H) {
           const v = a.victima!;
@@ -632,7 +640,7 @@ export class Titan implements TitanAPI {
           this.punto('mandibula').activo = false;
           v.alSerDevorado();
           this.ctx.eventos.emit({ tipo: 'humanoDevorado', humano: v, titan: this });
-          this.ctx.efectos.sangre(this.modelo.posBoca(this.tmp).clone(), new THREE.Vector3(0, -1, 0), 10);
+          this.salpicar(24);
           this.objetivo = null;
           this.cambiarFase(a, 'masticar');
         }
@@ -678,14 +686,15 @@ export class Titan implements TitanAPI {
         break;
       case 'levantar':
         if (!this.victimaValida(a)) return;
-        if (a.t >= 1 + 0.05 * H) {
+        // levantar + abrir la boca dura más que el QTE (2,5 + 0,06·H s): siempre hay tiempo de soltarse
+        if (a.t >= duracionLevantar(H)) {
           this.cambiarFase(a, 'boca');
           this.punto('mandibula').activo = true;
         }
         break;
       case 'boca':
         if (!this.victimaValida(a)) return;
-        if (a.t >= 0.8) {
+        if (a.t >= MORDISCO) {
           const v = a.victima!;
           a.victima = null;
           this.punto('manoIzq').activo = false;
@@ -693,18 +702,27 @@ export class Titan implements TitanAPI {
           this.punto('mandibula').activo = false;
           v.alSerDevorado();
           this.ctx.eventos.emit({ tipo: 'humanoDevorado', humano: v, titan: this });
-          this.ctx.efectos.sangre(this.modelo.posBoca(this.tmp).clone(), new THREE.Vector3(0, -1, 0), 10);
+          this.salpicar(24);
           this.objetivo = null;
           this.cambiarFase(a, 'masticar');
         }
         break;
       case 'masticar':
-        if (a.t >= 1.6) {
+        // mastica con la boca chorreando y al final traga
+        if (Math.floor(a.t / 0.4) !== Math.floor((a.t - dt) / 0.4) && a.t < 1.9) this.salpicar(3);
+        if (a.t >= MASTICAR) {
           this.agarre = null;
           if (!this.incapacitado()) this.estado = 'deambular';
         }
         break;
     }
+  }
+
+  /** Sangre que sale de la boca (al morder y mientras mastica). */
+  private salpicar(cantidad: number): void {
+    const boca = this.modelo.posBoca(this.tmp).clone();
+    const dir = new THREE.Vector3(Math.sin(this.rumbo), -0.6, Math.cos(this.rumbo)).normalize();
+    this.ctx.efectos.sangre(boca, dir, cantidad, 1.5 + 0.12 * this.altura);
   }
 
   /** Derribado, ciego o dormido: el agarre no debe devolverlo a cazar al terminar. */
@@ -947,7 +965,6 @@ export class Titan implements TitanAPI {
       const lado = i === 0 ? 1 : -1;
       const boca = this.modelo.posBoca(new THREE.Vector3());
       const frente = new THREE.Vector3(Math.sin(this.rumbo), 0, Math.cos(this.rumbo));
-      const delanteBoca = boca.clone().addScaledVector(frente, L.rc * 0.9);
       const localBlanco = this.modelo.raiz.worldToLocal(ag.blanco.clone());
       const bajo = THREE.MathUtils.clamp(1 - ag.blanco.y / L.hombroY, 0, 1);
       // Agacharse: cadera y rodillas flexionadas con el pie debajo; se recoge al levantar
@@ -988,23 +1005,44 @@ export class Titan implements TitanAPI {
           p.torsoX += 0.15 * (1 - THREE.MathUtils.smoothstep(ag.t, 0, 1.5));
           break;
         case 'levantar': {
-          const k = THREE.MathUtils.smoothstep(ag.t, 0, 1 + 0.05 * H);
-          p.ikMano[i] = ag.desde.clone().lerp(delanteBoca, k);
-          p.boca = 0.2 + 0.3 * k;
-          p.cabezaX = 0.25 * k;
+          // sube a la presa hasta delante de la cara, se la queda mirando con la cabeza ladeada
+          // y empieza a abrir la boca: el momento inquietante del anime
+          const dur = duracionLevantar(H);
+          const k = THREE.MathUtils.smoothstep(ag.t, 0, dur * 0.6);
+          const mirar = THREE.MathUtils.smoothstep(ag.t, dur * 0.45, dur * 0.8);
+          const frenteCara = boca.clone().addScaledVector(frente, L.rc * 1.7).add(new THREE.Vector3(0, -L.rc * 0.2, 0));
+          p.ikMano[i] = ag.desde.clone().lerp(frenteCara, k);
+          p.boca = 0.1 + 0.45 * THREE.MathUtils.smoothstep(ag.t, dur * 0.5, dur);
+          p.cabezaX = 0.35 * k;
           p.cabezaY = 0;
+          p.cabezaZ = 0.12 + 0.3 * mirar * Math.sin(Math.min(1, mirar) * Math.PI * 0.5);
+          p.torsoX += 0.08 * k;
           break;
         }
-        case 'boca':
-          p.ikMano[i] = delanteBoca.clone().lerp(boca, THREE.MathUtils.smoothstep(ag.t, 0.3, 0.8));
-          p.boca = 1;
-          p.cabezaX = 0.3;
+        case 'boca': {
+          // la boca se abre del todo, mete a la presa y la mandíbula se cierra de golpe
+          const abre = THREE.MathUtils.smoothstep(ag.t, 0, 0.45);
+          const cierra = THREE.MathUtils.smoothstep(ag.t, MORDISCO - 0.18, MORDISCO);
+          const frenteCara = boca.clone().addScaledVector(frente, L.rc * 1.7).add(new THREE.Vector3(0, -L.rc * 0.2, 0));
+          p.ikMano[i] = frenteCara.lerp(boca, THREE.MathUtils.smoothstep(ag.t, 0.35, MORDISCO - 0.15));
+          p.boca = THREE.MathUtils.lerp(0.55 + 0.7 * abre, 0.05, cierra);
+          p.cabezaX = 0.35 - 0.2 * abre + 0.35 * cierra;
           p.cabezaY = 0;
+          p.cabezaZ = 0.12;
+          p.torsoX += 0.12;
           break;
-        case 'masticar':
-          p.boca = 0.35 + 0.35 * Math.abs(Math.sin(ag.t * 9));
-          p.cabezaX = 0.15 + 0.08 * Math.sin(ag.t * 9);
+        }
+        case 'masticar': {
+          // mastica, cabecea y al final echa la cabeza atrás para tragar
+          const traga = THREE.MathUtils.smoothstep(ag.t, MASTICAR - 0.6, MASTICAR - 0.2);
+          const mascada = Math.abs(Math.sin(ag.t * 7));
+          p.boca = (0.12 + 0.3 * mascada) * (1 - traga);
+          p.cabezaX = 0.2 + 0.1 * Math.sin(ag.t * 7) - 0.55 * traga;
+          p.cabezaZ = 0.12 + 0.05 * Math.sin(ag.t * 3.5);
+          p.hombroX[i] = 0.1;
+          p.codo[i] = -0.3;
           break;
+        }
       }
     }
 
