@@ -29,8 +29,8 @@ export interface DatosCiudad {
 }
 
 const PASO = 16; // separación de parcelas: casa de 8–12 m + calle de 4–8 m
-const ZOCALO = 2.4;
-const PLANTA = 3.2;
+export const ZOCALO = 2.4;
+export const PLANTA = 3.2;
 const VANO = 4;
 
 export function construirCiudad(escena: THREE.Scene, fisica: Fisica, mats: Materiales, rng: Rng, radioMuralla: number, antorchas: Antorchas): DatosCiudad {
@@ -140,7 +140,8 @@ export function construirCiudad(escena: THREE.Scene, fisica: Fisica, mats: Mater
   return { casas, plaza, deposito, torre };
 }
 
-interface Lotes {
+/** Lotes de material de una casa (los comparten las aldeas del mundo abierto). */
+export interface LotesCasa {
   piedra: Lote;
   fachadaA: Lote;
   fachadaB: Lote;
@@ -148,7 +149,7 @@ interface Lotes {
   madera: Lote;
 }
 
-function construirCasa(c: Casa, plantas: number, subida: number, rng: Rng, l: Lotes, fisica: Fisica): void {
+export function construirCasa(c: Casa, plantas: number, subida: number, rng: Rng, l: LotesCasa, fisica: Fisica): void {
   const m = (lx: number, ly: number, lz: number) => {
     const p = new THREE.Vector3(lx, ly, lz).applyAxisAngle(new THREE.Vector3(0, 1, 0), c.rotY);
     return matriz(c.x + p.x, p.y, c.z + p.z, c.rotY);
