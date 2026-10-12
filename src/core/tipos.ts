@@ -225,7 +225,38 @@ export interface GestorTitanesAPI {
 }
 
 export type RolSoldado = 'cebo' | 'apoyo' | 'rematador';
-export type OrdenEscuadron = 'seguir' | 'atacar' | 'proteger' | 'retirada';
+
+// ── Órdenes del escuadrón (teclas 1–8; Tab elige a quién) ──
+export type OrdenEscuadron =
+  | 'seguir'
+  | 'atacar'
+  | 'proteger'
+  | 'retirada'
+  | 'esperar' // mantener posición donde está el jugador y defenderla
+  | 'irA' // volar al punto de la mira y mantener posición
+  | 'atacarTitan' // el titán de la mira hasta que muera; luego, la orden anterior
+  | 'explorar'; // patrullar alrededor de un punto y avisar de lo que vean
+
+/** Lo que acompaña a una orden: el punto (esperar, id allí, explorar) o el titán señalado. */
+export interface DestinoOrden {
+  punto?: THREE.Vector3;
+  titan?: TitanAPI;
+}
+
+/** Estado de un soldado para el panel del escuadrón. */
+export interface InfoSoldado {
+  orden: OrdenEscuadron;
+  /** Lo que hace ahora si no es solo cumplir la orden ('recargando', 'rescatando'...), o ''. */
+  actividad: string;
+  /** Gas 0–100. */
+  gas: number;
+  /** Filo del par montado (0–1) y pares de repuesto. */
+  filo: number;
+  repuesto: number;
+  /** Punto de la orden (lleva banderín en el mundo), si tiene. */
+  punto?: THREE.Vector3;
+  titan?: TitanAPI;
+}
 
 export interface MiembroEscuadron {
   nombre: string;
@@ -235,9 +266,17 @@ export interface MiembroEscuadron {
 
 export interface EscuadronAPI {
   readonly soldados: readonly Humano[];
+  /** Orden de la selección (o la del primer soldado vivo si mandas a todos). */
   readonly orden: OrdenEscuadron;
+  /** A quién van las órdenes: null = todo el escuadrón. */
+  readonly seleccion: Humano | null;
   crear(miembros: MiembroEscuadron[], cerca: THREE.Vector3): void;
-  ordenar(o: OrdenEscuadron): void;
+  /** Da la orden a la selección; los demás conservan la suya. */
+  ordenar(o: OrdenEscuadron, destino?: DestinoOrden): void;
+  /** Tab: Todos → cada soldado vivo → Todos. Devuelve la nueva selección. */
+  cambiarSeleccion(): Humano | null;
+  /** Orden, gas y cuchillas de un soldado (null si no es del escuadrón). */
+  info(h: Humano): InfoSoldado | null;
   limpiar(): void;
   /** El compañero con gas más cercano viene a pasártelo (null si nadie puede). */
   pedirGas(): Humano | null;

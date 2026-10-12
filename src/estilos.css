@@ -309,55 +309,6 @@ body {
   background: #d9583f;
 }
 
-.hud-escuadron {
-  position: absolute;
-  right: 24px;
-  top: 30%;
-  font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 170px;
-  padding: 10px 12px;
-  background: linear-gradient(270deg, rgba(10, 14, 20, 0.55), rgba(10, 14, 20, 0));
-}
-.hud-escuadron .orden {
-  font-size: 12px;
-  letter-spacing: 1px;
-  opacity: 0.85;
-  margin-bottom: 4px;
-}
-.hud-escuadron .soldado {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.hud-escuadron .soldado .punto {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #8fe0a0;
-}
-.hud-escuadron .soldado.agarrado .punto {
-  background: #ffb35c;
-}
-.hud-escuadron .soldado.caido {
-  opacity: 0.45;
-  text-decoration: line-through;
-}
-.hud-escuadron .soldado.caido .punto {
-  background: #777;
-}
-.hud-escuadron .soldado i {
-  font-size: 11px;
-  color: #ffb19e;
-}
-.hud-escuadron .teclas {
-  font-size: 10px;
-  opacity: 0.6;
-  margin-top: 6px;
-}
-
 .hud-muerte {
   position: fixed;
   inset: 0;
@@ -542,3 +493,125 @@ body {
     opacity: 0.45;
   }
 }
+
+/* ── Panel del escuadrón: mando, órdenes, gas y cuchillas (src/ui/ordenes.ts) ── */
+.hud-mando {
+  position: absolute;
+  right: 14px;
+  top: 64px;
+  width: 236px;
+  max-height: calc(100vh - 140px);
+  overflow: hidden;
+  padding: 8px 10px 8px 12px;
+  font-size: 12px;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(270deg, rgba(10, 14, 20, 0.72), rgba(10, 14, 20, 0.5));
+  border-right: 2px solid rgba(242, 194, 48, 0.55);
+  border-radius: 4px 0 0 4px;
+}
+.hud-mando .cabecera {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+.hud-mando .cabecera b {
+  color: #ffd36a;
+  letter-spacing: 1px;
+}
+.hud-mando .soldado {
+  padding: 3px 4px 4px 6px;
+  margin: 0 -4px 2px -6px;
+  border-left: 2px solid transparent;
+}
+.hud-mando .soldado.sel {
+  border-left-color: #ffd36a;
+  background: rgba(255, 211, 106, 0.14);
+}
+.hud-mando .l1,
+.hud-mando .l2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.hud-mando .nombre {
+  font-weight: 600;
+  min-width: 52px;
+}
+.hud-mando .sel .nombre {
+  color: #ffd36a;
+}
+.hud-mando .orden {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+  font-size: 11px;
+}
+.hud-mando .dist {
+  font-size: 11px;
+  opacity: 0.8;
+}
+.hud-mando .l2 {
+  font-size: 10px;
+  margin-top: 2px;
+}
+.hud-mando .l2 > small {
+  opacity: 0.6;
+  font-size: 9px;
+  letter-spacing: 1px;
+}
+.hud-mando .gas {
+  position: relative;
+  width: 54px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.hud-mando .gas i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #cfe3ef;
+}
+.hud-mando .gas.bajo i {
+  background: #ff9c6a;
+}
+.hud-mando .hojas {
+  opacity: 0.75;
+}
+.hud-mando .hojas.malas {
+  color: #ff9c8a;
+  opacity: 1;
+}
+.hud-mando .act {
+  color: #ffd27a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-mando .agarrado .act {
+  color: #ff8a7a;
+}
+.hud-mando .caido {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.hud-mando .leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px 8px;
+  margin-top: 6px;
+  font-size: 10px;
+  opacity: 0.62;
+}
+.hud-mando .leyenda b {
+  font-weight: 600;
+  color: #ffe9b0;
+}
+.hud-mando .leyenda .tab {
+  flex-basis: 100%;
+}
+/* ── fin del panel del escuadrón ── */

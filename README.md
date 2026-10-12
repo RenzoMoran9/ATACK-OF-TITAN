@@ -39,6 +39,8 @@ npm run dev                       # http://localhost:5173
 | **R** | Cambiar de par de cuchillas (4 de repuesto) |
 | **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, pedir gas a un compañero |
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
+| **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
+| **Tab** | A quién mandas: todo el escuadrón → cada soldado → todos. Los demás conservan su orden (Todos + 5 = te vas solo; Tab hasta Mikasa + 1 = te la llevas) |
 | **Retroceso** | Reaparecer en el punto de control |
 | Ratón / **flechas** | Cámara (las flechas sirven si el navegador no deja capturar el ratón) |
 | **F1** o **P** | Panel de ajustes (todos los valores de `src/data/config.json`, en caliente) |

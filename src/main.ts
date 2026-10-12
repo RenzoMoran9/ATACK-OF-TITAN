@@ -20,6 +20,7 @@ import { CapEntrenamiento } from './missions/capitulos/entrenamiento';
 import { CapLibre } from './missions/capitulos/libre';
 import { CapTrost } from './missions/capitulos/trost';
 import { Hud } from './ui/hud';
+import { MandoEscuadron } from './ui/ordenes';
 import { Pantallas } from './ui/pantallas';
 import { crearPanel } from './ui/panel';
 import { Cielo } from './world/cielo';
@@ -105,13 +106,13 @@ async function iniciar(): Promise<void> {
   };
   ctx.titanes = new GestorTitanes(ctx);
   ctx.civiles = new GestorCiviles(ctx);
-  ctx.escuadron = new Escuadron(ctx);
+  const escuadron = new Escuadron(ctx);
+  ctx.escuadron = escuadron;
   ctx.suministros = new Suministros(ctx);
   jugador.conectar(ctx);
   const hud = new Hud(document.body, urlDepuracion.hud, ctx);
-  // Órdenes al escuadrón con 1-4
-  const ORDENES = { Digit1: 'seguir', Digit2: 'atacar', Digit3: 'proteger', Digit4: 'retirada' } as const;
-  const NOMBRES_ORDEN = { seguir: 'Seguidme', atacar: 'Atacad', proteger: 'Proteged a los civiles', retirada: 'Retirada' } as const;
+  // ── Órdenes al escuadrón: 1-8 a la selección, Tab elige a quién (src/ui/ordenes.ts) ──
+  const mando = new MandoEscuadron(ctx, () => ({ origen: camara.position, dir: rig.dir, excluir: jugador.collider }));
   // Muerte del jugador: fundido y reaparición
   let muertoDesde = -1;
 
@@ -130,6 +131,7 @@ async function iniciar(): Promise<void> {
     ctx.titanes.congelado = true;
   } else {
     campana = new Campana(ctx, [new CapEntrenamiento(), new CapTrost(), new CapLibre()]);
+    escuadron.depositoDisponible = () => campana?.depositoDisponible() ?? true;
     pantallas = new Pantallas(campana, () => entrada.capturar());
   }
 
@@ -194,12 +196,7 @@ async function iniciar(): Promise<void> {
       return;
     }
     reloj.t += dt;
-    for (const [tecla, orden] of Object.entries(ORDENES)) {
-      if (entrada.consumir(tecla) && ctx.escuadron.soldados.length > 0) {
-        ctx.escuadron.ordenar(orden);
-        ctx.eventos.emit({ tipo: 'mensaje', texto: `Orden: ${NOMBRES_ORDEN[orden]}`, segundos: 1.5 });
-      }
-    }
+    mando.actualizar();
     // G: recoger el equipo de un caído o, si no hay ninguno al lado, pedir gas a un compañero
     if (entrada.consumir('KeyG') && jugador.vivo) {
       const recogido = ctx.suministros.recoger();
@@ -250,6 +247,7 @@ async function iniciar(): Promise<void> {
     mundo.antorchas.actualizar(dt, camara.position, tiempo);
     ctx.titanes.dibujar(dt, tiempo);
     ctx.escuadron.dibujar(dt, tiempo);
+    mando.dibujar(tiempo);
     ctx.civiles.dibujar(dt, tiempo);
     ctx.suministros.dibujar(tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);

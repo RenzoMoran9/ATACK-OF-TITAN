@@ -10,7 +10,8 @@ const CONTROLES = `
     <li><b>Clic izq / Q</b> gancho izquierdo · <b>Clic der / E</b> gancho derecho <i>(mantener = recoger cable)</i></li>
     <li><b>Espacio</b> impulso de gas · <b>Shift</b> salto / freno en el aire / rodada al aterrizar</li>
     <li><b>F</b> tajo (mantén para cargar) · <b>R</b> cambiar cuchillas · <b>WASD</b> mover · <b>Ratón/flechas</b> cámara</li>
-    <li><b>1</b> seguidme · <b>2</b> atacad · <b>3</b> proteged a los civiles · <b>4</b> retirada · <b>F1/P</b> ajustes · <b>Esc</b> pausa</li>
+    <li><b>1</b> seguidme · <b>2</b> atacad · <b>3</b> proteged a los civiles · <b>4</b> retirada · <b>5</b> esperad aquí · <b>6</b> id allí · <b>7</b> atacad a ese titán · <b>8</b> explorad</li>
+    <li><b>Tab</b> a quién mandas (todos o uno) · <b>F1/P</b> ajustes · <b>Esc</b> pausa</li>
   </ul>`;
 
 function escapar(t: string): string {

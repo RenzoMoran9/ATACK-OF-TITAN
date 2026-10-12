@@ -3,19 +3,18 @@ import type { ContextoJuego } from '../core/contexto';
 import type { Campana } from '../missions/campana';
 import type { Jugador } from '../player/jugador';
 import { depositoMasCercano } from '../world/mundo';
+import { PanelEscuadron } from './ordenes';
 
 /**
  * HUD: gas (dos cilindros), cuchillas, vida, retícula con indicador de anclaje por gancho,
- * objetivo del capítulo, mensajes, aviso de anormal, QTE de agarre, estado del escuadrón
- * y fundido al morir.
+ * objetivo del capítulo, mensajes, aviso de anormal, QTE de agarre, panel del escuadrón
+ * (src/ui/ordenes.ts) y fundido al morir.
  */
 
 interface Mensaje {
   el: HTMLDivElement;
   restante: number;
 }
-
-const NOMBRE_ORDEN: Record<string, string> = { seguir: 'Seguidme', atacar: 'Atacad', proteger: 'Proteged a los civiles', retirada: 'Retirada' };
 
 export class Hud {
   private readonly raiz: HTMLDivElement;
@@ -36,7 +35,7 @@ export class Hud {
   private readonly qte: HTMLDivElement;
   private readonly qteTexto: HTMLDivElement;
   private readonly qteBarra: HTMLDivElement;
-  private readonly escuadron: HTMLDivElement;
+  private readonly escuadron: PanelEscuadron;
   private readonly sinGas: HTMLDivElement;
   private readonly anormal: HTMLDivElement;
   private readonly muerte: HTMLDivElement;
@@ -72,7 +71,6 @@ export class Hud {
       </div>
       <div class="marcador izq"></div>
       <div class="marcador der"></div>
-      <div class="hud-escuadron" hidden></div>
       <div class="hud-sin-gas" hidden></div>
       <div class="hud-qte" hidden><div class="texto"></div><div class="barra"><div class="tiempo"></div></div></div>
       <div class="hud-velocidad">0 m/s</div>
@@ -96,7 +94,7 @@ export class Hud {
     this.qte = q('.hud-qte');
     this.qteTexto = q('.hud-qte .texto');
     this.qteBarra = q('.hud-qte .tiempo');
-    this.escuadron = q('.hud-escuadron');
+    this.escuadron = new PanelEscuadron(this.raiz);
     this.sinGas = q('.hud-sin-gas');
     this.anormal = q('.hud-anormal');
     this.muerte = q('.hud-muerte');
@@ -221,20 +219,8 @@ export class Hud {
       this.qteBarra.style.width = `${(qte.restante / qte.total) * 100}%`;
     }
 
-    // Escuadrón
-    const soldados = ctx.escuadron.soldados;
-    this.escuadron.hidden = soldados.length === 0;
-    if (soldados.length) {
-      const filas = soldados
-        .map((s) => {
-          const estado = !s.vivo ? 'caido' : s.agarradoPor ? 'agarrado' : 'bien';
-          const texto = !s.vivo ? 'caído' : s.agarradoPor ? '¡agarrado!' : '';
-          return `<div class="soldado ${estado}"><span class="punto"></span>${s.nombre}<i>${texto}</i></div>`;
-        })
-        .join('');
-      const html = `<div class="orden">Orden: ${NOMBRE_ORDEN[ctx.escuadron.orden] ?? ''}</div>${filas}<div class="teclas">1 seguir · 2 atacar · 3 civiles · 4 retirada</div>`;
-      if (this.escuadron.innerHTML !== html) this.escuadron.innerHTML = html;
-    }
+    // Escuadrón: a quién mandas y qué hace cada uno
+    this.escuadron.actualizar(dt, ctx);
 
     // Muerte
     this.muerte.hidden = jugador.vivo;

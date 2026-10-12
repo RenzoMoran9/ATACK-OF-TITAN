@@ -119,9 +119,16 @@ export class TitanesNulos implements GestorTitanesAPI {
 export class EscuadronNulo implements EscuadronAPI {
   readonly soldados: Humano[] = [];
   orden: OrdenEscuadron = 'seguir';
+  readonly seleccion = null;
   crear(): void {}
   ordenar(o: OrdenEscuadron): void {
     this.orden = o;
+  }
+  cambiarSeleccion(): null {
+    return null;
+  }
+  info(): null {
+    return null;
   }
   limpiar(): void {}
   pedirGas(): null {

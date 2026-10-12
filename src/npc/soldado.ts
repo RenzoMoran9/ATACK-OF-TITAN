@@ -3,28 +3,70 @@ import { calcularDanio, desgaste } from '../combat/corte';
 import { Cuchillas } from '../combat/cuchillas';
 import type { ContextoJuego } from '../core/contexto';
 import { nuevoId } from '../core/poblacion';
-import type { AspectoSoldado, Humano, PuntoDebil, RolSoldado, TitanAPI, ZonaTitan } from '../core/tipos';
+import type { AspectoSoldado, Humano, OrdenEscuadron, PuntoDebil, RolSoldado, TitanAPI, ZonaTitan } from '../core/tipos';
 import { ModeloJugador } from '../player/modeloJugador';
 import { aplicarRecogida, aplicarRestriccion } from '../player/cuerda';
+import type { Particulas } from '../player/particulas';
+import { DetectorAtasco, enLod } from './logicaOrdenes';
 
 /**
- * Soldado del escuadrón con equipo ODM simplificado: un cable (o dos) que se clava en
- * tejados, árboles, la muralla o la carne de los titanes, recogida con la bobina,
- * impulsos de gas, carrera por el suelo y tajos con el mismo modelo de daño que el
- * jugador (velocidad relativa, ángulo y filo). Lo dirige el escuadrón con una misión.
+ * Soldado del escuadrón con equipo ODM simplificado: dos ganchos que se clavan alternando
+ * izquierda y derecha (a veces los dos a la vez, abiertos en V) en tejados, árboles, la
+ * muralla o la carne de los titanes, recogida con la bobina, impulsos de gas con su bocanada,
+ * carrera por el suelo (con ruta por las calles si hay casas en medio) y tajos con el mismo
+ * modelo de daño que el jugador (velocidad relativa, ángulo y filo).
+ *
+ * Lo dirige el escuadrón con una misión; la orden que le dio el jugador se guarda aparte.
+ * Si en 2 s no se acerca a su meta, salta con gas y busca otro ancla. Lejos del jugador y
+ * sin titanes cerca pasa a una actualización simplificada (cada 0,2 s, en línea recta, sin
+ * rayos, sin cables ni nombre y sin animar si no se ve).
  */
 
-export type TipoMision = 'seguir' | 'atacar' | 'rescatar' | 'proteger' | 'retirada' | 'darGas';
+export type TipoMision = 'seguir' | 'atacar' | 'rescatar' | 'proteger' | 'retirada' | 'darGas' | 'mantener' | 'patrullar' | 'recargar';
 
 export interface Mision {
   tipo: TipoMision;
-  /** Punto al que ir (seguir/proteger/retirada) o null. */
+  /** Punto al que ir (seguir, proteger, retirada, mantener, patrullar, recargar). */
   destino?: THREE.Vector3;
   titan?: TitanAPI;
   zona?: ZonaTitan;
   /** Cebo: distrae al titán delante de su cara. */
   cebo?: boolean;
   humano?: Humano;
+}
+
+/** La orden que le dio el jugador (la misión concreta la decide el escuadrón cada 0,4 s). */
+export interface OrdenAsignada {
+  tipo: OrdenEscuadron;
+  /** Punto común de la orden, en la superficie (lleva el banderín): espera, destino o centro de patrulla. */
+  punto?: THREE.Vector3;
+  /** Su sitio junto al punto (esperar, id allí), a la altura del cuerpo. */
+  puesto?: THREE.Vector3;
+  /** Punto de patrulla actual y cuándo toca elegir otro (tiempo de juego). */
+  patrulla?: THREE.Vector3;
+  tPatrulla?: number;
+  titan?: TitanAPI;
+  /** Orden a la que vuelve cuando muere el titán señalado. */
+  previa?: OrdenAsignada;
+}
+
+interface Ancla {
+  punto: THREE.Vector3;
+  objeto: THREE.Object3D | null;
+  local: THREE.Vector3;
+  longitud: number;
+  /** Segundos clavado. */
+  t: number;
+  /** 1 = gancho izquierdo, −1 = derecho (como `salidaCable`). */
+  lado: 1 | -1;
+  /** El gancho anterior al cambiar de lado: se suelta al llegar a 0 (null = tira). */
+  soltarEn: number | null;
+}
+
+interface CandidatoAncla {
+  punto: THREE.Vector3;
+  objeto: THREE.Object3D | null;
+  puntuacion: number;
 }
 
 const ARRIBA = new THREE.Vector3(0, 1, 0);
@@ -34,6 +76,10 @@ const VEL_RECOGIDA = 24;
 const VEL_MAX = 38;
 const GRAVEDAD = 14;
 const ETIQUETAS_ANCLA = new Set(['edificio', 'tejado', 'arbol', 'rama', 'muralla', 'puerta', 'titan', 'nuca', 'otro']);
+/** Velocidad del vuelo simplificado (LOD). */
+const VEL_LOD = 20;
+/** Radio para las rutas a pie por la rejilla de navegación. */
+const RADIO_NAV = 0.7;
 
 export class Soldado implements Humano {
   readonly id = nuevoId();
@@ -46,18 +92,19 @@ export class Soldado implements Humano {
   readonly cuchillas = new Cuchillas();
   readonly modelo: ModeloJugador;
   mision: Mision = { tipo: 'seguir' };
-  /** Hueco en la formación (índice) al seguir al jugador. */
-  hueco = 0;
+  orden: OrdenAsignada = { tipo: 'seguir' };
+  /** Recibe las órdenes él solo (Tab): nombre en dorado. */
+  seleccionado = false;
+  /** Actualización simplificada: lejos del jugador y sin titanes cerca. */
+  lod = false;
   /** Para el HUD y los mensajes. */
   ultimaFrase = -99;
 
   private enSuelo = true;
   private rumbo = 0;
-  private ancla: THREE.Vector3 | null = null;
-  private anclaObjeto: THREE.Object3D | null = null;
-  private readonly anclaLocal = new THREE.Vector3();
-  private longitud = 0;
-  private tAncla = 0;
+  /** [gancho izquierdo, gancho derecho]. */
+  private readonly ganchos: (Ancla | null)[] = [null, null];
+  private ladoSiguiente: 1 | -1 = 1;
   private tSinAncla = 0;
   private impulsando = false;
   private readonly dirImpulso = new THREE.Vector3(0, 1, 0);
@@ -67,6 +114,14 @@ export class Soldado implements Humano {
   private tEsquiva = 0;
   private tAterrizaje: number | null = null;
   private impacto = 0;
+  private tLod = 0;
+  private tEvalLod = 0;
+  private readonly atasco = new DetectorAtasco();
+  private ruta: THREE.Vector3[] | null = null;
+  private tRuta = 0;
+  private readonly metaRuta = new THREE.Vector3(Infinity, 0, 0);
+  private tBocanada = 0;
+  private readonly esfera = new THREE.Sphere(new THREE.Vector3(), 2);
   private readonly velPrevia = new THREE.Vector3();
   private readonly acel = new THREE.Vector3();
   private readonly posPrevia = new THREE.Vector3();
@@ -84,6 +139,8 @@ export class Soldado implements Humano {
     pies: THREE.Vector3,
     /** Puntería y temple: multiplica el daño y la probabilidad de esquivar (Mikasa > 1). */
     readonly habilidad = 1,
+    /** Partículas compartidas del escuadrón para las bocanadas de gas. */
+    private readonly chorros: Particulas | null = null,
   ) {
     this.modelo = new ModeloJugador(aspecto);
     ctx.escena.add(this.modelo.grupo);
@@ -116,6 +173,7 @@ export class Soldado implements Humano {
   alSerSoltado(): void {
     this.agarradoPor = null;
     this.enSuelo = false;
+    this.lod = false;
     this.velocidad.set((Math.random() - 0.5) * 4, 2, (Math.random() - 0.5) * 4);
   }
 
@@ -140,6 +198,22 @@ export class Soldado implements Humano {
     if (!this.vivo || this.agarradoPor) return;
     this.cuchillas.actualizar(dt);
     if (this.cuchillas.rota && this.cuchillas.repuesto > 0 && this.cuchillas.cambiando <= 0) this.cuchillas.empezarCambio();
+    this.tEvalLod -= dt;
+    if (this.tEvalLod <= 0) {
+      this.tEvalLod = 0.5;
+      const t = this.ctx.poblacion.titanMasCercano(this.posicion, 130);
+      const dTitan = t ? Math.hypot(t.posicion.x - this.posicion.x, t.posicion.z - this.posicion.z) : Infinity;
+      const antes = this.lod;
+      this.lod = enLod(this.lod, this.posicion.distanceTo(this.ctx.jugador.posicion), dTitan);
+      if (this.lod && !antes) {
+        this.soltarAncla();
+        this.tLod = 0;
+      }
+    }
+    if (this.lod) {
+      this.pasoLod(dt);
+      return;
+    }
     if (this.enfriamiento > 0) this.enfriamiento -= dt;
     if (this.tCorte >= 0) {
       this.tCorte += dt;
@@ -152,10 +226,41 @@ export class Soldado implements Humano {
 
     const meta = this.metaActual();
     const titan = this.mision.titan && this.mision.titan.vivo ? this.mision.titan : null;
+    this.actualizarGanchos(dt);
     this.esquivar(titan, dt);
     if (titan) this.combatir(titan, dt);
     this.moverHacia(meta, dt, titan);
     this.integrar(dt);
+    if (titan) this.atasco.reiniciar();
+    else if (this.atasco.muestra(dt, this.posicion.distanceTo(meta), meta)) this.desatascar(meta);
+    this.tBocanada -= dt;
+    if (this.impulsando && this.tBocanada <= 0) {
+      this.tBocanada = 0.07;
+      this.bocanada(1);
+    }
+  }
+
+  /** Lejos de todo: cada 0,2 s, en línea recta hacia la meta, sin rayos ni cables. */
+  private pasoLod(dt: number): void {
+    this.tLod += dt;
+    if (this.tLod < 0.2) return;
+    const h = this.tLod;
+    this.tLod = 0;
+    this.objetivoCorte = null;
+    const meta = this.metaActual();
+    const hacia = meta.clone().sub(this.posicion);
+    const dist = hacia.length();
+    const vel = this.gas > 1 ? VEL_LOD : VEL_CORRER;
+    if (dist > 1.5) {
+      this.posicion.addScaledVector(hacia, Math.min(dist, vel * h) / dist);
+      this.velocidad.copy(hacia).multiplyScalar(vel / dist);
+      if (this.gas > 1) this.gas = Math.max(0, this.gas - 0.35 * h);
+      this.enSuelo = false;
+    } else {
+      this.posicion.copy(meta);
+      this.velocidad.set(0, 0, 0);
+      this.enSuelo = true;
+    }
   }
 
   /** A dónde quiere ir ahora según la misión. */
@@ -209,6 +314,7 @@ export class Soldado implements Humano {
     this.velocidad.addScaledVector(lado, 12).addScaledVector(ARRIBA, 9).addScaledVector(lejos, 6);
     this.gas = Math.max(0, this.gas - 2);
     this.impulsar(lado);
+    this.bocanada(4);
     this.tEsquiva = 1.2;
   }
 
@@ -256,53 +362,118 @@ export class Soldado implements Humano {
     const dist = hacia.length();
     const dh = Math.hypot(hacia.x, hacia.z);
     this.impulsando = false;
+    const tiran = this.tirando();
 
-    // Cerca y en el suelo: andar o correr
-    if (this.enSuelo && !this.ancla && (dist < 14 && Math.abs(hacia.y) < 2.5)) {
+    // En el suelo: andar o correr (con ruta por las calles); sin gas, siempre a pie
+    if (this.enSuelo && tiran.length === 0 && ((dist < 14 && Math.abs(hacia.y) < 2.5) || this.gas < 1)) {
+      const paso = this.pasoRuta(meta, dt);
       const v = dh < 1.5 ? 0 : Math.min(VEL_CORRER, dh * 1.2);
-      const dir = new THREE.Vector3(hacia.x, 0, hacia.z).normalize().multiplyScalar(v);
+      const dir = new THREE.Vector3(paso.x - this.posicion.x, 0, paso.z - this.posicion.z);
+      if (dir.lengthSq() > 1e-6) dir.normalize();
       const k = Math.min(1, dt * 8);
-      this.velocidad.x += (dir.x - this.velocidad.x) * k;
-      this.velocidad.z += (dir.z - this.velocidad.z) * k;
-      // muro delante: salta con gas y engancha
-      if (v > 1 && this.ctx.fisica.lanzarRayo(this.posicion, dir.clone().normalize(), 1.2)) this.despegar(meta);
+      this.velocidad.x += (dir.x * v - this.velocidad.x) * k;
+      this.velocidad.z += (dir.z * v - this.velocidad.z) * k;
+      const delante = v > 1 ? this.ctx.fisica.lanzarRayo(this.posicion, dir, 1.2) : null;
+      if (delante?.etiqueta === 'otro') {
+        // obstáculo bajo (pozo, cajas): lo rodea por el lado que le acerca
+        const n = delante.normal.clone().setY(0).normalize();
+        const tangente = new THREE.Vector3(-n.z, 0, n.x);
+        if (tangente.dot(dir) < 0) tangente.negate();
+        this.velocidad.x = tangente.x * v;
+        this.velocidad.z = tangente.z * v;
+      } else if (delante && this.gas >= 1) this.despegar(meta); // muro delante: salta con gas y engancha
       return;
     }
+    this.ruta = null;
     if (dist < 2.5 && !titan) {
       this.soltarAncla();
       return;
     }
+    // lejos y a ras de suelo: salto con gas para volar en vez de patinar por la llanura
+    if (this.enSuelo && tiran.length === 0) this.despegar(meta);
 
-    // En el aire (o lejos): cable y bobina
-    this.tAncla += dt;
-    if (this.ancla) {
-      this.actualizarAncla();
-      const a = this.ancla;
-      const haciaAncla = a.clone().sub(this.posicion);
-      const dAncla = haciaAncla.length();
+    // En el aire (o lejos): ganchos alternos y bobina
+    const ahora = this.tirando();
+    if (ahora.length) {
+      this.tSinAncla = 0;
+      const a = ahora[ahora.length - 1];
+      const haciaAncla = a.punto.clone().sub(this.posicion);
       const pasada = haciaAncla.dot(hacia) < 0 && dist > 6;
-      if (dAncla < 3.5 || pasada || this.tAncla > 4 || (this.anclaObjeto && !this.anclaVivo())) {
-        this.soltarAncla();
-        // impulso de salida hacia la meta
-        if (this.gas > 1 && dist > 4) {
-          this.velocidad.addScaledVector(hacia.clone().normalize(), 6).addScaledVector(ARRIBA, 3);
-          this.gas -= 0.5;
+      if (haciaAncla.length() < 3.5 || pasada || a.t > 4) {
+        // como en el anime: clava el otro gancho más adelante antes de soltar este
+        const encadenado = dist > 8 && this.gas > 1 && this.elegirAncla(meta, titan);
+        if (!encadenado) {
+          this.soltarAncla();
+          // impulso de salida hacia la meta
+          if (this.gas > 1 && dist > 4) {
+            const dir = hacia.clone().normalize();
+            this.velocidad.addScaledVector(dir, 6).addScaledVector(ARRIBA, 3);
+            this.gas -= 0.5;
+            this.impulsar(dir);
+            this.bocanada(3);
+          }
         }
       }
     } else {
       this.tSinAncla += dt;
       if (this.tSinAncla > 0.25 && dist > 6) this.elegirAncla(meta, titan);
-      // sin dónde engancharse: impulso de gas hacia la meta
-      if (!this.ancla && dist > 3 && this.gas > 0.5) {
+      // sin dónde engancharse: impulso de gas hacia la meta, frenando al acercarse
+      if (this.tirando().length === 0 && dist > 3 && this.gas > 0.5) {
         const dir = hacia.clone().normalize();
-        this.velocidad.addScaledVector(dir, 16 * dt);
+        const acercamiento = this.velocidad.dot(dir);
+        const maxima = Math.min(VEL_MAX * 0.8, Math.sqrt(2 * 9 * Math.max(0, dist - 2)) + 3);
+        if (acercamiento > maxima) {
+          this.velocidad.addScaledVector(dir, -Math.min(acercamiento - maxima, 18 * dt));
+          this.impulsar(dir.clone().negate());
+        } else {
+          this.velocidad.addScaledVector(dir, 16 * dt);
+          this.impulsar(dir);
+        }
         if (this.velocidad.y < 2 && hacia.y > -2) this.velocidad.y += GRAVEDAD * 0.85 * dt;
         this.gas = Math.max(0, this.gas - 1.2 * dt);
-        this.impulsar(dir);
       }
     }
     // cerca de la meta en el aire: frenar
     if (dist < 6) this.velocidad.multiplyScalar(1 - Math.min(0.9, dt * 3));
+  }
+
+  /**
+   * A ras de suelo con casas en medio: siguiente punto de una ruta A* por la rejilla de
+   * navegación (se recalcula cada 1,2 s o si la meta se mueve).
+   */
+  private pasoRuta(meta: THREE.Vector3, dt: number): THREE.Vector3 {
+    const p = this.posicion;
+    if (meta.y - CENTRO > 3 || p.y - CENTRO > 1.5) {
+      this.ruta = null;
+      return meta;
+    }
+    this.tRuta -= dt;
+    if (this.tRuta <= 0 || this.metaRuta.distanceToSquared(meta) > 16) {
+      this.tRuta = 1.2;
+      this.metaRuta.copy(meta);
+      const nav = this.ctx.nav;
+      this.ruta = nav.lineaLibre(p, meta, RADIO_NAV) ? null : nav.ruta(p, meta, RADIO_NAV, 2500);
+    }
+    const ruta = this.ruta;
+    while (ruta && ruta.length > 1 && Math.hypot(ruta[0].x - p.x, ruta[0].z - p.z) < 1.5) ruta.shift();
+    return ruta?.[0] ?? meta;
+  }
+
+  /** Atascado 2 s sin acercarse: salto con gas a un lado y otro ancla. */
+  private desatascar(meta: THREE.Vector3): void {
+    this.ruta = null;
+    this.tRuta = 0;
+    if (this.gas < 1) return;
+    this.soltarAncla();
+    const a = Math.random() * Math.PI * 2;
+    const hacia = meta.clone().sub(this.posicion).setY(0).normalize();
+    this.velocidad.add(new THREE.Vector3(Math.cos(a) * 4, 0, Math.sin(a) * 4)).addScaledVector(hacia, 3);
+    this.velocidad.y = Math.max(this.velocidad.y, 9);
+    this.enSuelo = false;
+    this.gas -= 1;
+    this.impulsar(ARRIBA);
+    this.bocanada(4);
+    this.elegirAncla(meta, null);
   }
 
   private despegar(meta: THREE.Vector3): void {
@@ -310,6 +481,8 @@ export class Soldado implements Humano {
     this.enSuelo = false;
     this.velocidad.y = 6.5;
     this.gas -= 0.5;
+    this.impulsar(ARRIBA);
+    this.bocanada(3);
     this.elegirAncla(meta, null);
   }
 
@@ -318,13 +491,25 @@ export class Soldado implements Humano {
     this.dirImpulso.copy(dir);
   }
 
-  /** Busca dónde clavar el cable para avanzar hacia `meta` (o en la carne del titán objetivo). */
-  private elegirAncla(meta: THREE.Vector3, titan: TitanAPI | null): void {
+  /** Bocanada de gas blanco por detrás del equipo (pocas partículas compartidas). */
+  private bocanada(n: number): void {
+    if (!this.chorros || this.lod) return;
+    const o = this.posicion.clone().addScaledVector(ARRIBA, -0.1);
+    const v = this.dirImpulso.clone().multiplyScalar(-8).addScaledVector(this.velocidad, 0.6);
+    for (let i = 0; i < n; i++) this.chorros.emitir(o, v, 0.3, 0.16, 1.8);
+  }
+
+  /**
+   * Busca dónde clavar un gancho para avanzar hacia `meta` (o en la carne del titán
+   * objetivo). Alterna lados; si ya tiraba de uno, ese se suelta un instante después.
+   * Desde cero, a veces clava los dos abiertos en V.
+   */
+  private elegirAncla(meta: THREE.Vector3, titan: TitanAPI | null): boolean {
     this.tSinAncla = 0;
-    if (this.gas < 0.5) return;
+    if (this.gas < 0.5) return false;
     const origen = this.posicion;
     const lateral = new THREE.Vector3(meta.z - origen.z, 0, origen.x - meta.x).normalize();
-    let mejor: { punto: THREE.Vector3; objeto: THREE.Object3D | null; puntuacion: number } | null = null;
+    const candidatos: CandidatoAncla[] = [];
     const objetivoAlto = meta.clone().addScaledVector(ARRIBA, 6);
     for (let k = 0; k < 6; k++) {
       let destino: THREE.Vector3;
@@ -334,25 +519,66 @@ export class Soldado implements Humano {
       if (dir.y < -0.3) continue;
       const hit = this.ctx.fisica.lanzarRayo(origen, dir, 70);
       if (!hit || hit.distancia < 4 || !ETIQUETAS_ANCLA.has(hit.etiqueta)) continue;
-      const puntuacion = hit.punto.distanceTo(objetivoAlto) + (hit.punto.y < origen.y - 1 ? 25 : 0);
-      if (!mejor || puntuacion < mejor.puntuacion) mejor = { punto: hit.punto, objeto: hit.objeto, puntuacion };
+      candidatos.push({ punto: hit.punto, objeto: hit.objeto, puntuacion: hit.punto.distanceTo(objetivoAlto) + (hit.punto.y < origen.y - 1 ? 25 : 0) });
     }
-    if (!mejor) return;
-    this.ancla = mejor.punto.clone();
-    this.anclaObjeto = mejor.objeto;
-    if (mejor.objeto) this.anclaLocal.copy(mejor.objeto.worldToLocal(mejor.punto.clone()));
-    this.longitud = this.posicion.distanceTo(mejor.punto);
-    this.tAncla = 0;
+    if (candidatos.length === 0) return false;
+    candidatos.sort((a, b) => a.puntuacion - b.puntuacion);
+    const mejor = candidatos[0];
+    const actual = this.tirando();
+    const lado: 1 | -1 = actual.length ? (actual[actual.length - 1].lado === 1 ? -1 : 1) : this.ladoSiguiente;
+    this.ladoSiguiente = lado === 1 ? -1 : 1;
+    for (const g of actual) g.soltarEn = 0.3;
+    this.clavar(lado, mejor);
+    if (actual.length === 0) {
+      const segundo = candidatos.find((c) => c !== mejor && c.puntuacion < mejor.puntuacion + 12 && c.punto.distanceTo(mejor.punto) > 4 && c.punto.distanceTo(mejor.punto) < 18);
+      if (segundo) this.clavar(lado === 1 ? -1 : 1, segundo);
+    }
     this.enSuelo = false;
     this.gas = Math.max(0, this.gas - 0.6);
+    return true;
   }
 
-  private actualizarAncla(): void {
-    if (this.ancla && this.anclaObjeto) this.ancla.copy(this.anclaObjeto.localToWorld(this.anclaLocal.clone()));
+  private clavar(lado: 1 | -1, c: CandidatoAncla): void {
+    this.ganchos[lado === 1 ? 0 : 1] = {
+      punto: c.punto.clone(),
+      objeto: c.objeto,
+      local: c.objeto ? c.objeto.worldToLocal(c.punto.clone()) : new THREE.Vector3(),
+      longitud: this.posicion.distanceTo(c.punto),
+      t: 0,
+      lado,
+      soltarEn: null,
+    };
   }
 
-  private anclaVivo(): boolean {
-    let o: THREE.Object3D | null = this.anclaObjeto;
+  /** Ganchos que tiran ahora (sin el que se está soltando). */
+  private tirando(): Ancla[] {
+    const r: Ancla[] = [];
+    for (const g of this.ganchos) if (g && g.soltarEn === null) r.push(g);
+    return r;
+  }
+
+  /** Siguen la carne del titán en la que se clavaron; se sueltan al cambiar de lado o si la parte desaparece. */
+  private actualizarGanchos(dt: number): void {
+    for (let i = 0; i < 2; i++) {
+      const g = this.ganchos[i];
+      if (!g) continue;
+      g.t += dt;
+      if (g.objeto) {
+        if (!this.objetoVivo(g.objeto)) {
+          this.ganchos[i] = null;
+          continue;
+        }
+        g.punto.copy(g.objeto.localToWorld(g.local.clone()));
+      }
+      if (g.soltarEn !== null) {
+        g.soltarEn -= dt;
+        if (g.soltarEn <= 0) this.ganchos[i] = null;
+      }
+    }
+  }
+
+  private objetoVivo(objeto: THREE.Object3D): boolean {
+    let o: THREE.Object3D | null = objeto;
     while (o) {
       if (!o.visible) return false;
       if (o.parent === null) return o.type === 'Scene';
@@ -362,19 +588,18 @@ export class Soldado implements Humano {
   }
 
   private soltarAncla(): void {
-    this.ancla = null;
-    this.anclaObjeto = null;
+    this.ganchos[0] = null;
+    this.ganchos[1] = null;
     this.tSinAncla = 0;
   }
 
   private integrar(dt: number): void {
     const fisica = this.ctx.fisica;
-    if (!this.enSuelo || this.ancla) this.velocidad.y -= GRAVEDAD * dt;
+    const tiran = this.tirando();
+    if (!this.enSuelo || tiran.length) this.velocidad.y -= GRAVEDAD * dt;
     else this.velocidad.y = Math.min(0, this.velocidad.y - GRAVEDAD * dt);
-    if (this.ancla) {
-      this.longitud = aplicarRecogida(this.posicion, this.velocidad, this.ancla, this.longitud, VEL_RECOGIDA, 2);
-      this.gas = Math.max(0, this.gas - 0.5 * dt);
-    }
+    for (const a of tiran) a.longitud = aplicarRecogida(this.posicion, this.velocidad, a.punto, a.longitud, VEL_RECOGIDA, 2);
+    if (tiran.length) this.gas = Math.max(0, this.gas - 0.5 * dt);
     if (this.velocidad.length() > VEL_MAX) this.velocidad.setLength(VEL_MAX);
     const desp = this.velocidad.clone().multiplyScalar(dt);
     const largo = desp.length();
@@ -388,7 +613,7 @@ export class Soldado implements Humano {
         if (vn < 0) this.velocidad.addScaledVector(hit.normal, -vn * 1.1);
       } else this.posicion.add(desp);
     }
-    if (this.ancla) aplicarRestriccion(this.posicion, this.velocidad, this.ancla, this.longitud);
+    for (const a of tiran) aplicarRestriccion(this.posicion, this.velocidad, a.punto, a.longitud);
 
     // Suelo bajo los pies (calle, tejado, rama)
     const suelo = fisica.lanzarRayo(this.posicion.clone().addScaledVector(ARRIBA, 0.3), new THREE.Vector3(0, -1, 0), CENTRO + 0.6);
@@ -420,6 +645,16 @@ export class Soldado implements Humano {
     this.posRender.copy(centro);
     this.velocidad.copy(velocidad ?? new THREE.Vector3());
     this.soltarAncla();
+    this.atasco.reiniciar();
+    this.ruta = null;
+    this.lod = false;
+    this.tEvalLod = 0;
+  }
+
+  /** Gas al máximo y vainas llenas (depósito). */
+  reabastecer(): void {
+    this.gas = 100;
+    this.cuchillas.rellenar();
   }
 
   /** Pasa gas al jugador (como Armin con Mikasa en Trost). Devuelve lo que ha dado. */
@@ -436,13 +671,41 @@ export class Soldado implements Humano {
     this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${this.nombre}: ${frase}`, segundos: 2.2 });
   }
 
+  /** Lo que hace ahora, si no es solo cumplir la orden (panel del escuadrón). */
+  actividad(): string {
+    if (this.agarradoPor) return '¡agarrado!';
+    const m = this.mision;
+    switch (m.tipo) {
+      case 'recargar':
+        return 'recargando';
+      case 'darGas':
+        return 'te lleva gas';
+      case 'rescatar':
+        return 'rescatando';
+      case 'atacar':
+        if (m.cebo) return 'de cebo';
+        return this.orden.tipo === 'atacar' || this.orden.tipo === 'atacarTitan' ? '' : 'en combate';
+      case 'mantener':
+        if (m.destino && this.posicion.distanceTo(m.destino) > 8) return 'en camino';
+        return this.orden.tipo === 'irA' ? 'en posición' : '';
+      default:
+        return '';
+    }
+  }
+
   // ─────────────────────────── Dibujo ───────────────────────────
 
-  dibujar(alfa: number, dt: number, t: number, camara: THREE.Vector3): void {
+  dibujar(alfa: number, dt: number, t: number, camara: THREE.Vector3, frustum?: THREE.Frustum): void {
     if (!this.vivo) return;
     this.posRender.lerpVectors(this.posPrevia, this.posicion, alfa);
     const g = this.modelo.grupo;
     g.position.copy(this.posRender).y -= CENTRO;
+    if (this.lod) {
+      this.etiqueta.visible = false;
+      for (const c of this.cables) c.visible = false;
+      this.esfera.center.copy(this.posRender);
+      if (frustum && !frustum.intersectsSphere(this.esfera)) return;
+    }
     const v = this.velocidad;
     const vh = Math.hypot(v.x, v.z);
     let rumboObj = this.rumbo;
@@ -458,14 +721,15 @@ export class Soldado implements Humano {
     g.updateMatrixWorld(true);
     if (this.mision.titan?.vivo) this.mirar.copy(this.mision.titan.cabeza());
     else this.mirar.copy(this.posRender).add(new THREE.Vector3(Math.sin(this.rumbo), 0.1, Math.cos(this.rumbo)).multiplyScalar(20));
+    const tiran = this.tirando();
     this.modelo.animar({
       dt,
       t,
       vel: v,
       acel: this.acel,
       enSuelo: this.enSuelo,
-      anclas: this.ancla ? [this.ancla] : [],
-      recogiendo: !!this.ancla,
+      anclas: tiran.map((a) => a.punto),
+      recogiendo: tiran.length > 0,
       impulsando: this.impulsando,
       corte: this.tCorte >= 0 ? this.tCorte / 0.25 : null,
       giro: false,
@@ -479,23 +743,26 @@ export class Soldado implements Humano {
       filo: this.cuchillas.rota ? 0 : 1,
       objetivoCorte: this.objetivoCorte,
     });
-    // Cable desde la carcasa lumbar hasta el ancla
-    const c = this.cables[0];
-    c.visible = !!this.ancla;
-    if (this.ancla) {
+    if (this.lod) return;
+    // Un cable por gancho, desde cada costado de la carcasa lumbar
+    for (let i = 0; i < 2; i++) {
+      const a = this.ganchos[i];
+      const c = this.cables[i];
+      c.visible = !!a;
+      if (!a) continue;
       const pos = c.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const o = this.modelo.salidaCable(1, new THREE.Vector3());
+      const o = this.modelo.salidaCable(a.lado, new THREE.Vector3());
       pos.setXYZ(0, o.x, o.y, o.z);
-      pos.setXYZ(1, this.ancla.x, this.ancla.y, this.ancla.z);
+      pos.setXYZ(1, a.punto.x, a.punto.y, a.punto.z);
       pos.needsUpdate = true;
     }
-    // Nombre encima de la cabeza, visible de cerca
+    // Nombre encima de la cabeza, visible de cerca (el seleccionado, de lejos y en dorado)
     const dCam = camara.distanceTo(this.posRender);
-    this.etiqueta.visible = dCam < 90;
+    this.etiqueta.visible = dCam < (this.seleccionado ? 400 : 90);
     this.etiqueta.position.copy(this.posRender).y += 1.25;
-    const esc = THREE.MathUtils.clamp(dCam * 0.028, 0.5, 2.2);
+    const esc = THREE.MathUtils.clamp(dCam * 0.028, 0.5, this.seleccionado ? 6 : 2.2);
     this.etiqueta.scale.set(esc * 2, esc * 0.5, 1);
-    (this.etiqueta.material as THREE.SpriteMaterial).color.set(this.agarradoPor ? '#ff8a7a' : '#ffffff');
+    (this.etiqueta.material as THREE.SpriteMaterial).color.set(this.agarradoPor ? '#ff8a7a' : this.seleccionado ? '#ffd36a' : '#ffffff');
   }
 
   eliminar(): void {
