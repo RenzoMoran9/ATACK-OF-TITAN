@@ -203,6 +203,7 @@ export class Campana {
     ctx.titanes.limpiar();
     ctx.escuadron.limpiar();
     ctx.civiles.limpiar();
+    ctx.suministros.limpiar();
     const m = ctx.mundo.muralla;
     if (m.rota) {
       m.repararPuerta();

@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { Cuchillas } from '../combat/cuchillas';
 import { config } from '../core/config';
 import type { ContextoJuego } from '../core/contexto';
 import type { Entrada } from '../core/entrada';
@@ -76,6 +77,11 @@ export class Jugador implements JugadorAPI {
   reabastecer(): void {
     this.gas.recargar(this.gas.capacidad);
     this.combate?.cuchillas.rellenar();
+  }
+  recogerEquipo(gas: number, pares: number): void {
+    this.gas.recargar(gas);
+    const c = this.combate?.cuchillas;
+    if (c) c.repuesto = Math.min(Cuchillas.MAX_REPUESTO, c.repuesto + pares);
   }
   revivir(pies: THREE.Vector3, rumbo?: number): void {
     this.vivo = true;

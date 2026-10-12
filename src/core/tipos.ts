@@ -235,6 +235,10 @@ export interface EscuadronAPI {
   crear(miembros: MiembroEscuadron[], cerca: THREE.Vector3): void;
   ordenar(o: OrdenEscuadron): void;
   limpiar(): void;
+  /** El compañero con gas más cercano viene a pasártelo (null si nadie puede). */
+  pedirGas(): Humano | null;
+  /** Quién podría darte gas ahora mismo (para el HUD). */
+  donanteGas(): Humano | null;
   actualizar(dt: number): void;
   dibujar(dt: number, t: number): void;
 }
@@ -269,4 +273,6 @@ export interface JugadorAPI extends Humano {
   reabastecer(): void;
   /** Vuelve a la vida en `pies` con salud llena (tras ser devorado). */
   revivir(pies: THREE.Vector3, rumbo?: number): void;
+  /** Recoge gas y pares de cuchillas del equipo de un soldado caído. */
+  recogerEquipo(gas: number, pares: number): void;
 }

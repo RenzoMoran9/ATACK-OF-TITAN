@@ -4,6 +4,8 @@ import { config } from './core/config';
 import { urlDepuracion, type Hora } from './core/depuracion';
 import { CivilesNulos, EscuadronNulo, TitanesNulos, type ContextoJuego, type Reloj } from './core/contexto';
 import { GestorTitanes } from './titans/gestor';
+import { Escuadron } from './npc/escuadron';
+import { Suministros } from './combat/suministros';
 import { LaboratorioPoses } from './player/laboratorio';
 import { Entrada } from './core/entrada';
 import { Eventos } from './core/eventos';
@@ -96,11 +98,15 @@ async function iniciar(): Promise<void> {
     titanes: new TitanesNulos(poblacion),
     escuadron: new EscuadronNulo(),
     civiles: new CivilesNulos(),
+    suministros: null as unknown as Suministros,
     puntoReaparicion: mundo.inicio.clone(),
     esDeNoche: () => cielo.esDeNoche,
+    orientarCamara: (p) => rig.mirarA(p),
   };
   ctx.titanes = new GestorTitanes(ctx);
   ctx.civiles = new GestorCiviles(ctx);
+  ctx.escuadron = new Escuadron(ctx);
+  ctx.suministros = new Suministros(ctx);
   jugador.conectar(ctx);
   const hud = new Hud(document.body, urlDepuracion.hud, ctx);
   // Órdenes al escuadrón con 1-4
@@ -194,6 +200,13 @@ async function iniciar(): Promise<void> {
         ctx.eventos.emit({ tipo: 'mensaje', texto: `Orden: ${NOMBRES_ORDEN[orden]}`, segundos: 1.5 });
       }
     }
+    // G: recoger el equipo de un caído o, si no hay ninguno al lado, pedir gas a un compañero
+    if (entrada.consumir('KeyG') && jugador.vivo) {
+      const recogido = ctx.suministros.recoger();
+      if (recogido) ctx.eventos.emit({ tipo: 'mensaje', texto: recogido, segundos: 3 });
+      else if (jugador.gas.nivel >= jugador.gas.capacidad * 0.9) ctx.eventos.emit({ tipo: 'mensaje', texto: 'Tienes el gas casi lleno', segundos: 1.5 });
+      else if (!ctx.escuadron.pedirGas()) ctx.eventos.emit({ tipo: 'mensaje', texto: 'Nadie del escuadrón puede pasarte gas ahora', segundos: 2.5 });
+    }
     jugador.paso(dt, entrada, { dir: rig.dir, yaw: rig.yaw });
     if (!jugador.vivo) {
       if (muertoDesde < 0) muertoDesde = reloj.t;
@@ -238,6 +251,7 @@ async function iniciar(): Promise<void> {
     ctx.titanes.dibujar(dt, tiempo);
     ctx.escuadron.dibujar(dt, tiempo);
     ctx.civiles.dibujar(dt, tiempo);
+    ctx.suministros.dibujar(tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
     hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
     renderer.render(escena, camara);

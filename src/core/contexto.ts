@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Efectos } from '../combat/efectos';
+import type { Suministros } from '../combat/suministros';
 import type { Mundo } from '../world/mundo';
 import type { Entrada } from './entrada';
 import type { Eventos } from './eventos';
@@ -49,9 +50,13 @@ export interface ContextoJuego {
   titanes: GestorTitanesAPI;
   escuadron: EscuadronAPI;
   civiles: CivilesAPI;
+  /** Equipos de soldados caídos y cajas de suministros que se pueden recoger. */
+  suministros: Suministros;
   /** Dónde reaparece el jugador si lo devoran (lo mueven las misiones). */
   puntoReaparicion: THREE.Vector3;
   esDeNoche(): boolean;
+  /** Gira la cámara hacia un punto (momentos de historia: el Colosal asomando...). */
+  orientarCamara(p: THREE.Vector3): void;
 }
 
 // ───────────── Gestores nulos (marcadores hasta conectar el sistema real) ─────────────
@@ -119,6 +124,12 @@ export class EscuadronNulo implements EscuadronAPI {
     this.orden = o;
   }
   limpiar(): void {}
+  pedirGas(): null {
+    return null;
+  }
+  donanteGas(): null {
+    return null;
+  }
   actualizar(): void {}
   dibujar(): void {}
 }

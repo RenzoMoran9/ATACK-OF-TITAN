@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { ContextoJuego } from '../core/contexto';
 import type { Campana } from '../missions/campana';
 import type { Jugador } from '../player/jugador';
@@ -35,6 +36,7 @@ export class Hud {
   private readonly qteTexto: HTMLDivElement;
   private readonly qteBarra: HTMLDivElement;
   private readonly escuadron: HTMLDivElement;
+  private readonly sinGas: HTMLDivElement;
   private readonly anormal: HTMLDivElement;
   private readonly muerte: HTMLDivElement;
   private acumFps = 0;
@@ -70,6 +72,7 @@ export class Hud {
       <div class="marcador izq"></div>
       <div class="marcador der"></div>
       <div class="hud-escuadron" hidden></div>
+      <div class="hud-sin-gas" hidden></div>
       <div class="hud-qte" hidden><div class="texto"></div><div class="barra"><div class="tiempo"></div></div></div>
       <div class="hud-velocidad">0 m/s</div>
       <div class="hud-fps"></div>
@@ -93,6 +96,7 @@ export class Hud {
     this.qteTexto = q('.hud-qte .texto');
     this.qteBarra = q('.hud-qte .tiempo');
     this.escuadron = q('.hud-escuadron');
+    this.sinGas = q('.hud-sin-gas');
     this.anormal = q('.hud-anormal');
     this.muerte = q('.hud-muerte');
     ctx.eventos.on('mensaje', (e) => this.mensaje(e.texto, e.segundos ?? 3));
@@ -112,6 +116,36 @@ export class Hud {
     this.mensajesEl.appendChild(el);
     this.mensajes.push({ el, restante: segundos });
     while (this.mensajes.length > 4) this.mensajes.shift()!.el.remove();
+  }
+
+  /**
+   * Con poco gas (o ninguno): qué puedes hacer. Pedirlo a un compañero (G), recoger el
+   * equipo de un caído (G a su lado), ir al depósito o seguir a pie hasta un tejado.
+   */
+  private panelGas(ctx: ContextoJuego, jugador: Jugador, campana: Campana | null): void {
+    const frac = jugador.gas.nivel / jugador.gas.capacidad;
+    const mostrar = jugador.vivo && frac < 0.2;
+    this.sinGas.hidden = !mostrar;
+    if (!mostrar) return;
+    const flecha = (p: THREE.Vector3) => flechaHacia(ctx.camara, p);
+    const lineas: string[] = [];
+    const vacio = jugador.gas.nivel <= 0.5;
+    lineas.push(`<div class="titulo ${vacio ? 'vacio' : ''}">${vacio ? 'SIN GAS' : 'POCO GAS'}</div>`);
+    const equipo = ctx.suministros.masCercano(jugador.pos);
+    const alLado = !!equipo && equipo.distancia <= 4;
+    const donante = ctx.escuadron.donanteGas();
+    if (donante) lineas.push(`<div>${alLado ? '' : '<b>G</b> '}Pedir gas a ${donante.nombre} <i>${Math.round(donante.posicion.distanceTo(jugador.pos))} m ${flecha(donante.posicion)}</i></div>`);
+    if (equipo && equipo.distancia < 250) {
+      const texto = alLado ? `<b>G</b> Recoger el ${equipo.equipo.origen}` : `Recoger el ${equipo.equipo.origen}`;
+      lineas.push(`<div>${texto} <i>${Math.round(equipo.distancia)} m ${flecha(equipo.equipo.pos)}</i></div>`);
+    }
+    if (campana?.depositoDisponible() ?? true) {
+      const dep = ctx.mundo.ciudad.deposito;
+      lineas.push(`<div>Depósito de suministros <i>${Math.round(dep.distanceTo(jugador.pos))} m ${flecha(dep)}</i></div>`);
+    } else lineas.push('<div class="apagado">Depósito tomado por titanes: despéjalo</div>');
+    if (vacio) lineas.push('<div class="apagado">A pie: WASD para correr, Shift para saltar; busca un tejado</div>');
+    const html = lineas.join('');
+    if (this.sinGas.innerHTML !== html) this.sinGas.innerHTML = html;
   }
 
   actualizar(dt: number, ctx: ContextoJuego, jugador: Jugador, campana: Campana | null, ancho: number, alto: number): void {
@@ -172,7 +206,7 @@ export class Hud {
         this.mensajes.splice(i, 1);
       }
     }
-    if (jugador.gas.vacio && !this.mensajes.some((m) => m.el.textContent === 'Sin gas')) this.mensaje('Sin gas', 1.5);
+    this.panelGas(ctx, jugador, campana);
 
     // Aviso de anormal cercano
     const anormalCerca = ctx.poblacion.titanes.some((t) => t.vivo && t.anormal && t.posicion.distanceTo(jugador.pos) < 120);
@@ -214,3 +248,13 @@ export class Hud {
   }
 }
 
+
+const FLECHAS = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+
+/** Flecha hacia `p` respecto a hacia dónde mira la cámara. */
+function flechaHacia(camara: THREE.Camera, p: THREE.Vector3): string {
+  const local = p.clone().applyMatrix4(camara.matrixWorldInverse);
+  const ang = Math.atan2(local.x, -local.z);
+  const i = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8;
+  return FLECHAS[i];
+}

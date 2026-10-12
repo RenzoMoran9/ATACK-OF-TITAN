@@ -62,6 +62,14 @@ export class CamaraTercera {
     this.pitch = pitch;
   }
 
+  /** Gira la cámara para mirar a `p` desde donde está. */
+  mirarA(p: THREE.Vector3): void {
+    this.poseFija = null;
+    const d = p.clone().sub(this.camara.position).normalize();
+    this.yaw = Math.atan2(-d.x, -d.z);
+    this.pitch = THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(d.y, -1, 1)), -1.35, 1.3);
+  }
+
   get fija(): boolean {
     return this.poseFija !== null;
   }

@@ -106,6 +106,7 @@ export class CapTrost implements Capitulo {
         if (this.t > 3) {
           this.fase = 'brecha';
           api.objetivo('¿Qué es eso…?', 'Algo asoma por encima de la muralla');
+          ctx.orientarCamara(puntoAnillo(0, ctx.mundo.muralla.radioExterior + 10, ctx.mundo.muralla.altura + 14));
           this.colosal = new Colosal(ctx, () => {
             const m = ctx.mundo.muralla;
             m.romperPuerta();
@@ -125,6 +126,10 @@ export class CapTrost implements Capitulo {
           this.colosal = null;
           this.fase = 'evacuacion';
           api.mensaje('Orden de la Guarnición: retaguardia media. Que ningún titán llegue a la puerta norte.', 4);
+          // La vanguardia cayó cerca de la brecha: sus equipos quedan en las calles
+          for (const [x, z, n] of [[-30, 150, 'un soldado de la vanguardia'], [25, 120, 'un cadete caído'], [-8, 70, 'un soldado de la Guarnición']] as const) {
+            ctx.suministros.soltar(new THREE.Vector3(x, 30, z), 50, 2, `equipo de ${n}`);
+          }
         }
         break;
 
@@ -143,6 +148,7 @@ export class CapTrost implements Capitulo {
           this.fase = 'deposito';
           api.mensaje('Suena la campana de retirada… pero vuestros cilindros silban vacíos.', 4.5);
           ctx.jugador.gas.nivel = Math.min(ctx.jugador.gas.nivel, ctx.jugador.gas.capacidad * 0.25);
+          api.mensaje('Con poco gas: G para pedírselo a un compañero o recoger el equipo de un caído.', 5);
           // El depósito de la plaza está rodeado de titanes pequeños
           const dep = ctx.mundo.ciudad.deposito;
           const rodean = ctx.titanes.generarGrupo(6, dep.clone(), 16, [3, 4, 4, 5], 0);
