@@ -65,53 +65,78 @@ body {
   margin-left: 6px;
 }
 
-/* Retícula con indicadores de anclaje */
+/* Retícula: cruz fina con hueco + dos arcos (gancho izquierdo / derecho) */
 .reticula {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  width: 38px;
+  height: 38px;
+  margin: -19px 0 0 -19px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
 }
 .reticula .punto {
+  position: absolute;
+  left: 50%;
+  top: 50%;
   width: 4px;
   height: 4px;
+  margin: -2px 0 0 -2px;
   border-radius: 50%;
   background: #fff;
 }
 .reticula .indicador {
-  width: 10px;
-  height: 18px;
-  border: 2px solid rgba(255, 90, 74, 0.8);
-  opacity: 0.8;
+  position: absolute;
+  top: 0;
+  width: 38px;
+  height: 38px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: border-color 0.12s;
 }
 .reticula .indicador.izq {
-  border-right: none;
-  border-radius: 10px 0 0 10px;
+  left: 0;
+  border-left-color: rgba(255, 255, 255, 0.28);
 }
 .reticula .indicador.der {
-  border-left: none;
-  border-radius: 0 10px 10px 0;
+  left: 0;
+  border-right-color: rgba(255, 255, 255, 0.28);
 }
-.reticula .indicador.valido {
-  border-color: rgba(240, 248, 255, 0.95);
+.reticula .indicador.izq.valido {
+  border-left-color: rgba(255, 255, 255, 0.95);
 }
-.reticula .indicador.activo {
-  border-color: #8fe0a0;
+.reticula .indicador.der.valido {
+  border-right-color: rgba(255, 255, 255, 0.95);
+}
+.reticula .indicador.izq.titan {
+  border-left-color: #ffcf5a;
+}
+.reticula .indicador.der.titan {
+  border-right-color: #ffcf5a;
+}
+.reticula .indicador.izq.activo {
+  border-left-color: #7fe39a;
+}
+.reticula .indicador.der.activo {
+  border-right-color: #7fe39a;
 }
 
+/* Dónde se clavaría cada gancho (solo si cae lejos del centro) */
 .marcador {
   position: absolute;
-  left: -5px;
-  top: -5px;
-  width: 8px;
-  height: 8px;
-  border: 2px solid rgba(255, 90, 74, 0.8);
+  left: -4px;
+  top: -4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
+  pointer-events: none;
 }
-.marcador.valido {
-  border-color: rgba(240, 248, 255, 0.95);
+.marcador.titan {
+  border-color: #ffcf5a;
 }
 
 .hud-velocidad {
@@ -209,9 +234,6 @@ body {
   min-height: 14px;
 }
 
-.reticula .indicador.titan {
-  border-color: #ffd36b;
-}
 
 .hud-objetivo {
   position: absolute;

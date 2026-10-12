@@ -123,7 +123,8 @@ export class Fisica {
   }
 
   /** Distancia libre al barrer una esfera de `radio` desde `origen` en `dir` (normalizada). */
-  barrerEsfera(origen: THREE.Vector3, dir: THREE.Vector3, max: number, radio: number, excluir?: RAPIER.Collider): number {
+  barrerEsfera(origen: THREE.Vector3, dir: THREE.Vector3, max: number, radio: number, excluir?: RAPIER.Collider, ignorarEtiquetas?: readonly string[]): number {
+    const filtro = ignorarEtiquetas?.length ? (c: RAPIER.Collider) => !ignorarEtiquetas.includes(this.etiquetas.get(c.handle) ?? '') : undefined;
     const hit = this.mundo.castShape(
       { x: origen.x, y: origen.y, z: origen.z },
       { x: 0, y: 0, z: 0, w: 1 },
@@ -135,6 +136,8 @@ export class Fisica {
       undefined,
       undefined,
       excluir,
+      undefined,
+      filtro,
     );
     return hit ? hit.time_of_impact : max;
   }

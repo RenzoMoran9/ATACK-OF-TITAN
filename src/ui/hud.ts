@@ -63,8 +63,8 @@ export class Hud {
         </div>
       </div>
       <div class="reticula">
-        <div class="indicador izq"></div>
         <div class="punto"></div>
+        <div class="indicador izq"></div>
         <div class="indicador der"></div>
       </div>
       <div class="marcador izq"></div>
@@ -139,14 +139,18 @@ export class Hud {
       ind.classList.toggle('activo', g.estado === 'anclado');
       ind.classList.toggle('titan', a.valido && (a.etiqueta === 'titan' || a.etiqueta === 'nuca'));
       const m = this.marcadores[i];
-      if (a.punto) {
+      m.hidden = true;
+      if (a.punto && a.valido) {
         const p = a.punto.clone().project(ctx.camara);
-        if (p.z < 1) {
+        const x = ((p.x + 1) / 2) * ancho;
+        const y = ((1 - p.y) / 2) * alto;
+        // pegado al centro sobra: ya lo dicen los arcos de la retícula
+        if (p.z < 1 && Math.hypot(x - ancho / 2, y - alto / 2) > 24) {
           m.hidden = false;
-          m.style.transform = `translate(${((p.x + 1) / 2) * ancho}px, ${((1 - p.y) / 2) * alto}px) rotate(45deg)`;
-          m.classList.toggle('valido', a.valido);
-        } else m.hidden = true;
-      } else m.hidden = true;
+          m.style.transform = `translate(${x}px, ${y}px)`;
+          m.classList.toggle('titan', a.etiqueta === 'titan' || a.etiqueta === 'nuca');
+        }
+      }
     });
 
     this.velocidad.textContent = `${jugador.vel.length().toFixed(0)} m/s`;

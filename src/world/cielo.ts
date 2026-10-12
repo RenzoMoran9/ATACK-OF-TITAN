@@ -94,7 +94,6 @@ void main() {
   vDir = position;
   vec4 p = modelViewMatrix * vec4(position, 1.0);
   gl_Position = projectionMatrix * p;
-  gl_Position.z = gl_Position.w; // siempre al fondo
 }`;
 
 const FRAG = /* glsl */ `
@@ -135,7 +134,10 @@ export class Cielo {
         vertexShader: VERT,
         fragmentShader: FRAG,
         side: THREE.BackSide,
+        // Se dibuja la primera y sin prueba de profundidad: nada de forzar z = w, que dejaba
+        // fragmentos justo en el plano lejano y hacía parpadear el cielo al mirar arriba.
         depthWrite: false,
+        depthTest: false,
         fog: false,
         uniforms: {
           cenit: { value: new THREE.Color() },
@@ -165,10 +167,13 @@ export class Cielo {
       const ancho = rng.rango(600, 1300);
       nube.scale.set(ancho, ancho * 0.5, 1);
       nube.position.set(Math.cos(ang) * dist, rng.rango(380, 950), Math.sin(ang) * dist);
-      nube.renderOrder = -5;
       this.nubes.push(nube);
       this.grupo.add(nube);
     }
+    // Orden de dibujo fijo, de la más lejana a la más cercana: las nubes viajan con la cámara,
+    // así que su distancia relativa no cambia y no deben reordenarse (saltaban al girar).
+    const porDistancia = [...this.nubes].sort((a, b) => b.position.length() - a.position.length());
+    porDistancia.forEach((n, i) => (n.renderOrder = -8 + i * 0.01));
 
     const pos: number[] = [];
     for (let i = 0; i < 1500; i++) {

@@ -211,8 +211,12 @@ export class Jugador implements JugadorAPI {
     if (rumbo !== undefined) {
       this.rumbo = rumbo;
       this.rumboFijo = rumbo;
+      this.alOrientar?.(rumbo);
     }
   }
+
+  /** La cámara se coloca detrás al teletransportar con rumbo (inicio de capítulo). */
+  alOrientar: ((rumbo: number) => void) | null = null;
 
   salida = (lado: Lado): THREE.Vector3 => {
     // En el paso fijo usamos la posición física; el dibujo usa la del modelo.

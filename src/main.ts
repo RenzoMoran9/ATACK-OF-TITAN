@@ -3,6 +3,7 @@ import { BuclePasoFijo } from './core/bucle';
 import { config } from './core/config';
 import { urlDepuracion, type Hora } from './core/depuracion';
 import { CivilesNulos, EscuadronNulo, TitanesNulos, type ContextoJuego, type Reloj } from './core/contexto';
+import { GestorTitanes } from './titans/gestor';
 import { Entrada } from './core/entrada';
 import { Eventos } from './core/eventos';
 import { Fisica } from './core/fisica';
@@ -26,7 +27,7 @@ declare global {
   interface Window {
     /** true cuando la escena está construida y se han dibujado varios fotogramas (lo usa scripts/capturas.ts). */
     __juegoListo?: boolean;
-    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown };
+    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown };
   }
 }
 
@@ -52,7 +53,7 @@ async function iniciar(): Promise<void> {
   app.appendChild(renderer.domElement);
 
   const escena = new THREE.Scene();
-  const camara = new THREE.PerspectiveCamera(config.camara.fovBase, window.innerWidth / window.innerHeight, 0.1, 7000);
+  const camara = new THREE.PerspectiveCamera(config.camara.fovBase, window.innerWidth / window.innerHeight, 0.3, 5000);
 
   const fisica = await Fisica.crear(config.fisica.gravedad);
   const cielo = new Cielo(escena, config.render.radioSombra, config.render.tamanoSombra);
@@ -61,6 +62,7 @@ async function iniciar(): Promise<void> {
 
   const jugador = new Jugador(escena, fisica, mundo.inicio);
   const rig = new CamaraTercera(camara, fisica, () => jugador.collider);
+  jugador.alOrientar = (rumbo) => rig.orientar(rumbo);
   const entrada = new Entrada(renderer.domElement);
 
   // ── Contexto de juego compartido por todos los sistemas ──
@@ -96,6 +98,7 @@ async function iniciar(): Promise<void> {
     puntoReaparicion: mundo.inicio.clone(),
     esDeNoche: () => cielo.esDeNoche,
   };
+  ctx.titanes = new GestorTitanes(ctx);
   ctx.civiles = new GestorCiviles(ctx);
   jugador.conectar(ctx);
   const hud = new Hud(document.body, urlDepuracion.hud, ctx);
@@ -218,7 +221,10 @@ async function iniciar(): Promise<void> {
     rig.girar(dx + fx * 900 * dt, dy + fy * 600 * dt);
     jugador.dibujar(alfa, dt, tiempo);
     rig.sacudida = jugador.combate?.sacudida ?? 0;
+    rig.agarrado = jugador.agarradoPor !== null;
     rig.actualizar(dt, jugador.posRender, jugador.vel);
+    // con la cámara metida en el personaje (rincones), se oculta para no tapar la vista
+    jugador.modelo.grupo.visible = jugador.vivo && rig.distancia > 0.8;
     jugador.odm.apuntar(camara.position, rig.dir, camara.up, jugador.pos);
     cielo.seguir(jugador.posRender, camara);
     mundo.antorchas.actualizar(dt, camara.position, tiempo);
@@ -256,6 +262,7 @@ async function iniciar(): Promise<void> {
     // Para pruebas automáticas (Playwright) y depuración en consola
     ctx,
     campana,
+    rig,
   };
   const bucle = new BuclePasoFijo(1 / config.fisica.hz, actualizar, dibujar);
   Object.defineProperty(bucleRef, 'escalaTiempo', {
