@@ -239,7 +239,8 @@ export class Navegacion {
     const j1 = Math.min(this.alto - 1, ej1 + borde);
     const w = i1 - i0 + 1;
     const h = j1 - j0 + 1;
-    const todo = w === W && h === this.alto;
+    // escribir en el sitio solo si es el cálculo completo (sin ventana alrededor de una edición)
+    const todo = borde === 0 && w === W && h === this.alto;
     const d = todo ? this.holgura : new Float32Array(w * h);
     for (let j = 0; j < h; j++) {
       const fila = (j + j0) * W + i0;

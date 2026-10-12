@@ -310,6 +310,20 @@ export class ModeloJugador {
     this.estela.matrixAutoUpdate = false;
   }
 
+  /** Quita el modelo de la escena y libera geometrías y materiales (soldados que se van). */
+  liberar(): void {
+    const materiales = new Set<THREE.Material>();
+    for (const raiz of [this.grupo, this.estela]) {
+      raiz.removeFromParent();
+      raiz.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        o.geometry.dispose();
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) materiales.add(m);
+      });
+    }
+    for (const m of materiales) m.dispose();
+  }
+
   /** Puntos de salida de los cables (costados de la carcasa lumbar) en coordenadas de mundo. */
   salidaCable(l: -1 | 1, destino: THREE.Vector3): THREE.Vector3 {
     return destino.set(l * 0.17, 0, -0.16).applyMatrix4(this.cadera.matrixWorld);

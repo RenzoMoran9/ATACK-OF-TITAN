@@ -68,7 +68,10 @@ void main() {
   mat4 m = modelMatrix;
   #endif
   vec4 mv = viewMatrix * m * vec4(position, 1.0);
-  vNormalV = normalize(mat3(viewMatrix) * mat3(m) * normal);
+  // normales con escala no uniforme: dividir por la escala al cuadrado de cada eje equivale
+  // a la inversa transpuesta (rotación por escala) y mantiene la normal perpendicular
+  vec3 s2 = vec3(dot(m[0].xyz, m[0].xyz), dot(m[1].xyz, m[1].xyz), dot(m[2].xyz, m[2].xyz));
+  vNormalV = normalize(mat3(viewMatrix) * (mat3(m) * (normal / s2)));
   vVistaV = normalize(-mv.xyz);
   gl_Position = projectionMatrix * mv;
 }`;

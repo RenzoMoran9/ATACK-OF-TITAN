@@ -5,7 +5,6 @@ import type { Fisica } from '../core/fisica';
 import type { AspectoSoldado, DestinoOrden, EscuadronAPI, Humano, InfoSoldado, MiembroEscuadron, OrdenEscuadron, TitanAPI, ZonaTitan } from '../core/tipos';
 import { Silueta } from '../missions/silueta';
 import { Particulas } from '../player/particulas';
-import { depositoMasCercano } from '../world/mundo';
 import { COLOR_AVISO, COLOR_BENGALA, fraseConfirmacion, necesitaRecarga, puesto, puntoPatrulla, siguienteSeleccion, textoAviso } from './logicaOrdenes';
 import { Soldado, type OrdenAsignada } from './soldado';
 
@@ -295,13 +294,19 @@ export class Escuadron implements EscuadronAPI {
         continue;
       }
       if (s.mision.tipo === 'recargar') {
+        // un minuto sin llegar: el depósito no es alcanzable; vuelve a su orden y no insiste
+        if (ctx.reloj.t > (s.mision.hasta ?? Infinity)) {
+          s.mision = { tipo: 'seguir' };
+          s.vetoRecarga = ctx.reloj.t + 45;
+          continue;
+        }
         asignados.add(s);
         continue;
       }
-      if (!necesitaRecarga(s.gas, s.cuchillas.filo, s.cuchillas.repuesto)) continue;
+      if (ctx.reloj.t < s.vetoRecarga || !necesitaRecarga(s.gas, s.cuchillas.filo, s.cuchillas.repuesto)) continue;
       const destino = this.puntoDeposito(s.posicion);
       if (!destino) continue;
-      s.mision = { tipo: 'recargar', destino };
+      s.mision = { tipo: 'recargar', destino, hasta: ctx.reloj.t + 60 };
       s.decir(s.gas < 25 ? 'Me queda poco gas: voy al depósito' : 'Me he quedado sin cuchillas: voy al depósito');
       asignados.add(s);
     }
@@ -459,12 +464,14 @@ export class Escuadron implements EscuadronAPI {
     const ctx = this.ctx;
     if (!this.depositoDisponible() || ctx.mundo.depositos.length === 0) return null;
     const tomado = (pos: THREE.Vector3) => ctx.poblacion.titanesCerca(pos, 50).some(esAmenaza);
-    let dep = depositoMasCercano(ctx.mundo, p).deposito;
-    if (tomado(dep.pos)) {
-      const libres = ctx.mundo.depositos.filter((d) => !tomado(d.pos));
-      if (libres.length === 0) return null;
-      dep = libres.reduce((a, b) => (Math.hypot(a.pos.x - p.x, a.pos.z - p.z) <= Math.hypot(b.pos.x - p.x, b.pos.z - p.z) ? a : b));
-    }
+    // solo depósitos del mismo lado de la muralla (no tiene puertas a los lados) y cercanos:
+    // nadie abandona su puesto para cruzar medio territorio
+    const R = ctx.mundo.muralla.radioInterior;
+    const dentro = (v: THREE.Vector3) => Math.hypot(v.x, v.z) < R;
+    const dist = (v: THREE.Vector3) => Math.hypot(v.x - p.x, v.z - p.z);
+    const validos = ctx.mundo.depositos.filter((d) => dentro(d.pos) === dentro(p) && dist(d.pos) < 700 && !tomado(d.pos));
+    if (validos.length === 0) return null;
+    const dep = validos.reduce((a, b) => (dist(a.pos) <= dist(b.pos) ? a : b));
     const lado = new THREE.Vector3(p.x - dep.pos.x, 0, p.z - dep.pos.z);
     if (lado.lengthSq() < 1) lado.set(1, 0, 0);
     const junto = dep.pos.clone().add(lado.setLength(4));

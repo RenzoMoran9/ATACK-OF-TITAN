@@ -203,6 +203,7 @@ async function iniciar(): Promise<void> {
   const actualizar = (dt: number) => {
     // En menús y en pausa el mundo se queda quieto (se sigue dibujando)
     if (pantallas?.bloqueaJuego) {
+      mapa.cerrar();
       pasosEnFotograma++;
       return;
     }

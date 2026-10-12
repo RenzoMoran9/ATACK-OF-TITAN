@@ -358,7 +358,7 @@ export class Titan implements TitanAPI {
     this.regenerar(dt);
     if (this.congelado) {
       this.animar(dt, 0);
-      this.finPaso();
+      this.finPaso(dt);
       return;
     }
     // IA con nivel de detalle por distancia al jugador
@@ -372,17 +372,22 @@ export class Titan implements TitanAPI {
     }
     this.mantenerAgarre(dt);
     this.animar(dt, this.velocidad);
-    this.finPaso();
+    this.finPaso(dt);
   }
 
-  private finPaso(): void {
+  private finPaso(dt: number): void {
+    // si el salto se interrumpe en el aire (derribo, ceguera, presa atrapada), cae al suelo
+    if (this.agarre?.fase !== 'salto' && this.alturaSaltoActual > 0) this.alturaSaltoActual = Math.max(0, this.alturaSaltoActual - 15 * dt);
     this.colocarRaiz();
     this.modelo.aplicar(this.pose);
     this.actualizarPuntos();
     this.sincronizarCuerpos(false);
     // con alguien en la mano, lo llevamos con nosotros
     const a = this.agarre;
-    if (a?.victima) a.victima.fijarPosicion((a.conBoca ? this.modelo.posBoca(this.tmp) : this.modelo.posMano(a.brazo, this.tmp)).clone());
+    if (a?.victima) {
+      const p = (a.conBoca ? this.modelo.posBoca(this.tmp) : this.modelo.posMano(a.brazo, this.tmp)).clone();
+      a.victima.fijarPosicion(p.setY(Math.max(p.y, 0.9)));
+    }
   }
 
   private regenerar(dt: number): void {
@@ -559,8 +564,11 @@ export class Titan implements TitanAPI {
     const cabeza = this.cabeza();
     const dx = obj.posicion.x - cabeza.x;
     const dz = obj.posicion.z - cabeza.z;
-    if (Math.hypot(dx, dz) > alcanceSalto(H) || obj.posicion.y > 0.9 * H + 4) return;
-    if (Math.cos(Math.atan2(dx, dz) - this.rumbo) < Math.cos(0.7)) return;
+    // hasta donde llega la boca en lo alto del arco
+    if (Math.hypot(dx, dz) > alcanceSalto(H) || obj.posicion.y > 0.6 * H + radioMordisco(H)) return;
+    // pegado a la boca (o bajo el pecho) muerde sin mirar el cono
+    const pegado = this.modelo.posBoca(this.tmp).distanceTo(obj.posicion) < radioMordisco(H) + 1;
+    if (!pegado && Math.cos(Math.atan2(dx, dz) - this.rumbo) < Math.cos(0.7)) return;
     this.agarre = { fase: 'agazapar', t: 0, brazo: 1, victima: null, blanco: obj.posicion.clone(), desde: this.posicion.clone(), conBoca: true };
     this.estado = 'agarrar';
   }
@@ -595,11 +603,15 @@ export class Titan implements TitanAPI {
         const k = Math.min(1, a.t / dur);
         this.posicion.lerpVectors(a.desde, a.destino ?? a.desde, k).setY(0);
         this.alturaSaltoActual = alturaSalto(H) * Math.sin(Math.PI * k);
-        if (k < 1) return true;
-        this.alturaSaltoActual = 0;
-        this.ctx.efectos.vapor(this.posicion.clone().setY(0.5), 6, 0.15 * H, 3);
+        // el mordisco vale en cualquier momento del arco (presas en ramas o en el aire)
         const boca = this.modelo.posBoca(this.tmp);
-        if (obj && obj.vivo && !obj.agarradoPor && boca.distanceTo(obj.posicion) < radioMordisco(H)) {
+        const alcanza = !!obj && obj.vivo && !obj.agarradoPor && boca.distanceTo(obj.posicion) < radioMordisco(H);
+        if (k < 1 && !alcanza) return true;
+        if (k >= 1) {
+          this.alturaSaltoActual = 0;
+          this.ctx.efectos.vapor(this.posicion.clone().setY(0.5), 6, 0.15 * H, 3);
+        }
+        if (obj && alcanza) {
           a.victima = obj;
           obj.alSerAgarrado(this, 'brazoDer');
           this.punto('manoDer').activo = true;
@@ -612,7 +624,8 @@ export class Titan implements TitanAPI {
       }
       case 'zarandeo':
         if (!this.victimaValida(a)) return true;
-        if (a.t >= 1.3) {
+        // dura lo mismo que el QTE de soltarse (2,5 + 0,06·H s)
+        if (a.t >= 2.8 + 0.06 * H) {
           const v = a.victima!;
           a.victima = null;
           this.punto('manoDer').activo = false;
@@ -660,7 +673,7 @@ export class Titan implements TitanAPI {
       case 'recuperar':
         if (a.t >= (a.conBoca ? 1.2 : 1.5)) {
           this.agarre = null;
-          this.estado = this.objetivo ? 'perseguir' : 'deambular';
+          if (!this.incapacitado()) this.estado = this.objetivo ? 'perseguir' : 'deambular';
         }
         break;
       case 'levantar':
@@ -688,10 +701,15 @@ export class Titan implements TitanAPI {
       case 'masticar':
         if (a.t >= 1.6) {
           this.agarre = null;
-          this.estado = 'deambular';
+          if (!this.incapacitado()) this.estado = 'deambular';
         }
         break;
     }
+  }
+
+  /** Derribado, ciego o dormido: el agarre no debe devolverlo a cazar al terminar. */
+  private incapacitado(): boolean {
+    return this.estado === 'derribado' || this.estado === 'cegado' || this.estado === 'apagado';
   }
 
   private victimaValida(a: Agarre): boolean {
@@ -725,7 +743,7 @@ export class Titan implements TitanAPI {
         velObjetivo = this.cuadrupedo ? velocidadCuadrupedo(H) : velocidadPersecucion(H);
         // ya lo tiene delante: frena y se encara en vez de pisarlo (el cuadrúpedo salta)
         const dh = meta.distanceTo(this.posicion);
-        if (dh < 0.3 * H + 1) velObjetivo *= THREE.MathUtils.clamp((dh - 0.15 * H) / (0.15 * H + 1), 0, 1);
+        if (dh < 0.3 * H + 1 && !this.cuadrupedo) velObjetivo *= THREE.MathUtils.clamp((dh - 0.15 * H) / (0.15 * H + 1), 0, 1);
         // fuera de su alcance (tejado alto, rama, muralla): asedio en la base
         if (this.objetivo.posicion.y > alturaAlcance(H) && meta.distanceTo(this.posicion) < 0.5 * H + 3) {
           this.asediando = true;
@@ -1237,6 +1255,8 @@ export class Titan implements TitanAPI {
     this.soltarVictima();
     if (!this.sinColisiones) this.quitarColisiones();
     this.modelo.liberar();
+    // fuera del mundo: nadie debe seguir persiguiéndolo ni cortándolo
+    this.vivo = false;
     this.terminado = true;
   }
 

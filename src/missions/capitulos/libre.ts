@@ -63,6 +63,8 @@ export class CapLibre implements Capitulo {
       if (l.descubierto || !this.cerca(l, p)) continue;
       l.descubierto = true;
       this.api.mensaje(`Descubierto: ${l.nombre}`, 3.5);
+      // los lugares descubiertos fuera de los bosques sirven para reaparecer
+      if (l.tipo !== 'bosque') this.api.puntoControl(this.lugarSeguro(p));
       if (l.tipo === 'puesto') this.api.mensaje('Aquí puedes recargar gas y cuchillas', 3);
       this.actualizarObjetivo();
     }

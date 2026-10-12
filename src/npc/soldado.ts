@@ -33,6 +33,8 @@ export interface Mision {
   /** Cebo: distrae al titán delante de su cara. */
   cebo?: boolean;
   humano?: Humano;
+  /** Recargar: tiempo de juego a partir del cual se abandona (depósito inalcanzable). */
+  hasta?: number;
 }
 
 /** La orden que le dio el jugador (la misión concreta la decide el escuadrón cada 0,4 s). */
@@ -99,6 +101,8 @@ export class Soldado implements Humano {
   lod = false;
   /** Para el HUD y los mensajes. */
   ultimaFrase = -99;
+  /** No intentar recargar antes de este tiempo de juego (tras rendirse con un depósito). */
+  vetoRecarga = 0;
 
   private enSuelo = true;
   private rumbo = 0;
@@ -766,12 +770,15 @@ export class Soldado implements Humano {
   }
 
   eliminar(): void {
-    this.modelo.grupo.removeFromParent();
-    this.modelo.estela.removeFromParent();
+    this.modelo.liberar();
     this.etiqueta.removeFromParent();
+    const sprite = this.etiqueta.material as THREE.SpriteMaterial;
+    sprite.map?.dispose();
+    sprite.dispose();
     for (const c of this.cables) {
       c.removeFromParent();
       c.geometry.dispose();
+      (c.material as THREE.Material).dispose();
     }
   }
 }
