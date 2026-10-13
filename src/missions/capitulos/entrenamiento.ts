@@ -31,6 +31,16 @@ export class CapEntrenamiento implements Capitulo {
     const inicio = new THREE.Vector3(0, 0, 330);
     ctx.jugador.revivir(inicio, 0);
     api.puntoControl(inicio);
+    // tus compañeros del 104.º entrenan contigo: practica las órdenes (1–8, Tab)
+    ctx.escuadron.crear(
+      [
+        { nombre: 'Mikasa', rol: 'rematador' },
+        { nombre: 'Armin', rol: 'cebo' },
+        { nombre: 'Jean', rol: 'apoyo' },
+        { nombre: 'Sasha', rol: 'apoyo' },
+      ],
+      inicio.clone().add(new THREE.Vector3(-5, 0, -4)),
+    );
     // Siluetas de 3, 7 y 15 m mirando hacia el camino, delante de los primeros troncos
     this.siluetas = [
       new Silueta(ctx, new THREE.Vector3(-34, 0, 392), 3, Math.PI),

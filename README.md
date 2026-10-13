@@ -37,7 +37,7 @@ npm run dev                       # http://localhost:5173
 | **Q** / **E** | Solo el gancho izquierdo / derecho (para orbitar alrededor de un ancla) |
 | **Espacio** | En el suelo, **salto**. En el aire sin ganchos: solo, **freno** (corta la caída y te deja bajar despacio, gasta gas); con WASD, impulso de gas. Enganchado: impulso hacia donde pulsas o miras y órbita del ancla |
 | **Shift** (mantener) | **Correr** a pie; gasta la barra de **aguante**, que se recupera al parar (vacía, te agotas y andas más lento). Shift o Espacio justo antes de tocar el suelo: **rodada** (evita el daño por caída) |
-| **WASD** | Mover en el suelo, ajustar la trayectoria en el aire |
+| **WASD** | Mover en el suelo. En el aire sin cables ni gas: dirige el salto hacia donde pulsas sin perder impulso, y la tecla contraria frena (para caer justo sobre una rama) |
 | **R** | Cambiar de par de cuchillas (4 de repuesto) |
 | **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, pedir gas a un compañero |
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
@@ -126,6 +126,10 @@ Te acompañan soldados con su propio equipo ODM (cables, bobina, impulsos) que h
 pone delante de la cara del titán para distraerlo, **el apoyo** le corta tendones y corvas para derribarlo y **el rematador**
 va a la nuca cuando el titán no le mira. Rescatan a quien esté en la mano de un titán, esquivan agarres según su habilidad
 (Mikasa y Levi mucho mejor que Armin), pueden morir (y dejan su equipo en el suelo) y te pasan gas si se lo pides.
+
+Hay escuadrón en todos los capítulos (en el entrenamiento, tus compañeros cadetes). En la exploración, si cae entero,
+en la puerta sur, un puesto de avanzada o el campamento se te unen **refuerzos de la Legión**. Si das una orden y no
+queda nadie, el juego te dice por qué.
 
 ## Historia (capítulos)
 

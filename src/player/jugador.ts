@@ -342,9 +342,28 @@ export class Jugador implements JugadorAPI {
       this.vel.x += dvx * k;
       this.vel.z += dvz * k;
     } else {
-      // Control en el aire: corrige la trayectoria, pero sin gas no acelera más allá de la carrera
-      const avance = this.vel.x * deseo.x + this.vel.z * deseo.z;
-      if (tirando || avance < j.velocidadCorrer) this.vel.addScaledVector(deseo, j.controlAereo * dt);
+      if (tirando) {
+        this.vel.addScaledVector(deseo, j.controlAereo * dt);
+      } else {
+        // Control en el aire sin cables ni gas: la velocidad horizontal se dirige hacia donde
+        // pulsas (girar sin perder impulso, frenar con la tecla contraria, quedarte encima de
+        // una rama). Sin pulsar, conserva la inercia. No acelera más allá de la carrera.
+        const vh = Math.hypot(this.vel.x, this.vel.z);
+        if (deseo.lengthSq() > 0) {
+          // hacia delante o de lado conserva la rapidez; hacia atrás frena (y apenas retrocede)
+          const base = Math.max(vh, 4.5);
+          const alineado = vh > 0.5 ? (this.vel.x * deseo.x + this.vel.z * deseo.z) / vh : 1;
+          const rapidez = alineado >= 0 ? base : THREE.MathUtils.lerp(base, 3, -alineado);
+          const ox = deseo.x * rapidez - this.vel.x;
+          const oz = deseo.z * rapidez - this.vel.z;
+          const d = Math.hypot(ox, oz);
+          // más mano cuanto más despacio vas (al saltar entre ramas), menos a gran velocidad
+          const acel = j.controlAereo * THREE.MathUtils.lerp(1.8, 0.8, THREE.MathUtils.clamp(vh / 30, 0, 1));
+          const k = Math.min(1, (acel * dt) / Math.max(d, 1e-6));
+          this.vel.x += ox * k;
+          this.vel.z += oz * k;
+        }
+      }
       this.vel.multiplyScalar(1 - j.resistenciaAire * dt);
     }
 

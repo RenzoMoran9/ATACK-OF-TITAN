@@ -9,7 +9,7 @@
     "velocidadAndar": 7,
     "velocidadCorrer": 11.5,
     "aceleracionSuelo": 45,
-    "controlAereo": 9,
+    "controlAereo": 11,
     "salto": 7.2,
     "resistenciaAire": 0.04,
     "velocidadMaxima": 45

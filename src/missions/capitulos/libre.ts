@@ -24,6 +24,7 @@ export class CapLibre implements Capitulo {
   private poblador: Poblador | null = null;
   private tRevisar = 0;
   private enBosque: string | null = null;
+  private refuerzos = 0;
 
   iniciar(api: ApiCapitulo): void {
     this.api = api;
@@ -48,6 +49,7 @@ export class CapLibre implements Capitulo {
     this.poblador = new Poblador(ctx);
     this.enBosque = null;
     this.tRevisar = 0;
+    this.refuerzos = 0;
     this.actualizarObjetivo();
   }
 
@@ -77,6 +79,39 @@ export class CapLibre implements Capitulo {
       this.api.puntoControl(this.lugarSeguro(p));
     }
     this.enBosque = nombre;
+    this.reforzar(p);
+  }
+
+  /**
+   * Si cae todo el escuadrón, en el siguiente puesto de avanzada, el campamento o la puerta
+   * sur te espera otro de la Legión (así nunca te quedas sin nadie a quien dar órdenes).
+   */
+  private reforzar(p: THREE.Vector3): void {
+    const esc = this.api.ctx.escuadron;
+    if (!this.api.ctx.jugador.vivo || esc.soldados.some((s) => s.vivo)) return;
+    const m = this.api.ctx.mundo.muralla;
+    const enPuerta = Math.hypot(p.x - 6, p.z - (m.radioExterior + 30)) < 70;
+    const enRefugio = this.api.ctx.mundo.lugares.some((l) => (l.tipo === 'puesto' || l.tipo === 'campamento') && Math.hypot(l.pos.x - p.x, l.pos.z - p.z) < l.radio + 40);
+    if (!enPuerta && !enRefugio) return;
+    const tandas = [
+      [
+        { nombre: 'Sasha', rol: 'apoyo' as const },
+        { nombre: 'Reiner', rol: 'rematador' as const },
+        { nombre: 'Bertholdt', rol: 'apoyo' as const },
+        { nombre: 'Ymir', rol: 'cebo' as const },
+      ],
+      [
+        { nombre: 'Mikasa', rol: 'rematador' as const },
+        { nombre: 'Armin', rol: 'cebo' as const },
+        { nombre: 'Jean', rol: 'apoyo' as const },
+        { nombre: 'Connie', rol: 'apoyo' as const },
+      ],
+    ];
+    const tanda = tandas[this.refuerzos % tandas.length];
+    this.refuerzos++;
+    esc.limpiar();
+    esc.crear(tanda, p.clone().add(new THREE.Vector3(-5, 0, -4)).setY(0));
+    this.api.mensaje(`Refuerzos de la Legión: ${tanda.map((s) => s.nombre).join(', ')} se unen a ti`, 4);
   }
 
   terminar(): void {

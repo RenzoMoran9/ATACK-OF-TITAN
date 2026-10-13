@@ -37,12 +37,23 @@ export class MandoEscuadron {
     const ctx = this.ctx;
     const e = ctx.entrada;
     const esc = ctx.escuadron;
-    if (e.consumir('Tab') && esc.soldados.some((s) => s.vivo)) {
-      const s = esc.cambiarSeleccion();
-      this.mensaje(`Mando: ${s ? s.nombre : 'todo el escuadrón'}`, 1.4);
+    const hayVivos = esc.soldados.some((s) => s.vivo);
+    let pedida = false;
+    if (e.consumir('Tab')) {
+      pedida = true;
+      if (hayVivos) {
+        const s = esc.cambiarSeleccion();
+        this.mensaje(`Mando: ${s ? s.nombre : 'todo el escuadrón'}`, 1.4);
+      }
     }
     for (const tecla in TECLAS_ORDEN) {
-      if (e.consumir(tecla) && esc.soldados.some((s) => s.vivo)) this.dar(TECLAS_ORDEN[tecla]);
+      if (!e.consumir(tecla)) continue;
+      pedida = true;
+      if (hayVivos) this.dar(TECLAS_ORDEN[tecla]);
+    }
+    // antes no pasaba nada y parecía que nadie obedecía: decir por qué
+    if (pedida && !hayVivos) {
+      this.mensaje(esc.soldados.length === 0 ? 'Aquí no tienes escuadrón a tu mando' : 'Todo tu escuadrón ha caído: vendrán refuerzos al puesto de avanzada más cercano', 3);
     }
   }
 
