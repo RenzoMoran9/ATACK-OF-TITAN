@@ -143,6 +143,8 @@ export class Titan implements TitanAPI {
   // animación
   private fase = 0;
   private faseGalope = 0;
+  /** Pisadas dadas (cada pie que toca el suelo): el sonido las cuenta para el estruendo de cada paso. */
+  pisadas = 0;
   /** Altura de la raíz sobre el suelo durante el salto del cuadrúpedo. */
   private alturaSaltoActual = 0;
   private t = 0;
@@ -898,7 +900,9 @@ export class Titan implements TitanAPI {
     const vPers = velocidadPersecucion(H);
     const a = THREE.MathUtils.clamp(velocidad / vPers, 0, 1.6);
     const zancada = Math.max(1, 2.4 * L.cadera);
+    const antes = Math.floor(this.fase / Math.PI);
     this.fase += (velocidad / zancada) * Math.PI * 2 * dt;
+    if (velocidad > 0.3 && Math.floor(this.fase / Math.PI) !== antes) this.pisadas++;
     const φ = this.fase;
     const andando = THREE.MathUtils.clamp(velocidad / 0.6, 0, 1);
 
@@ -1137,7 +1141,10 @@ export class Titan implements TitanAPI {
 
     // Galope: fase del ciclo y zancada coherentes con la velocidad (sin patinar)
     const { zancada, frecuencia } = galope(v, H);
+    const previa = this.faseGalope;
     this.faseGalope = (this.faseGalope + frecuencia * dt) % 1;
+    // dos golpes por zancada: manos y patas
+    if (v > 0.5 && (this.faseGalope < previa || (previa < 0.5 && this.faseGalope >= 0.5))) this.pisadas++;
     const corre = THREE.MathUtils.clamp(v / (0.5 * velocidadCuadrupedo(H)), 0, 1);
     const φ = this.faseGalope * Math.PI * 2;
     p.pelvisX = a + 0.08 * Math.sin(φ) * corre;

@@ -14,7 +14,7 @@ const CONTROLES = `
     <li><b>Shift</b> (mantener) correr, gasta aguante · Shift o Espacio justo antes de tocar el suelo: rodada</li>
     <li><b>F</b> también da el tajo · <b>R</b> cambiar cuchillas · <b>WASD</b> mover · <b>Ratón/flechas</b> cámara</li>
     <li><b>1</b> seguidme · <b>2</b> atacad · <b>3</b> proteged a los civiles · <b>4</b> retirada · <b>5</b> esperad aquí · <b>6</b> id allí · <b>7</b> atacad a ese titán · <b>8</b> explorad</li>
-    <li><b>L</b> linterna · <b>M</b> mapa · <b>G</b> recoger equipo / pedir gas</li>
+    <li><b>L</b> linterna · <b>M</b> mapa · <b>G</b> recoger equipo / pedir gas · <b>N</b> sonido sí/no</li>
     <li><b>Tab</b> a quién mandas (todos o uno) · <b>F1/P</b> ajustes · <b>Esc</b> pausa</li>
   </ul>`;
 
@@ -42,6 +42,8 @@ export class Pantallas {
     private readonly campana: Campana,
     private readonly pedirCaptura: () => Promise<boolean>,
     private readonly tactil = false,
+    /** Botón de gráficos en la pausa: texto actual y pasar al siguiente ajuste. */
+    private readonly graficos: { texto: () => string; siguiente: () => void } | null = null,
   ) {
     this.raiz = document.createElement('div');
     this.raiz.className = 'pantalla';
@@ -146,6 +148,17 @@ export class Pantallas {
       fila.className = 'botones';
       fila.append(this.boton('Continuar', () => void this.jugar(), 'principal'), this.boton('Reiniciar capítulo', () => c.reintentar()), this.boton('Menú de capítulos', () => c.irAlMenu()));
       r.appendChild(fila);
+      const g = this.graficos;
+      if (g) {
+        const b = this.boton(g.texto(), () => {
+          g.siguiente();
+          b.textContent = g.texto();
+        });
+        const filaG = document.createElement('div');
+        filaG.className = 'botones';
+        filaG.appendChild(b);
+        r.appendChild(filaG);
+      }
       r.insertAdjacentHTML('beforeend', this.controles);
       return;
     }

@@ -11,6 +11,8 @@ export class Efectos {
   private readonly humoP: Map<string, Particulas> = new Map();
   private readonly fuentes: { pos: THREE.Vector3; restante: number; ritmo: number; tam: number; acum: number; seguir?: () => THREE.Vector3 | null }[] = [];
   private readonly tmp = new THREE.Vector3();
+  /** Aviso para el sonido: se ha disparado una bengala. */
+  alBengala: ((pos: THREE.Vector3) => void) | null = null;
 
   constructor(private readonly escena: THREE.Scene) {
     this.vaporP = new Particulas(escena, 1400, '#f4f6f8', 3.2, { gravedad: -1.2, alfaMax: 0.55, amortiguacion: 0.8 });
@@ -44,6 +46,7 @@ export class Efectos {
 
   /** Columna vertical de humo de bengala (rojo, negro, verde, morado, azul, amarillo). */
   bengala(pos: THREE.Vector3, color: string): void {
+    this.alBengala?.(pos);
     let p = this.humoP.get(color);
     if (!p) {
       p = new Particulas(this.escena, 400, color, 2.6, { gravedad: -2.5, alfaMax: 0.7, amortiguacion: 0.4 });

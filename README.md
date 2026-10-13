@@ -44,6 +44,7 @@ npm run dev                       # http://localhost:5173
 | **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
 | **Tab** | A quién mandas: todo el escuadrón → cada soldado → todos. Los demás conservan su orden (Todos + 5 = te vas solo; Tab hasta Mikasa + 1 = te la llevas) |
 | **M** | Mapa del territorio (bosques, río, lugares, escuadrón, titanes cercanos, puntos de recarga) |
+| **N** | Sonido sí / no (se recuerda) |
 | **L** | Linterna: foco hacia donde miras y un halo cálido alrededor del soldado. Se enciende sola la primera vez que todo se queda a oscuras (bosque o noche) |
 | **Retroceso** | Reaparecer en el punto de control |
 | Ratón / **flechas** | Cámara (las flechas sirven si el navegador no deja capturar el ratón) |
@@ -70,6 +71,23 @@ Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en
 | Fila de arriba | Cuchillas (R), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), pantalla completa, pausa |
 
 Al tocar **Empezar** el juego pasa a pantalla completa. El HUD se reparte arriba para dejar libres los pulgares.
+
+### Gráficos en el celular
+
+La calidad se adapta sola (`src/core/calidad.ts`): en el celular empieza en **Media** (sombras pequeñas, menos distancia
+de dibujado, sin antialias, pocas antorchas con luz) y, si no llega a ~45 imágenes por segundo, baja la resolución
+interna y luego pasa a **Fluida** (sin sombras, niebla más cerca). En la pausa, el botón **Gráficos** permite elegir
+Auto, Alta, Media o Fluida. Cada soldado se dibuja con ~25 piezas fundidas (antes 63) y los titanes con ~20.
+
+## Sonido
+
+Efectos generados con ElevenLabs a partir de descripciones inspiradas en el anime (`public/sonidos/`, 31 archivos, ~0,8 MB):
+gas y silbido del cable al disparar los ganchos, golpe del ancla, bobina al recoger, viento a toda velocidad, «shing»
+de las hojas, corte en la carne y vapor de la nuca, cambio de cuchillas, pasos y aterrizajes, cada pisada de los titanes
+(más grave cuanto más grandes; galope en los de cuatro patas), su rugido al verte y el resoplido antes de atraparte,
+agarre, mordisco y masticar, derrumbe y vapor al morir, bengalas, la puerta de Trost y las campanas, y ambientes de
+bosque, llanura y noche. `src/audio/sonido.ts` es el motor (Web Audio: volumen por distancia y lado) y
+`src/audio/sonidosJuego.ts` decide qué suena y cuándo. **N** (o ♪ en el celular) lo silencia.
 
 ## Instalar en el celular y actualizaciones
 

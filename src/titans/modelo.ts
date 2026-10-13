@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ikDosHuesos } from '../player/poses';
 import { texturaCaraTitan } from '../world/texturas';
 
@@ -280,7 +281,40 @@ export class ModeloTitan {
       ante.add(mano);
       malla(elipsoide(0.03 * H, 0.05 * H, 0.025 * H), this.pielSombra, mano, 0, -0.035 * H, 0);
     }
+    this.fundirPiel();
   }
+
+  /**
+   * Funde las piezas de piel que cuelgan del mismo hueso en una sola malla (mismo material, así
+   * siguen grisándose al morir): muchos menos dibujos por titán, que importa en el celular.
+   */
+  private fundirPiel(): void {
+    const huesos: THREE.Object3D[] = [];
+    this.raiz.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) huesos.push(o);
+    });
+    for (const hueso of huesos) {
+      for (const material of [this.piel, this.pielSombra]) {
+        const lista = hueso.children.filter((h): h is THREE.Mesh => h instanceof THREE.Mesh && h.material === material && h.children.length === 0);
+        if (lista.length < 2) continue;
+        const geos = lista.map((h) => {
+          h.updateMatrix();
+          const g = h.geometry.index ? h.geometry.toNonIndexed() : h.geometry.clone();
+          for (const nombre of Object.keys(g.attributes)) if (nombre !== 'position' && nombre !== 'normal') g.deleteAttribute(nombre);
+          return g.applyMatrix4(h.matrix);
+        });
+        const fundida = mergeGeometries(geos);
+        for (const g of geos) g.dispose();
+        if (!fundida) continue;
+        for (const h of lista) hueso.remove(h);
+        const malla = new THREE.Mesh(fundida, material);
+        malla.castShadow = true;
+        malla.receiveShadow = true;
+        this.geometrias.push(fundida);
+        hueso.add(malla);
+      }
+    }
+}
 
   /** Aplica la pose. `matrizMundoRaiz` ya debe estar al día (posición y rumbo). */
   aplicar(pose: PoseTitan): void {

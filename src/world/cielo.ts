@@ -234,6 +234,14 @@ export class Cielo {
     return this.presetActual.noche;
   }
 
+  /**
+   * Con menos distancia de dibujado, la cúpula, las nubes y las estrellas se acercan a escala:
+   * se ven igual (no les afecta la niebla) y no las corta el plano lejano de la cámara.
+   */
+  ajustarLejania(lejos: number): void {
+    this.grupo.scale.setScalar(Math.min(1, (lejos * 0.92) / 4500));
+  }
+
   /** La sombra y la cúpula acompañan al punto de interés (el jugador). */
   seguir(centro: THREE.Vector3, camara: THREE.Camera): void {
     const objetivo = this.sol.target.position;

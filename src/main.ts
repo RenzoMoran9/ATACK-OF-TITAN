@@ -30,6 +30,9 @@ import { ajustarNoche } from './world/materiales';
 import { actualizarMundo, ajustarHoraMundo, construirMundo, depositoMasCercano } from './world/mundo';
 import { AmbienteBosque } from './world/ambiente';
 import { Linterna } from './player/linterna';
+import { Calidad, PERFILES } from './core/calidad';
+import { Sonido } from './audio/sonido';
+import { SonidosJuego } from './audio/sonidosJuego';
 import { ControlesTactiles, esDispositivoTactil } from './ui/tactil';
 import { alternarPantallaCompleta, esIOS, registrarServiceWorker } from './ui/pantallaCompleta';
 import { aplicarLimite, puntoDentro } from './world/region';
@@ -38,7 +41,7 @@ declare global {
   interface Window {
     /** true cuando la escena está construida y se han dibujado varios fotogramas (lo usa scripts/capturas.ts). */
     __juegoListo?: boolean;
-    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown };
+    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown; renderer?: unknown; sonido?: unknown };
   }
 }
 
@@ -57,7 +60,15 @@ interface EstadoDepuracion {
 
 async function iniciar(): Promise<void> {
   const app = document.getElementById('app')!;
-  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  // Celular o tableta: controles táctiles y gráficos ligeros (src/core/calidad.ts)
+  const tactil = esDispositivoTactil(urlDepuracion.tactil);
+  if (tactil) {
+    // cada luz encarece cada píxel; menos antorchas con luz de verdad
+    config.render.maxAntorchasConLuz = PERFILES.media.antorchasConLuz;
+    config.render.tamanoSombra = PERFILES.media.tamanoSombra;
+  }
+  // sin antialias en el celular: con la resolución adaptable cuesta más de lo que luce
+  const renderer = new THREE.WebGLRenderer({ antialias: !tactil, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = config.render.sombras;
@@ -156,9 +167,9 @@ async function iniciar(): Promise<void> {
   // Capturas (?cam=...): escena fija con los titanes de referencia congelados, sin menús.
   // Si no, campaña por capítulos con su menú.
   const modoCaptura = urlDepuracion.cam !== null || urlDepuracion.poses;
-  const tactil = esDispositivoTactil(urlDepuracion.tactil);
   entrada.tactil = tactil;
   let campana: Campana | null = null;
+  let calidad: Calidad | null = null;
   let pantallas: Pantallas | null = null;
   let laboratorio: LaboratorioPoses | null = null;
   if (urlDepuracion.poses) {
@@ -171,7 +182,17 @@ async function iniciar(): Promise<void> {
   } else {
     campana = new Campana(ctx, [new CapEntrenamiento(), new CapTrost(), new CapLibre()]);
     escuadron.depositoDisponible = () => campana?.depositoDisponible() ?? true;
-    pantallas = new Pantallas(campana, () => entrada.capturar(), tactil);
+    pantallas = new Pantallas(campana, () => entrada.capturar(), tactil, {
+      texto: () => (calidad ? `Gráficos: ${calidad.auto ? 'Auto · ' : ''}${calidad.perfil.etiqueta}` : 'Gráficos'),
+      siguiente: () => {
+        if (!calidad) return;
+        // Auto → Alta → Media → Fluida → Auto
+        if (calidad.auto) calidad.fijar('alta');
+        else if (calidad.nivel === 'alta') calidad.fijar('media');
+        else if (calidad.nivel === 'media') calidad.fijar('baja');
+        else calidad.fijar(tactil ? 'media' : 'alta', true);
+      },
+    });
   }
   // Móvil y tableta: joystick, arrastre de cámara y botones (src/ui/tactil.ts)
   const controlesTactiles = tactil && !modoCaptura
@@ -189,12 +210,33 @@ async function iniciar(): Promise<void> {
   // Linterna (L): se enciende sola la primera vez que todo se queda a oscuras
   const linterna = new Linterna(escena);
   const puntoLinterna = new THREE.Vector3();
+  // Sonido (src/audio): empieza a cargar con el primer toque o tecla
+  const sonido = new Sonido();
+  const sonidos = new SonidosJuego(sonido, ctx, jugador);
+  const derechaCamara = new THREE.Vector3();
+  const alternarSonido = () => {
+    sonido.desbloquear();
+    const mudo = sonido.alternarSilencio();
+    ctx.eventos.emit({ tipo: 'mensaje', texto: mudo ? 'Sonido apagado (N)' : 'Sonido encendido', segundos: 1.2 });
+  };
   const alternarLinterna = () => {
+    sonido.tocar('click', { volumen: 0.5 });
     const on = linterna.alternar();
     ctx.eventos.emit({ tipo: 'mensaje', texto: on ? 'Linterna encendida' : 'Linterna apagada', segundos: 1.2 });
   };
+  let horaActual: Hora = urlDepuracion.hora;
+  let factorDistancia = 1;
   const cambiarHora = (h: Hora) => {
+    horaActual = h;
     cielo.aplicar(h, renderer);
+    // menos distancia de dibujado con menos calidad: la niebla tapa el corte
+    if (escena.fog instanceof THREE.Fog) {
+      escena.fog.near *= factorDistancia;
+      escena.fog.far *= factorDistancia;
+      camara.far = factorDistancia < 1 ? Math.max(700, escena.fog.far * 1.1) : 5000;
+      camara.updateProjectionMatrix();
+      cielo.ajustarLejania(camara.far);
+    }
     ajustarNoche(mundo.mats, cielo.esDeNoche);
     mundo.antorchas.encender(cielo.esDeNoche);
     ajustarHoraMundo(mundo, h, cielo.dirSol);
@@ -207,6 +249,28 @@ async function iniciar(): Promise<void> {
     rig.fijarPose(p.camara, p.mirar);
   };
   cambiarHora(urlDepuracion.hora);
+
+  // Calidad adaptable: en el celular empieza en «media» y baja sola si no va fluido
+  calidad = new Calidad(tactil ? 'media' : 'alta', window.devicePixelRatio || 1, (perfil, resolucion, nivelCambiado) => {
+    renderer.setPixelRatio(resolucion);
+    if (!nivelCambiado) return;
+    const sombras = perfil.sombras && config.render.sombras;
+    const sombraCambia = renderer.shadowMap.enabled !== sombras || cielo.sol.shadow.mapSize.x !== perfil.tamanoSombra;
+    renderer.shadowMap.enabled = sombras;
+    cielo.sol.castShadow = sombras;
+    if (cielo.sol.shadow.mapSize.x !== perfil.tamanoSombra) {
+      cielo.sol.shadow.mapSize.set(perfil.tamanoSombra, perfil.tamanoSombra);
+      cielo.sol.shadow.map?.dispose();
+      cielo.sol.shadow.map = null;
+    }
+    if (sombraCambia) {
+      escena.traverse((o) => {
+        if (o instanceof THREE.Mesh) (o.material as THREE.Material).needsUpdate = true;
+      });
+    }
+    factorDistancia = perfil.distancia;
+    cambiarHora(horaActual);
+  });
 
   const panel = crearPanel(Object.keys(mundo.puntos), urlDepuracion.hora, {
     cambiarHora,
@@ -259,6 +323,7 @@ async function iniciar(): Promise<void> {
     mando.actualizar();
     if (entrada.consumir('KeyM')) mapa.alternar();
     if (entrada.consumir('KeyL')) alternarLinterna();
+    if (entrada.consumir('KeyN')) alternarSonido();
     // G: recoger el equipo de un caído o, si no hay ninguno al lado, pedir gas a un compañero
     if (entrada.consumir('KeyG') && jugador.vivo) {
       const recogido = ctx.suministros.recoger();
@@ -335,6 +400,9 @@ async function iniciar(): Promise<void> {
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
     hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
     if (controlesTactiles) controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false);
+    derechaCamara.setFromMatrixColumn(camara.matrixWorld, 0);
+    calidad?.medir(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura);
+    sonidos.actualizar(dt, (pantallas?.bloqueaJuego ?? false) || modoCaptura, camara.position, derechaCamara, ambiente.mezcla, cielo.esDeNoche);
     renderer.render(escena, camara);
     if (pasosEnFotograma > 0) {
       entrada.finFotograma();
@@ -366,6 +434,8 @@ async function iniciar(): Promise<void> {
     campana,
     rig,
     mando,
+    renderer,
+    sonido,
   };
   const bucle = new BuclePasoFijo(1 / config.fisica.hz, actualizar, dibujar);
   Object.defineProperty(bucleRef, 'escalaTiempo', {

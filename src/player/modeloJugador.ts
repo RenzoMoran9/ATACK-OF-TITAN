@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { AspectoSoldado, EstadoAnimacion } from '../core/tipos';
 import { texturaEmblema } from '../world/texturas';
 import { baseCuerpo, easeOutCubic, ikDosHuesos, muelle, smootherstep, varianteImpulso, type Muelle } from './poses';
@@ -63,6 +64,16 @@ function parametros(c: Canal): [number, number] {
 }
 
 const lado = (i: number): number => (i === 0 ? 1 : -1);
+
+/** Materiales con el color en los vértices, compartidos por todos los soldados (piezas fundidas). */
+let MATERIALES_FUNDIDOS: { mate: THREE.MeshLambertMaterial; brillo: THREE.MeshPhongMaterial } | null = null;
+function materialesFundidos(): { mate: THREE.MeshLambertMaterial; brillo: THREE.MeshPhongMaterial } {
+  MATERIALES_FUNDIDOS ??= {
+    mate: new THREE.MeshLambertMaterial({ vertexColors: true }),
+    brillo: new THREE.MeshPhongMaterial({ vertexColors: true, specular: '#b8c0c8', shininess: 70 }),
+  };
+  return MATERIALES_FUNDIDOS;
+}
 
 function mesh(g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0): THREE.Mesh {
   const o = new THREE.Mesh(g, m);
@@ -319,6 +330,60 @@ export class ModeloJugador {
     this.estela.frustumCulled = false;
     this.estela.visible = false;
     this.estela.matrixAutoUpdate = false;
+    this.consolidar();
+  }
+
+  /**
+   * Funde en una sola malla las piezas rígidas que cuelgan del mismo hueso (cada una con su
+   * color en los vértices): de ~63 dibujos por soldado a ~20, mismo aspecto. Las hojas (se
+   * ocultan al cambiarlas), la capa (doble cara) y el emblema (textura) siguen aparte.
+   */
+  private consolidar(): void {
+    const { mate, brillo } = materialesFundidos();
+    const huesos: THREE.Object3D[] = [];
+    this.grupo.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) huesos.push(o);
+    });
+    const color = new THREE.Color();
+    for (const hueso of huesos) {
+      const lambert: THREE.Mesh[] = [];
+      const phong: THREE.Mesh[] = [];
+      for (const h of hueso.children) {
+        if (!(h instanceof THREE.Mesh) || h.children.length > 0 || this.hojas.includes(h) || Array.isArray(h.material)) continue;
+        const m = h.material as THREE.MeshLambertMaterial;
+        if (m.transparent || m.side !== THREE.FrontSide || m.map) continue;
+        if (m instanceof THREE.MeshPhongMaterial) phong.push(h);
+        else if (m instanceof THREE.MeshLambertMaterial) lambert.push(h);
+      }
+      for (const [lista, material] of [
+        [lambert, mate],
+        [phong, brillo],
+      ] as const) {
+        if (lista.length < 2) continue;
+        const geos = lista.map((h) => {
+          h.updateMatrix();
+          const g = h.geometry.index ? h.geometry.toNonIndexed() : h.geometry.clone();
+          for (const nombre of Object.keys(g.attributes)) if (nombre !== 'position' && nombre !== 'normal') g.deleteAttribute(nombre);
+          g.applyMatrix4(h.matrix);
+          color.copy((h.material as THREE.MeshLambertMaterial).color);
+          const n = g.attributes.position.count;
+          const c = new Float32Array(n * 3);
+          for (let i = 0; i < n; i++) c.set([color.r, color.g, color.b], i * 3);
+          g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+          return g;
+        });
+        const fundida = mergeGeometries(geos);
+        for (const g of geos) g.dispose();
+        if (!fundida) continue;
+        for (const h of lista) {
+          hueso.remove(h);
+          h.geometry.dispose();
+        }
+        const malla = new THREE.Mesh(fundida, material);
+        malla.castShadow = true;
+        hueso.add(malla);
+      }
+    }
   }
 
   /** Quita el modelo de la escena y libera geometrías y materiales (soldados que se van). */
@@ -332,7 +397,8 @@ export class ModeloJugador {
         for (const m of Array.isArray(o.material) ? o.material : [o.material]) materiales.add(m);
       });
     }
-    for (const m of materiales) m.dispose();
+    const compartidos = MATERIALES_FUNDIDOS;
+    for (const m of materiales) if (m !== compartidos?.mate && m !== compartidos?.brillo) m.dispose();
   }
 
   /** Puntos de salida de los cables (costados de la carcasa lumbar) en coordenadas de mundo. */

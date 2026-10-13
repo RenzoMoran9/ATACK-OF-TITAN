@@ -147,6 +147,10 @@ export class Soldado implements Humano {
     private readonly chorros: Particulas | null = null,
   ) {
     this.modelo = new ModeloJugador(aspecto);
+    // como el jugador: los pies se apoyan en el terreno real, no en un suelo plano imaginario
+    const abajo = new THREE.Vector3(0, -1, 0);
+    const origen = new THREE.Vector3();
+    this.modelo.sueloEn = (p) => ctx.fisica.lanzarRayo(origen.copy(p).setY(p.y + 0.7), abajo, 1.6)?.punto.y ?? null;
     ctx.escena.add(this.modelo.grupo);
     this.posicion.copy(pies).setY(pies.y + CENTRO);
     this.posPrevia.copy(this.posicion);

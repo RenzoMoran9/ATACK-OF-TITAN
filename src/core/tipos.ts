@@ -116,6 +116,8 @@ export interface TitanAPI {
   readonly objetivo: Humano | null;
   /** Está a punto de agarrar (brazo atrás o agazapado para saltar): el HUD avisa. */
   readonly avisando?: boolean;
+  /** Pisadas dadas hasta ahora (para el sonido de cada paso). */
+  readonly pisadas?: number;
   /** Centro de la cabeza en mundo. */
   cabeza(): THREE.Vector3;
   /** Aplica un corte a una zona. El titán decide el efecto (regenera, cae, muere…). */
