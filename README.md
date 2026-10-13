@@ -32,8 +32,8 @@ npm run dev                       # http://localhost:5173
 | --- | --- |
 | Clic izquierdo / **Q** | Gancho izquierdo — mantener = recoger cable, soltar = desenganchar |
 | Clic derecho / **E** | Gancho derecho — igual |
-| **Espacio** | Impulso de gas (hacia donde pulsas o hacia donde miras; anclado, orbita el ancla) |
-| **Shift** | Salto en el suelo / freno en el aire; justo antes de tocar el suelo, **rodada** (evita el daño por caída) |
+| **Espacio** | En el suelo, **salto**. En el aire sin ganchos: solo, **freno** (corta la caída y te deja bajar despacio, gasta gas); con WASD, impulso de gas. Enganchado: impulso hacia donde pulsas o miras y órbita del ancla |
+| **Shift** (mantener) | **Correr** a pie; gasta la barra de **aguante**, que se recupera al parar (vacía, te agotas y andas más lento). Shift o Espacio justo antes de tocar el suelo: **rodada** (evita el daño por caída) |
 | **WASD** | Mover en el suelo, ajustar la trayectoria en el aire |
 | **F** | Tajo: un toque = tajo rápido; mantener = enroscarse y cargar; soltar = barrido. Agarrado por un titán: pulsa F muchas veces para cortarle los dedos |
 | **R** | Cambiar de par de cuchillas (4 de repuesto) |

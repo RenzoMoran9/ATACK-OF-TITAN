@@ -15,6 +15,7 @@ export function crearPanel(puntos: string[], horaInicial: Hora, acciones: Accion
   const gui = new GUI({ title: 'Ajustes (F1)' });
   const j = gui.addFolder('Jugador');
   j.add(config.jugador, 'velocidadAndar', 1, 20, 0.1).name('velocidad andar');
+  j.add(config.jugador, 'velocidadCorrer', 1, 25, 0.1).name('velocidad correr');
   j.add(config.jugador, 'aceleracionSuelo', 5, 120, 1).name('aceleración suelo');
   j.add(config.jugador, 'controlAereo', 0, 30, 0.5).name('control aéreo');
   j.add(config.jugador, 'salto', 1, 15, 0.1);
@@ -37,7 +38,8 @@ export function crearPanel(puntos: string[], horaInicial: Hora, acciones: Accion
   g.add(config.gas, 'costeDisparo', 0, 10, 0.1).name('coste disparo');
   g.add(config.gas, 'costeRecogidaPorSegundo', 0, 20, 0.1).name('recoger /s');
   g.add(config.gas, 'costeImpulsoPorSegundo', 0, 40, 0.5).name('impulso /s');
-  g.add(config.gas, 'costeFreno', 0, 50, 1).name('coste freno');
+  g.add(config.gas, 'costeFreno', 0, 50, 1).name('coste freno (golpe)');
+  g.add(config.gas, 'costeFrenoPorSegundo', 0, 50, 0.5).name('coste freno / s');
   g.add(config.gas, 'recargaPorSegundo', 1, 100, 1).name('recarga /s');
   const dep = { gasInfinito: false, fps: false, sombras: config.render.sombras, hora: horaInicial, ir: puntos[0] ?? '' };
   g.add(dep, 'gasInfinito').name('gas infinito').onChange(acciones.gasInfinito);

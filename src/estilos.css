@@ -206,7 +206,7 @@ body {
   gap: 8px;
 }
 .hud-barras .fila > span:first-child {
-  width: 36px;
+  width: 62px;
 }
 .hud-barras .barra {
   width: 150px;
@@ -225,6 +225,28 @@ body {
 .hud-barras .vida.bajo,
 .hud-barras .filo.bajo {
   background: #d9583f;
+}
+.hud-barras .aguante {
+  height: 100%;
+  background: linear-gradient(90deg, #d8b25a, #f2dc93);
+  transition: width 0.1s linear;
+}
+.hud-barras .aguante.agotado {
+  background: #c2703c;
+  animation: aguante-agotado 0.6s ease-in-out infinite alternate;
+}
+@keyframes aguante-agotado {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.4;
+  }
+}
+/* llena: la fila se apaga para no estorbar */
+.hud-barras .fila.llena {
+  opacity: 0.45;
+  transition: opacity 0.6s;
 }
 .hud-barras .repuesto {
   font-size: 13px;

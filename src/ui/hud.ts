@@ -26,6 +26,7 @@ export class Hud {
   private readonly fps: HTMLDivElement;
   private readonly vida: HTMLDivElement;
   private readonly filo: HTMLDivElement;
+  private readonly aguante: HTMLDivElement;
   private readonly repuesto: HTMLSpanElement;
   private readonly estadoCuchillas: HTMLSpanElement;
   private readonly objetivo: HTMLDivElement;
@@ -62,6 +63,7 @@ export class Hud {
         </div>
         <div class="hud-barras">
           <div class="fila"><span>VIDA</span><div class="barra"><div class="vida"></div></div></div>
+          <div class="fila"><span>AGUANTE</span><div class="barra"><div class="aguante"></div></div></div>
           <div class="fila"><span>FILO</span><div class="barra"><div class="filo"></div></div><span class="repuesto">×4</span></div>
           <span class="estado-cuchillas"></span>
         </div>
@@ -88,6 +90,7 @@ export class Hud {
     this.fps = q('.hud-fps');
     this.vida = q('.vida');
     this.filo = q('.filo');
+    this.aguante = q('.aguante');
     this.repuesto = q('.repuesto');
     this.estadoCuchillas = q('.estado-cuchillas');
     this.objetivo = q('.hud-objetivo .titulo');
@@ -145,7 +148,7 @@ export class Hud {
       const { deposito, distancia } = depositoMasCercano(ctx.mundo, jugador.pos);
       lineas.push(`<div>${deposito.nombre} <i>${Math.round(distancia)} m ${flecha(deposito.pos)}</i></div>`);
     } else lineas.push('<div class="apagado">Depósito tomado por titanes: despéjalo</div>');
-    if (vacio) lineas.push('<div class="apagado">A pie: WASD para correr, Shift para saltar; busca un tejado</div>');
+    if (vacio) lineas.push('<div class="apagado">A pie: Shift para correr, Espacio para saltar; busca un tejado</div>');
     const html = lineas.join('');
     if (this.sinGas.innerHTML !== html) this.sinGas.innerHTML = html;
   }
@@ -160,6 +163,10 @@ export class Hud {
     this.textoGas.textContent = Math.round(jugador.gas.nivel).toString();
     this.vida.style.width = `${(jugador.salud / jugador.saludMax) * 100}%`;
     this.vida.classList.toggle('bajo', jugador.salud < 30);
+    const ag = jugador.aguante;
+    this.aguante.style.width = `${(ag.fraccion * 100).toFixed(1)}%`;
+    this.aguante.classList.toggle('agotado', ag.agotado);
+    this.aguante.parentElement!.parentElement!.classList.toggle('llena', ag.fraccion >= 0.999);
     const c = jugador.combate?.cuchillas;
     if (c) {
       this.filo.style.width = `${c.filo * 100}%`;

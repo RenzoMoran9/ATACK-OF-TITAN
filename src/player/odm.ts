@@ -66,6 +66,8 @@ export interface ContextoODM {
   entrada: Entrada;
   /** Dirección de impulso deseada (WASD respecto a la cámara, o la mirada). */
   dirImpulso: THREE.Vector3;
+  /** Espacio cuenta como impulso de gas (no como salto ni freno). */
+  impulso: boolean;
 }
 
 export class EquipoODM {
@@ -232,7 +234,7 @@ export class EquipoODM {
 
     // Impulso de gas (Espacio): en la dirección deseada; anclado, añade componente para orbitar
     this.impulsando = false;
-    if (c.entrada.mantenida('Space')) {
+    if (c.impulso) {
       const f = this.gasInfinito ? 1 : c.gas.consumirContinuo(gc.costeImpulsoPorSegundo, dt);
       if (f > 0) {
         this.impulsando = true;

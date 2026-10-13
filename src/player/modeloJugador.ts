@@ -566,7 +566,8 @@ export class ModeloJugador {
       P[`munecaX${s}`] = THREE.MathUtils.lerp(2.2, 2.5, a);
     }
     P.pelvisY = -0.02 - 0.05 * (0.5 + 0.5 * Math.cos(2 * φ)) * a * w;
-    P.torsoX += (0.14 + THREE.MathUtils.clamp(acelFrente * 0.015, -0.1, 0.2)) * w;
+    // esprintando (Shift) el cuerpo va más echado hacia delante
+    P.torsoX += (0.14 + 0.16 * THREE.MathUtils.smoothstep(vh, 7.5, 11) + THREE.MathUtils.clamp(acelFrente * 0.015, -0.1, 0.2)) * w;
     P.torsoY = -0.16 * Math.sin(φ) * w;
     P.torsoZ = 0.05 * Math.sin(φ) * w * a;
     P.cabezaY = -P.torsoY;

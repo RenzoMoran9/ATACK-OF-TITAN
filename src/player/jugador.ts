@@ -7,6 +7,7 @@ import type { Entrada } from '../core/entrada';
 import type { Fisica } from '../core/fisica';
 import { nuevoId } from '../core/poblacion';
 import type { JugadorAPI, TitanAPI } from '../core/tipos';
+import { Aguante } from './aguante';
 import { CombateJugador } from './combate';
 import { DepositoGas } from './gas';
 import { ModeloJugador } from './modeloJugador';
@@ -27,6 +28,7 @@ export interface Mirada {
 }
 
 const MITAD_ALTURA_CENTRO = 0.85; // del suelo al centro de la cápsula
+const ARRIBA = new THREE.Vector3(0, 1, 0);
 
 export class Jugador implements JugadorAPI {
   // ── Humano / JugadorAPI ──
@@ -80,6 +82,7 @@ export class Jugador implements JugadorAPI {
   reabastecer(): void {
     this.gas.recargar(this.gas.capacidad);
     this.combate?.cuchillas.rellenar();
+    this.aguante.rellenar();
   }
   recogerEquipo(gas: number, pares: number): void {
     this.gas.recargar(gas);
@@ -102,7 +105,21 @@ export class Jugador implements JugadorAPI {
   /** Segundos desde el último daño (la vida se regenera fuera de combate). */
   private sinDanio = 99;
   private tiempo = 0;
+  /** Última pulsación en el aire que prepara la rodada (Shift o Espacio). */
   private ultimoShiftAire = -9;
+  /** Último instante en el suelo (margen para saltar al salir de un borde) y del último salto. */
+  private tUltimoSuelo = -9;
+  private tSalto = -9;
+  /**
+   * Dónde empezó la pulsación de Espacio en curso: en el suelo es un salto; en el aire sin
+   * ganchos, freno o impulso; enganchado, impulso (que no se vuelve freno al soltar los cables).
+   */
+  private modoEspacio: 'ninguno' | 'salto' | 'aire' | 'anclado' = 'ninguno';
+  /** Frenando en el aire con Espacio (sin ganchos ni dirección). */
+  frenando = false;
+  /** Esprintando a pie con Shift. */
+  corriendo = false;
+  readonly aguante = new Aguante();
   private ultimoGolpeTitan = -9;
   private tAterrizaje: number | null = null;
   private impactoAterrizaje = 0;
@@ -221,6 +238,9 @@ export class Jugador implements JugadorAPI {
     this.cuerpo.setTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z }, true);
     this.cuerpo.setNextKinematicTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z });
     this.odm.liberarTodo();
+    // el controlador recalcula el suelo en el siguiente paso; sin margen de salto heredado
+    this.enSuelo = false;
+    this.tUltimoSuelo = -9;
     if (rumbo !== undefined) {
       this.rumbo = rumbo;
       this.rumboFijo = rumbo;
@@ -274,18 +294,39 @@ export class Jugador implements JugadorAPI {
 
     this.vel.y -= config.fisica.gravedad * dt;
 
+    // Espacio: salto en el suelo; en el aire sin ganchos, freno (solo) o impulso (con WASD);
+    // anclado, impulso y órbita como siempre. Una pulsación que empezó en el suelo (el salto)
+    // no se convierte en freno ni impulso aunque se mantenga.
+    const pulsoEspacio = entrada.consumir('Space');
+    const espacio = entrada.mantenida('Space') || pulsoEspacio;
+    const anclado = this.odm.anclados.length > 0;
+    if (this.enSuelo) this.tUltimoSuelo = this.tiempo;
+    const enSueloOBorde = this.tiempo - this.tUltimoSuelo < 0.12;
+    if (!espacio) this.modoEspacio = 'ninguno';
+    else if (pulsoEspacio) this.modoEspacio = anclado ? 'anclado' : enSueloOBorde ? 'salto' : 'aire';
+    const enAire = this.modoEspacio === 'aire';
+    const frenar = enAire && !this.enSuelo && !anclado && deseo.lengthSq() === 0;
+    const impulso = espacio && (anclado || (enAire && !frenar));
+
     // Impulso: hacia donde pulsas, o hacia donde miras si no pulsas nada
     const dirImpulso = deseo.lengthSq() > 0 ? deseo.clone().setY(Math.max(0.12, mirada.dir.y * 0.6)).normalize() : mirada.dir.clone();
     this.dirImpulso.copy(dirImpulso);
     this.dirMirada.copy(mirada.dir);
-    this.odm.actualizar(dt, { pos: this.pos, vel: this.vel, gas: this.gas, entrada, dirImpulso }, this.salida, mirada.dir);
+    this.odm.actualizar(dt, { pos: this.pos, vel: this.vel, gas: this.gas, entrada, dirImpulso, impulso }, this.salida, mirada.dir);
     const tirando = this.odm.recogiendo || this.odm.impulsando;
 
-    const shift = entrada.consumir('ShiftLeft') || entrada.consumir('ShiftRight');
-    if (shift && !this.enSuelo) this.ultimoShiftAire = this.tiempo;
+    // Shift: correr a pie (gasta aguante); en el aire prepara la rodada
+    const shiftPulsado = entrada.consumir('ShiftLeft') || entrada.consumir('ShiftRight');
+    const shift = entrada.mantenida('ShiftLeft') || entrada.mantenida('ShiftRight');
+    if ((shiftPulsado || pulsoEspacio) && !this.enSuelo) this.ultimoShiftAire = this.tiempo;
+    const quiereCorrer = shift && this.enSuelo && !tirando && deseo.lengthSq() > 0 && this.rodando <= 0;
+    this.corriendo = quiereCorrer && this.aguante.puedeCorrer;
+    this.aguante.paso(dt, this.corriendo);
+
     if (this.enSuelo && !tirando) {
-      // En el suelo: acelerar hacia la velocidad de carrera deseada
-      const objetivo = deseo.clone().multiplyScalar(j.velocidadAndar);
+      // En el suelo: acelerar hacia la velocidad de andar o de carrera
+      const v = this.corriendo ? j.velocidadCorrer : this.aguante.agotado ? j.velocidadAndar * 0.75 : j.velocidadAndar;
+      const objetivo = deseo.clone().multiplyScalar(v);
       const dvx = objetivo.x - this.vel.x;
       const dvz = objetivo.z - this.vel.z;
       const dv = Math.hypot(dvx, dvz);
@@ -293,16 +334,44 @@ export class Jugador implements JugadorAPI {
       const k = dv > maxDv ? maxDv / dv : 1;
       this.vel.x += dvx * k;
       this.vel.z += dvz * k;
-      if (shift && this.rodando <= 0) this.vel.y = j.salto;
     } else {
-      this.vel.addScaledVector(deseo, j.controlAereo * dt);
+      // Control en el aire: corrige la trayectoria, pero sin gas no acelera más allá de la carrera
+      const avance = this.vel.x * deseo.x + this.vel.z * deseo.z;
+      if (tirando || avance < j.velocidadCorrer) this.vel.addScaledVector(deseo, j.controlAereo * dt);
       this.vel.multiplyScalar(1 - j.resistenciaAire * dt);
-      // Freno de emergencia: el gas frena una caída sin ganchos, a gran coste
-      if (shift && this.vel.y < 0 && (this.odm.gasInfinito || this.gas.consumir(config.gas.costeFreno))) {
-        this.vel.y *= config.odm.frenoEmergencia;
-        this.vel.x *= 0.6;
-        this.vel.z *= 0.6;
-        this.emitirChorro(new THREE.Vector3(0, -1, 0), 14);
+    }
+
+    // Salto: en el suelo o justo al salir de un borde (un pelín de margen)
+    if (pulsoEspacio && this.modoEspacio === 'salto' && this.tiempo - this.tSalto > 0.3 && this.rodando <= 0) {
+      this.tSalto = this.tiempo;
+      this.vel.y = Math.max(this.vel.y, j.salto * this.aguante.saltar());
+      // saltar corriendo conserva (y estira un poco) la zancada
+      if (this.corriendo) {
+        this.vel.x *= 1.08;
+        this.vel.z *= 1.08;
+      }
+      this.enSuelo = false;
+      this.tUltimoSuelo = -9;
+    }
+
+    // Freno en el aire (Espacio sin ganchos): un golpe de gas que corta la caída y, mientras
+    // se mantiene, frena el avance y deja bajar despacio
+    const empiezaFreno = frenar && !this.frenando;
+    this.frenando = false;
+    if (frenar) {
+      const puedePagar = this.odm.gasInfinito || !empiezaFreno || this.gas.consumir(config.gas.costeFreno);
+      const f = !puedePagar ? 0 : this.odm.gasInfinito ? 1 : this.gas.consumirContinuo(config.gas.costeFrenoPorSegundo, dt);
+      if (f > 0) {
+        this.frenando = true;
+        if (empiezaFreno && this.vel.y < 0) this.vel.y *= config.odm.frenoEmergencia;
+        const kh = Math.exp(-3.5 * f * dt);
+        this.vel.x *= kh;
+        this.vel.z *= kh;
+        // casi compensa la gravedad y limita la velocidad de caída
+        this.vel.y += config.fisica.gravedad * 0.85 * f * dt;
+        if (this.vel.y < -2) this.vel.y += (-2 - this.vel.y) * Math.min(1, 8 * f * dt);
+        if (this.vel.y > 1.5) this.vel.y = 1.5;
+        if (empiezaFreno || Math.random() < 0.6) this.emitirChorro(new THREE.Vector3(0, -1, 0), empiezaFreno ? 14 : 8);
       }
     }
 
@@ -413,7 +482,7 @@ export class Jugador implements JugadorAPI {
       enSuelo: this.enSuelo,
       anclas: this.odm.anclados.map((g) => g.ancla),
       recogiendo: this.odm.recogiendo,
-      impulsando: this.odm.impulsando,
+      impulsando: this.odm.impulsando || this.frenando,
       corte: this.combate?.progresoTajo ?? null,
       giro: !!this.combate?.tajo?.giro,
       preparandoCorte: !!this.combate?.preparando,
@@ -423,7 +492,8 @@ export class Jugador implements JugadorAPI {
       muerto: !this.vivo,
       aterrizaje: this.tAterrizaje,
       impactoAterrizaje: this.impactoAterrizaje,
-      dirImpulso: this.dirImpulso,
+      // frenando: piernas recogidas, como el impulso hacia arriba
+      dirImpulso: this.frenando ? ARRIBA : this.dirImpulso,
       mirar: this.posRender.clone().addScaledVector(this.dirMirada, 40),
       filo: this.combate?.cuchillas.rota ? 0 : 1,
       objetivoCorte: this.combate?.objetivoTajo ?? null,

@@ -165,7 +165,7 @@ export interface EstadoAnimacion {
   preparandoCorte?: boolean;
   /** Cambiando de par de cuchillas. */
   cambiandoCuchillas?: boolean;
-  /** Rodada al aterrizar (Shift justo antes de tocar el suelo). */
+  /** Rodada al aterrizar (Shift o Espacio justo antes de tocar el suelo). */
   rodando?: boolean;
   agarrado: boolean;
   muerto: boolean;

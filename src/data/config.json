@@ -7,9 +7,10 @@
     "altura": 1.7,
     "radio": 0.32,
     "velocidadAndar": 7,
+    "velocidadCorrer": 11.5,
     "aceleracionSuelo": 45,
     "controlAereo": 9,
-    "salto": 6.5,
+    "salto": 7.2,
     "resistenciaAire": 0.04,
     "velocidadMaxima": 45
   },
@@ -30,7 +31,8 @@
     "costeDisparo": 1,
     "costeRecogidaPorSegundo": 2.5,
     "costeImpulsoPorSegundo": 9,
-    "costeFreno": 15,
+    "costeFreno": 3,
+    "costeFrenoPorSegundo": 11,
     "recargaPorSegundo": 35,
     "radioRecarga": 6
   },

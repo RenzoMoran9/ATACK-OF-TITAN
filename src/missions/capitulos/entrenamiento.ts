@@ -52,7 +52,7 @@ export class CapEntrenamiento implements Capitulo {
     const a = this.api;
     switch (this.paso) {
       case 0:
-        a.objetivo('Ve al campo de siluetas en el borde del bosque', 'Corre o impúlsate con Espacio; engánchate a los troncos con clic izq/der');
+        a.objetivo('Ve al campo de siluetas en el borde del bosque', 'Corre con Shift, salta con Espacio; engánchate a los troncos con clic izq/der');
         break;
       case 1:
         a.objetivo('Silueta de 3 m: córtale la nuca (franja roja)', 'Engánchate a ella, recoge cable y pulsa F al pasar por detrás');
