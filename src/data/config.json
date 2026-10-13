@@ -27,7 +27,7 @@
     "frenoEmergencia": 0.2
   },
   "gas": {
-    "capacidad": 100,
+    "capacidad": 150,
     "costeDisparo": 1,
     "costeRecogidaPorSegundo": 2.5,
     "costeImpulsoPorSegundo": 9,

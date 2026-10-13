@@ -196,6 +196,8 @@ export interface AspectoSoldado {
   escala?: number;
   /** Color de bufanda (la roja de Mikasa). */
   bufanda?: string;
+  /** Mochila con bombonas de gas de repuesto (el intendente). */
+  tanques?: boolean;
 }
 
 // ───────────────────────── Gestores (los implementa cada sistema) ─────────────────────────
@@ -228,7 +230,8 @@ export interface GestorTitanesAPI {
   dibujar(dt: number, t: number): void;
 }
 
-export type RolSoldado = 'cebo' | 'apoyo' | 'rematador';
+/** intendente: no pelea; lleva mucho gas y lo reparte a quien se quede sin él. */
+export type RolSoldado = 'cebo' | 'apoyo' | 'rematador' | 'intendente';
 
 // ── Órdenes del escuadrón (teclas 1–8; Tab elige a quién) ──
 export type OrdenEscuadron =

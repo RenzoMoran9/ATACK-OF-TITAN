@@ -242,6 +242,15 @@ export class ModeloJugador {
       melena.scale.set(1.04, 1.25, 1.02);
       k.add(melena);
     }
+    if (aspecto.tanques) {
+      // intendente: mochila con dos bombonas de gas de repuesto a la espalda
+      for (const s of [-1, 1]) {
+        t.add(mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.46, 12), metal, s * 0.1, 0.24, -0.22));
+        t.add(mesh(new THREE.SphereGeometry(0.075, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), metal, s * 0.1, 0.47, -0.22));
+      }
+      t.add(mesh(new THREE.BoxGeometry(0.3, 0.05, 0.06), correa, 0, 0.12, -0.2));
+      t.add(mesh(new THREE.BoxGeometry(0.3, 0.05, 0.06), correa, 0, 0.36, -0.2));
+    }
     if (aspecto.bufanda) {
       // la bufanda roja de Mikasa
       const bufanda = mesh(new THREE.TorusGeometry(0.075, 0.035, 8, 18), lam(aspecto.bufanda), 0, 0.03, 0.005);

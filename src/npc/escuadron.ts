@@ -2,7 +2,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { ContextoJuego } from '../core/contexto';
 import type { Fisica } from '../core/fisica';
-import type { AspectoSoldado, DestinoOrden, EscuadronAPI, Humano, InfoSoldado, MiembroEscuadron, OrdenEscuadron, TitanAPI, ZonaTitan } from '../core/tipos';
+import type { AspectoSoldado, DestinoOrden, EscuadronAPI, Humano, InfoSoldado, MiembroEscuadron, OrdenEscuadron, RolSoldado, TitanAPI, ZonaTitan } from '../core/tipos';
 import { Silueta } from '../missions/silueta';
 import { Particulas } from '../player/particulas';
 import { COLOR_AVISO, COLOR_BENGALA, fraseConfirmacion, necesitaRecarga, puesto, puntoPatrulla, siguienteSeleccion, textoAviso } from './logicaOrdenes';
@@ -36,6 +36,10 @@ const ASPECTOS: Record<string, AspectoSoldado & { habilidad?: number }> = {
   Thomas: { pelo: '#c9a56a', habilidad: 0.85 },
   Mina: { pelo: '#1e1a18', peloLargo: true, escala: 0.94, habilidad: 0.85 },
   Nac: { pelo: '#5a3b24', habilidad: 0.9 },
+  Moblit: { pelo: '#6a4a2c', habilidad: 0.85, tanques: true },
+  Reiner: { pelo: '#d9c27a', escala: 1.08, habilidad: 1.3 },
+  Bertholdt: { pelo: '#2a1f18', escala: 1.1, habilidad: 1.1 },
+  Ymir: { pelo: '#3b2a1e', peloLargo: true, habilidad: 1.1 },
 };
 
 /** Huecos de la formación detrás del jugador (x lateral, z hacia atrás). */
@@ -158,7 +162,7 @@ export class Escuadron implements EscuadronAPI {
     return {
       orden: s.orden.tipo,
       actividad: s.vivo ? s.actividad() : '',
-      gas: s.gas,
+      gas: (s.gas / s.gasMax) * 100,
       filo: s.cuchillas.filo,
       repuesto: s.cuchillas.repuesto,
       punto: s.orden.punto,
@@ -185,13 +189,15 @@ export class Escuadron implements EscuadronAPI {
     return d;
   }
 
-  /** Quién podría darte gas ahora mismo (para el HUD). */
+  /** Quién podría darte gas ahora mismo (para el HUD): el intendente primero, venga de donde venga. */
   donanteGas(): Soldado | null {
     const j = this.ctx.jugador;
+    const intendente = this.soldados.find((s) => s.rol === 'intendente' && s.vivo && !s.agarradoPor && s.gas > 60);
+    if (intendente && intendente.posicion.distanceTo(j.posicion) < 700) return intendente;
     let mejor: Soldado | null = null;
     let dMejor = 180;
     for (const s of this.soldados) {
-      if (!s.vivo || s.agarradoPor || s.gas < 35) continue;
+      if (!s.vivo || s.agarradoPor || s.gas < 30) continue;
       const d = s.posicion.distanceTo(j.posicion);
       if (d < dMejor) {
         dMejor = d;
@@ -218,13 +224,19 @@ export class Escuadron implements EscuadronAPI {
       s.paso(dt);
       if (!s.vivo) continue;
       const m = s.mision;
-      // entrega de gas al llegar junto al jugador
-      if (m.tipo === 'darGas' && s.posicion.distanceTo(j.posicion) < 5.5) {
-        const falta = j.gas.capacidad - j.gas.nivel;
-        const dado = s.darGas(Math.min(falta, 50));
-        j.gas.nivel = Math.min(j.gas.capacidad, j.gas.nivel + dado);
+      // entrega de gas al llegar junto a quien lo necesita (tú u otro soldado)
+      const receptor = m.tipo === 'darGas' ? (m.humano ?? j) : null;
+      if (receptor && (!receptor.vivo || receptor.agarradoPor)) s.mision = { tipo: 'seguir' };
+      else if (receptor && s.posicion.distanceTo(receptor.posicion) < 5.5) {
+        const companero = receptor instanceof Soldado ? receptor : null;
+        const falta = companero ? companero.gasMax - companero.gas : j.gas.capacidad - j.gas.nivel;
+        const dado = s.darGas(Math.min(falta, s.rol === 'intendente' ? 150 : 50));
+        if (companero) companero.gas = Math.min(companero.gasMax, companero.gas + dado);
+        else j.gas.nivel = Math.min(j.gas.capacidad, j.gas.nivel + dado);
         s.ultimaFrase = -99;
-        s.decir(dado > 0 ? `Toma, llévate mi gas (+${Math.round(dado)})` : 'Ya no me queda gas…');
+        const a = companero ? `${companero.nombre}, toma` : 'Toma';
+        s.decir(dado > 0 ? `${a}: gas de repuesto (+${Math.round(dado)})` : 'Ya no me queda gas…');
+        if (dado > 0 && !companero) this.ctx.eventos.emit({ tipo: 'recarga', quien: j });
         s.mision = { tipo: 'seguir' };
       }
       // recarga en el depósito
@@ -270,8 +282,21 @@ export class Escuadron implements EscuadronAPI {
       }
     }
 
-    // Quien lleva gas al jugador termina su entrega
+    // Quien lleva gas termina su entrega
     for (const s of libres) if (s.mision.tipo === 'darGas') asignados.add(s);
+
+    // El intendente reparte gas sin que se lo pidan: a ti primero, luego al que vaya más justo
+    for (const s of libres) {
+      if (s.rol !== 'intendente' || asignados.has(s) || s.gas < 60) continue;
+      const quien = this.necesitaGas(s);
+      if (!quien) continue;
+      if (!(s.mision.tipo === 'darGas' && s.mision.humano === quien)) {
+        s.mision = { tipo: 'darGas', humano: quien };
+        s.ultimaFrase = -99;
+        s.decir(quien === j ? '¡Vas justo de gas, te llevo una bombona!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, te llevo gas!`);
+      }
+      asignados.add(s);
+    }
 
     // 1. Rescates: alguien en la mano de un titán (no quien está en retirada)
     for (const h of ctx.poblacion.humanos) {
@@ -303,11 +328,12 @@ export class Escuadron implements EscuadronAPI {
         asignados.add(s);
         continue;
       }
-      if (ctx.reloj.t < s.vetoRecarga || !necesitaRecarga(s.gas, s.cuchillas.filo, s.cuchillas.repuesto)) continue;
+      const gasPct = (s.gas / s.gasMax) * 100;
+      if (ctx.reloj.t < s.vetoRecarga || !necesitaRecarga(gasPct, s.cuchillas.filo, s.cuchillas.repuesto)) continue;
       const destino = this.puntoDeposito(s.posicion);
       if (!destino) continue;
       s.mision = { tipo: 'recargar', destino, hasta: ctx.reloj.t + 60 };
-      s.decir(s.gas < 25 ? 'Me queda poco gas: voy al depósito' : 'Me he quedado sin cuchillas: voy al depósito');
+      s.decir(gasPct < 25 ? 'Me queda poco gas: voy al depósito' : 'Me he quedado sin cuchillas: voy al depósito');
       asignados.add(s);
     }
 
@@ -374,7 +400,7 @@ export class Escuadron implements EscuadronAPI {
     const tumbado = objetivo.estado === 'derribado' || objetivo.estado === 'cegado';
     const tendon = TENDONES.find((z) => objetivo.puntosDebiles.some((p) => p.zona === z && p.activo));
     let cebo = false;
-    const orden = { cebo: 0, apoyo: 1, rematador: 2 } as const;
+    const orden: Record<RolSoldado, number> = { cebo: 0, apoyo: 1, rematador: 2, intendente: 3 };
     for (const s of [...equipo].sort((a, b) => orden[a.rol] - orden[b.rol])) {
       let m: { cebo?: boolean; zona?: ZonaTitan };
       if (s.rol === 'cebo' && !cebo && equipo.length > 1 && !tumbado) {
@@ -391,7 +417,22 @@ export class Escuadron implements EscuadronAPI {
   }
 
   /** El titán al que va un soldado según su orden (los que comparten criterio comparten cálculo). */
+  /** A quién le hace falta gas (para el intendente): el jugador por debajo del 35 %, o el compañero más justo. */
+  private necesitaGas(intendente: Soldado): Humano | null {
+    const j = this.ctx.jugador;
+    if (j.vivo && !j.agarradoPor && j.gas.nivel < j.gas.capacidad * 0.35) return j;
+    let peor: Soldado | null = null;
+    for (const s of this.soldados) {
+      if (s === intendente || !s.vivo || s.agarradoPor || s.mision.tipo === 'recargar') continue;
+      if (s.gas > s.gasMax * 0.3 || s.posicion.distanceTo(intendente.posicion) > 400) continue;
+      if (!peor || s.gas < peor.gas) peor = s;
+    }
+    return peor;
+  }
+
   private titanPara(s: Soldado, memo: Map<unknown, TitanAPI | null>): TitanAPI | null {
+    // el intendente no se mete en la pelea: cuida de las bombonas
+    if (s.rol === 'intendente') return null;
     const o = s.orden;
     const calcular = (clave: unknown, f: () => TitanAPI | null): TitanAPI | null => {
       if (!memo.has(clave)) memo.set(clave, f());

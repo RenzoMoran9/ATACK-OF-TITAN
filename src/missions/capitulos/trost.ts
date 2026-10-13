@@ -1,3 +1,4 @@
+import type { RolSoldado } from '../../core/tipos';
 import * as THREE from 'three';
 import { puntoAnillo } from '../../world/muralla';
 import type { ApiCapitulo, Capitulo } from '../campana';
@@ -57,6 +58,7 @@ export class CapTrost implements Capitulo {
         { nombre: 'Thomas', rol: 'apoyo', aspecto: { pelo: '#c9a56a' } },
         { nombre: 'Mina', rol: 'apoyo', aspecto: { pelo: '#1e1a18', peloLargo: true, escala: 0.94 } },
         { nombre: 'Nac', rol: 'rematador', aspecto: { pelo: '#5a3b24' } },
+        { nombre: 'Moblit', rol: 'intendente' },
       ],
       puntoAnillo(0.14, m.radioInterior + 5, m.altura),
     );
@@ -163,7 +165,7 @@ export class CapTrost implements Capitulo {
             { nombre: 'Connie', rol: 'apoyo' as const, aspecto: { pelo: '#3a3a3a', escala: 0.92 } },
             { nombre: 'Sasha', rol: 'cebo' as const, aspecto: { pelo: '#6b4428', peloLargo: true, escala: 0.96 } },
           ];
-          const roles: Record<string, 'cebo' | 'apoyo' | 'rematador'> = { Armin: 'cebo', Thomas: 'apoyo', Mina: 'apoyo', Nac: 'rematador' };
+          const roles: Record<string, RolSoldado> = { Armin: 'cebo', Thomas: 'apoyo', Mina: 'apoyo', Nac: 'rematador', Moblit: 'intendente' };
           const cerca = ctx.jugador.posicion.clone().setY(0);
           ctx.escuadron.limpiar();
           ctx.escuadron.crear([...vivos.map((n) => ({ nombre: n, rol: roles[n] ?? 'apoyo' })), ...nuevos], cerca);

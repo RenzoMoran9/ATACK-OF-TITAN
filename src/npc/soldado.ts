@@ -90,7 +90,9 @@ export class Soldado implements Humano {
   readonly velocidad = new THREE.Vector3();
   vivo = true;
   agarradoPor: TitanAPI | null = null;
-  gas = 100;
+  /** Gas máximo: 120 (el intendente lleva 400 en bombonas de repuesto). */
+  readonly gasMax: number;
+  gas: number;
   readonly cuchillas = new Cuchillas();
   readonly modelo: ModeloJugador;
   mision: Mision = { tipo: 'seguir' };
@@ -146,6 +148,8 @@ export class Soldado implements Humano {
     /** Partículas compartidas del escuadrón para las bocanadas de gas. */
     private readonly chorros: Particulas | null = null,
   ) {
+    this.gasMax = rol === 'intendente' ? 400 : 120;
+    this.gas = this.gasMax;
     this.modelo = new ModeloJugador(aspecto);
     // como el jugador: los pies se apoyan en el terreno real, no en un suelo plano imaginario
     const abajo = new THREE.Vector3(0, -1, 0);
@@ -661,13 +665,14 @@ export class Soldado implements Humano {
 
   /** Gas al máximo y vainas llenas (depósito). */
   reabastecer(): void {
-    this.gas = 100;
+    this.gas = this.gasMax;
     this.cuchillas.rellenar();
   }
 
-  /** Pasa gas al jugador (como Armin con Mikasa en Trost). Devuelve lo que ha dado. */
+  /** Pasa gas a otro (como Armin con Mikasa en Trost). Devuelve lo que ha dado. */
   darGas(cantidad: number): number {
-    const dado = Math.max(0, Math.min(cantidad, this.gas - 15));
+    const reserva = this.rol === 'intendente' ? 40 : 15;
+    const dado = Math.max(0, Math.min(cantidad, this.gas - reserva));
     this.gas -= dado;
     return dado;
   }

@@ -41,6 +41,7 @@ export class CapLibre implements Capitulo {
         { nombre: 'Armin', rol: 'cebo' },
         { nombre: 'Jean', rol: 'apoyo' },
         { nombre: 'Connie', rol: 'apoyo' },
+        { nombre: 'Moblit', rol: 'intendente' },
       ],
       inicio.clone().add(new THREE.Vector3(-5, 0, -4)),
     );
@@ -99,12 +100,14 @@ export class CapLibre implements Capitulo {
         { nombre: 'Reiner', rol: 'rematador' as const },
         { nombre: 'Bertholdt', rol: 'apoyo' as const },
         { nombre: 'Ymir', rol: 'cebo' as const },
+        { nombre: 'Moblit', rol: 'intendente' as const },
       ],
       [
         { nombre: 'Mikasa', rol: 'rematador' as const },
         { nombre: 'Armin', rol: 'cebo' as const },
         { nombre: 'Jean', rol: 'apoyo' as const },
         { nombre: 'Connie', rol: 'apoyo' as const },
+        { nombre: 'Moblit', rol: 'intendente' as const },
       ],
     ];
     const tanda = tandas[this.refuerzos % tandas.length];

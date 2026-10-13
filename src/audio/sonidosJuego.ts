@@ -113,7 +113,7 @@ export class SonidosJuego {
     });
     const rapidez = j.vel.length();
     s.bucle('bobina', vivo && j.odm.recogiendo ? 0.45 : 0, 0.85 + Math.min(0.4, rapidez / 90));
-    const impulsa = vivo && (j.odm.impulsando || j.frenando);
+    const impulsa = vivo && (j.odm.impulsando || j.frenando || j.elevando);
     if (impulsa && !this.impulsaba) s.tocar('gas_golpe', { volumen: 0.7 });
     this.impulsaba = impulsa;
     s.bucle('gas', impulsa ? 0.5 : 0);

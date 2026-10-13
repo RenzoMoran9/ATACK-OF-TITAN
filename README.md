@@ -35,7 +35,7 @@ npm run dev                       # http://localhost:5173
 | **Clic izquierdo** (o **F**) | **Tajo**: un toque = tajo rápido; mantener = enroscarse y cargar; soltar = barrido. Agarrado por un titán: clics rápidos para cortarle los dedos |
 | **Clic derecho** | Los **dos ganchos** a la vez hacia la mira — mantener = recoger cable, soltar = desenganchar |
 | **Q** / **E** | Solo el gancho izquierdo / derecho (para orbitar alrededor de un ancla) |
-| **Espacio** | En el suelo, **salto**. En el aire sin ganchos: solo, **freno** (corta la caída y te deja bajar despacio, gasta gas); con WASD, impulso de gas. Enganchado: impulso hacia donde pulsas o miras y órbita del ancla |
+| **Espacio** | Toque: **salto**. **Mantenido: salto con gas** — el gas te sigue empujando hasta **10 m** sobre el despegue y luego planeas despacio (para escapar de los que corren a cuatro patas o caer sobre un titán desde arriba); con WASD, el gas te lanza hacia delante. En el aire sin ganchos: solo, **freno**; con WASD, impulso. Enganchado: impulso y órbita del ancla |
 | **Shift** (mantener) | **Correr** a pie; gasta la barra de **aguante**, que se recupera al parar (vacía, te agotas y andas más lento). Shift o Espacio justo antes de tocar el suelo: **rodada** (evita el daño por caída) |
 | **WASD** | Mover en el suelo. En el aire sin cables ni gas: dirige el salto hacia donde pulsas sin perder impulso, y la tecla contraria frena (para caer justo sobre una rama) |
 | **R** | Cambiar de par de cuchillas (4 de repuesto) |
@@ -126,6 +126,10 @@ Te acompañan soldados con su propio equipo ODM (cables, bobina, impulsos) que h
 pone delante de la cara del titán para distraerlo, **el apoyo** le corta tendones y corvas para derribarlo y **el rematador**
 va a la nuca cuando el titán no le mira. Rescatan a quien esté en la mano de un titán, esquivan agarres según su habilidad
 (Mikasa y Levi mucho mejor que Armin), pueden morir (y dejan su equipo en el suelo) y te pasan gas si se lo pides.
+
+**Moblit, el intendente**, va en todos los escuadrones con una mochila de bombonas (400 de gas; los demás llevan 120 y tú
+150). No pelea: cuando a ti te queda menos del 35 % o a un compañero menos del 30 %, vuela hasta él y le pasa gas. Con
+**G** se lo pides a él primero, esté donde esté.
 
 Hay escuadrón en todos los capítulos (en el entrenamiento, tus compañeros cadetes). En la exploración, si cae entero,
 en la puerta sur, un puesto de avanzada o el campamento se te unen **refuerzos de la Legión**. Si das una orden y no

@@ -38,6 +38,7 @@ export class CapEntrenamiento implements Capitulo {
         { nombre: 'Armin', rol: 'cebo' },
         { nombre: 'Jean', rol: 'apoyo' },
         { nombre: 'Sasha', rol: 'apoyo' },
+        { nombre: 'Moblit', rol: 'intendente' },
       ],
       inicio.clone().add(new THREE.Vector3(-5, 0, -4)),
     );
