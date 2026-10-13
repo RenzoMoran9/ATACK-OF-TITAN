@@ -440,7 +440,12 @@ async function iniciar(): Promise<void> {
     ctx.suministros.dibujar(tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
     hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
-    if (controlesTactiles) controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false) || controlesTactiles.editando;
+    if (controlesTactiles) {
+      controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false) || controlesTactiles.editando;
+      const c = jugador.caballo;
+      const alLado = !!c && c.grupo.visible && jugador.vivo && !jugador.agarradoPor && Math.hypot(c.pos.x - jugador.pos.x, c.pos.z - jugador.pos.z) < 3.5 && jugador.pos.y < 4;
+      controlesTactiles.caballo(jugador.montado ? 'bajar' : alLado ? 'montar' : null);
+    }
     derechaCamara.setFromMatrixColumn(camara.matrixWorld, 0);
     calidad?.medir(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura);
     sonidos.actualizar(dt, (pantallas?.bloqueaJuego ?? false) || modoCaptura, camara.position, derechaCamara, ambiente.mezcla, cielo.esDeNoche);

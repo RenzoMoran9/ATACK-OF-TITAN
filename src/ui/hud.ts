@@ -283,9 +283,11 @@ export class Hud {
     // Pistas de lo que se puede hacer ahora mismo
     let pista = '';
     const caballo = jugador.caballo;
-    if (libre && jugador.combate?.pasadaBajaLista) pista = '<b>F</b> pasada baja: ¡al tendón!';
-    else if (libre && caballo && !jugador.montado && caballo.grupo.visible && Math.hypot(caballo.pos.x - jugador.pos.x, caballo.pos.z - jugador.pos.z) < 3.5) pista = '<b>C</b> montar a caballo';
-    else if (libre && jugador.montado) pista = '<b>Shift</b> galope · <b>Espacio</b> saltar de la silla · <b>C</b> bajar';
+    // en el celular, con los nombres de los botones (MONTAR ya sale como botón grande)
+    const tactil = document.body.classList.contains('tactil');
+    if (libre && jugador.combate?.pasadaBajaLista) pista = tactil ? '<b>TAJO</b> pasada baja: ¡al tendón!' : '<b>F</b> pasada baja: ¡al tendón!';
+    else if (!tactil && libre && caballo && !jugador.montado && caballo.grupo.visible && Math.hypot(caballo.pos.x - jugador.pos.x, caballo.pos.z - jugador.pos.z) < 3.5) pista = '<b>C</b> montar a caballo';
+    else if (libre && jugador.montado) pista = tactil ? 'Joystick al fondo: <b>galope</b> · <b>SALTO</b> salta de la silla' : '<b>Shift</b> galope · <b>Espacio</b> saltar de la silla · <b>C</b> bajar';
     this.accion.hidden = !pista;
     if (pista && this.accion.innerHTML !== pista) this.accion.innerHTML = pista;
 

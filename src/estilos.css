@@ -657,6 +657,22 @@ body {
   height: 64px;
   font-size: 10px;
 }
+.t-btn[hidden] {
+  display: none;
+}
+/* MONTAR / BAJAR: aparece al lado del caballo, a la izquierda de GANCHOS */
+.tactil-acciones .caballo {
+  right: calc(222px + env(safe-area-inset-right));
+  bottom: 40px;
+  width: 64px;
+  height: 64px;
+  font-size: 20px;
+  border-color: rgba(196, 138, 82, 0.9);
+  background: rgba(90, 55, 25, 0.5);
+}
+.tactil-acciones .caballo small {
+  font-size: 9px;
+}
 .tactil-acciones .chico {
   width: 58px;
   height: 58px;

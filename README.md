@@ -76,6 +76,7 @@ Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en
 | **GANCHOS** / **TAJO** | Clic derecho / clic izquierdo (mantener = recoger cable / cargar el tajo). Si arrastras sin soltarlos, apuntas a la vez |
 | **SALTO/GAS** | Espacio: salto, freno en el aire, impulso si mueves el joystick |
 | **◀ GANCHO** / **GANCHO ▶** | Q / E: el izquierdo junto al joystick (pulgar izquierdo), el derecho junto a GANCHOS (pulgar derecho) |
+| **♞ MONTAR** / **BAJAR** | Aparece a la izquierda de GANCHOS cuando estás al lado de tu caballo, y montado pasa a BAJAR. A caballo: joystick para dirigirlo (al fondo, galope) y SALTO/GAS para saltar de la silla. Si el caballo está lejos, ♞ Caballo en la fila de arriba le silba y viene |
 | Fila de arriba | Cuchillas (R), bengala (B), parte (X), caballo (C), dormir (H), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), sonido, pantalla completa, pausa |
 
 **Mover los botones:** en la pausa, **✥ Mover botones**: arrastra cada botón (y la fila de arriba) donde te quede cómodo, cambia su tamaño con − / + y pulsa **Listo**. Se guarda en el celular; **Restablecer** vuelve a la disposición original.

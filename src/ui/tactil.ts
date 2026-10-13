@@ -68,6 +68,7 @@ export class ControlesTactiles {
         <button class="t-btn medio salto" data-k="Space" data-mover="salto"><span>SALTO<br>GAS</span></button>
         <button class="t-btn chico q" data-k="KeyQ" data-mover="q"><span>◀</span><small>GANCHO</small></button>
         <button class="t-btn chico e" data-k="KeyE" data-mover="e"><span>▶</span><small>GANCHO</small></button>
+        <button class="t-btn medio caballo" data-k="KeyC" data-mover="caballo" hidden><span>♞</span><small>MONTAR</small></button>
       </div>
       <div class="tactil-menu" data-mover="menu">
         <button class="t-btn mini" data-k="KeyR" title="Cambiar cuchillas">⚔<small>R</small></button>
@@ -165,6 +166,26 @@ export class ControlesTactiles {
       b.addEventListener('pointercancel', soltar);
       b.addEventListener('contextmenu', (e) => e.preventDefault());
     }
+  }
+
+  /**
+   * Botón grande del caballo junto a los de acción: «MONTAR» al lado del caballo, «BAJAR»
+   * montado; si no, oculto (para silbarle está ♞ en la fila de arriba).
+   */
+  caballo(estado: 'montar' | 'bajar' | null): void {
+    const b = this.botonCaballo;
+    if (this.editando) {
+      b.hidden = false;
+      return;
+    }
+    b.hidden = estado === null;
+    const texto = estado === 'bajar' ? 'BAJAR' : 'MONTAR';
+    const s = b.querySelector('small')!;
+    if (s.textContent !== texto) s.textContent = texto;
+  }
+
+  private get botonCaballo(): HTMLButtonElement {
+    return this.raiz.querySelector<HTMLButtonElement>('.tactil-acciones .caballo')!;
   }
 
   /** Solo durante la partida: en menús y pausa se ocultan para poder tocar los botones de la pantalla. */
