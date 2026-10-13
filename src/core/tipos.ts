@@ -167,6 +167,8 @@ export interface EstadoAnimacion {
   preparandoCorte?: boolean;
   /** Cambiando de par de cuchillas. */
   cambiandoCuchillas?: boolean;
+  /** De pie en un tronco o una pared: normal de la superficie (los pies sobre ella). */
+  pegado?: THREE.Vector3 | null;
   /** Rodada al aterrizar (Shift o Espacio justo antes de tocar el suelo). */
   rodando?: boolean;
   agarrado: boolean;

@@ -46,8 +46,8 @@ export class ControlesTactiles {
         <button class="t-btn grande ganchos" data-k="Mouse2"><span>GANCHOS</span></button>
         <button class="t-btn grande tajo" data-k="Mouse0"><span>TAJO</span></button>
         <button class="t-btn medio salto" data-k="Space"><span>SALTO<br>GAS</span></button>
-        <button class="t-btn chico q" data-k="KeyQ">Q</button>
-        <button class="t-btn chico e" data-k="KeyE">E</button>
+        <button class="t-btn chico q" data-k="KeyQ"><span>◀</span><small>GANCHO</small></button>
+        <button class="t-btn chico e" data-k="KeyE"><span>▶</span><small>GANCHO</small></button>
       </div>
       <div class="tactil-menu">
         <button class="t-btn mini" data-k="KeyR" title="Cambiar cuchillas">⚔<small>R</small></button>
@@ -85,7 +85,9 @@ export class ControlesTactiles {
     for (const b of r.querySelectorAll<HTMLButtonElement>('.t-btn')) {
       const k = b.dataset.k;
       const accion = b.dataset.accion;
-      const apunta = b.closest('.tactil-acciones') !== null;
+      // los de acción giran la cámara si arrastras sin soltarlos (salvo el gancho izquierdo,
+      // que va con el pulgar del joystick)
+      const apunta = b.closest('.tactil-acciones') !== null && k !== 'KeyQ';
       let ultimo: { x: number; y: number } | null = null;
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();

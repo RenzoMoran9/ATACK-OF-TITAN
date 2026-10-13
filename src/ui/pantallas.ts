@@ -9,7 +9,8 @@ import { alCambiarInstalable, enModoApp, entrarPantallaCompleta, alternarPantall
 const CONTROLES = `
   <ul class="controles">
     <li><b>Clic izq</b> tajo (mantén para cargar) · <b>Clic der</b> los dos ganchos a la mira <i>(mantener = recoger cable)</i></li>
-    <li><b>Q / E</b> solo el gancho izquierdo / derecho (para orbitar)</li>
+    <li><b>Q / E</b> gancho izquierdo / derecho <b>automático</b>: se clava solo en lo que tengas a ese lado; mantén para balancearte (tipo Spider-Man) y suelta para salir despedido</li>
+    <li>Llega recogiendo cable a un tronco o pared y <b>sigue sujetando</b>: te quedas agachado de lado en él</li>
     <li><b>Espacio</b> saltar · mantenido: <b>salto con gas</b> hasta 10 m (con WASD, te lanza hacia delante) · en el aire: frena o planea</li>
     <li><b>Shift</b> (mantener) correr, gasta aguante · Shift o Espacio justo antes de tocar el suelo: rodada</li>
     <li><b>F</b> también da el tajo · <b>R</b> cambiar cuchillas · <b>WASD</b> mover · <b>Ratón/flechas</b> cámara</li>
@@ -22,7 +23,8 @@ const CONTROLES_TACTILES = `
   <ul class="controles">
     <li><b>Dedo izquierdo</b> joystick para moverte · empújalo hasta el borde para <b>correr</b></li>
     <li><b>Dedo derecho</b> arrastra para mirar · <b>GANCHOS</b> mantener = recoger cable · <b>TAJO</b> mantener = cargar</li>
-    <li><b>SALTO/GAS</b> toque = salto; mantenido = sube con gas hasta 10 m (con joystick, te lanza hacia delante); en el aire frena · <b>Q / E</b> un solo gancho</li>
+    <li><b>SALTO/GAS</b> toque = salto; mantenido = sube con gas hasta 10 m (con joystick, te lanza hacia delante); en el aire frena</li>
+    <li><b>◀ GANCHO</b> (pulgar izquierdo) y <b>GANCHO ▶</b> (pulgar derecho): se clavan solos a ese lado; mantén para balancearte y suelta para salir despedido</li>
     <li>Mientras mantienes un botón de acción, arrástralo para apuntar · arriba: cuchillas, luz, mapa, órdenes, pausa</li>
   </ul>`;
 

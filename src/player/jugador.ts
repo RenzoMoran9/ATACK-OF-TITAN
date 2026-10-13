@@ -62,6 +62,8 @@ export class Jugador implements JugadorAPI {
     this.agarradoPor = titan;
     this.brazoAgarre = brazo;
     this.odm.liberarTodo();
+    this.pegado = null;
+    this.odm.pegado = false;
     this.vel.set(0, 0, 0);
   }
   alSerSoltado(): void {
@@ -123,6 +125,8 @@ export class Jugador implements JugadorAPI {
   elevando = false;
   private subiendoGas = false;
   private ySalto = 0;
+  /** De pie en un tronco o una pared, sujeto por un cable (como en el anime). */
+  pegado: { punto: THREE.Vector3; normal: THREE.Vector3; gancho: number } | null = null;
   /** Esprintando a pie con Shift. */
   corriendo = false;
   readonly aguante = new Aguante();
@@ -175,6 +179,8 @@ export class Jugador implements JugadorAPI {
     if (!this.vivo) return;
     this.vivo = false;
     this.odm.liberarTodo();
+    this.pegado = null;
+    this.odm.pegado = false;
     this.modelo.grupo.visible = false;
     this.vel.set(0, 0, 0);
   }
@@ -251,6 +257,8 @@ export class Jugador implements JugadorAPI {
     this.cuerpo.setTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z }, true);
     this.cuerpo.setNextKinematicTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z });
     this.odm.liberarTodo();
+    this.pegado = null;
+    this.odm.pegado = false;
     // el controlador recalcula el suelo en el siguiente paso; sin margen de salto heredado
     this.enSuelo = false;
     this.tUltimoSuelo = -9;
@@ -433,6 +441,10 @@ export class Jugador implements JugadorAPI {
       }
     }
 
+    // De pie en la pared: al llegar recogiendo cable a un tronco o un muro (superficie casi
+    // vertical) y seguir sujetando el gancho, te quedas agachado de lado sobre ella
+    this.pasoPegado(dt, pulsoEspacio, deseo, mirada.dir);
+
     // Tajos, cambio de cuchillas e impulso asistido hacia el punto débil
     this.combate?.paso(dt, entrada, mirada.dir);
 
@@ -518,6 +530,41 @@ export class Jugador implements JugadorAPI {
     else if (this.odm.recogiendo && Math.random() < 0.5) this.emitirChorro(this.vel.clone().normalize().negate(), 5);
   }
 
+  private pasoPegado(dt: number, pulsoEspacio: boolean, deseo: THREE.Vector3, mirada: THREE.Vector3): void {
+    const ganchos = this.odm.ganchos;
+    if (!this.pegado) {
+      ganchos.forEach((g, i) => {
+        if (this.pegado || g.estado !== 'anclado' || !g.normalAncla || Math.abs(g.normalAncla.y) > 0.55) return;
+        if (this.pos.distanceTo(g.ancla) > 2.6) return;
+        this.pegado = { punto: g.ancla.clone(), normal: g.normalAncla.clone().setY(0).normalize(), gancho: i };
+        this.ctx?.eventos.emit({ tipo: 'mensaje', texto: 'En la pared: suelta el gancho para saltar · salto para impulsarte', segundos: 2.2 });
+      });
+      if (!this.pegado) {
+        this.odm.pegado = false;
+        return;
+      }
+    }
+    const p = this.pegado;
+    const n = p.normal;
+    const sigue = ganchos[p.gancho].estado === 'anclado';
+    if (!sigue || pulsoEspacio) {
+      // salto desde la pared: hacia fuera y arriba (con salto, el gas te lanza hacia donde miras)
+      this.pegado = null;
+      this.odm.pegado = false;
+      this.vel.copy(n).multiplyScalar(7).add(new THREE.Vector3(0, 5, 0)).addScaledVector(deseo, 5);
+      if (pulsoEspacio && (this.odm.gasInfinito || this.gas.consumir(4))) {
+        this.odm.liberarTodo();
+        this.vel.addScaledVector(mirada, 14);
+        this.emitirChorro(mirada.clone().negate(), 14);
+      }
+      return;
+    }
+    this.odm.pegado = true;
+    // quieto pegado a la superficie, sin gravedad
+    const objetivo = p.punto.clone().addScaledVector(n, 0.8).add(new THREE.Vector3(0, -0.2, 0));
+    this.vel.copy(objetivo).sub(this.pos).divideScalar(Math.max(dt, 1e-3)).clampLength(0, 12);
+  }
+
   private emitirChorro(dir: THREE.Vector3, rapidez: number): void {
     for (const lado of ['izq', 'der'] as const) {
       const o = this.salida(lado).add(new THREE.Vector3(0, -0.05, 0));
@@ -537,7 +584,8 @@ export class Jugador implements JugadorAPI {
       t,
       vel: this.vel,
       acel: this.acel,
-      enSuelo: this.enSuelo,
+      enSuelo: this.enSuelo || this.pegado !== null,
+      pegado: this.pegado?.normal ?? null,
       anclas: this.odm.anclados.map((g) => g.ancla),
       recogiendo: this.odm.recogiendo,
       impulsando: this.odm.impulsando || this.frenando || this.elevando,
@@ -548,8 +596,9 @@ export class Jugador implements JugadorAPI {
       rodando: this.rodando > 0,
       agarrado: this.agarradoPor !== null,
       muerto: !this.vivo,
-      aterrizaje: this.tAterrizaje,
-      impactoAterrizaje: this.impactoAterrizaje,
+      // agachado sobre la pared: la misma flexión que al aterrizar
+      aterrizaje: this.pegado ? 0.05 : this.tAterrizaje,
+      impactoAterrizaje: this.pegado ? 9 : this.impactoAterrizaje,
       // frenando: piernas recogidas, como el impulso hacia arriba
       dirImpulso: this.frenando || this.elevando ? ARRIBA : this.dirImpulso,
       mirar: this.posRender.clone().addScaledVector(this.dirMirada, 40),

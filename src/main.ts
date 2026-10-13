@@ -33,6 +33,7 @@ import { Linterna } from './player/linterna';
 import { Calidad, PERFILES } from './core/calidad';
 import { Sonido } from './audio/sonido';
 import { SonidosJuego } from './audio/sonidosJuego';
+import { Consejos } from './ui/consejos';
 import { ControlesTactiles, esDispositivoTactil } from './ui/tactil';
 import { alternarPantallaCompleta, esIOS, registrarServiceWorker } from './ui/pantallaCompleta';
 import { aplicarLimite, puntoDentro } from './world/region';
@@ -214,6 +215,8 @@ async function iniciar(): Promise<void> {
   const sonido = new Sonido();
   const sonidos = new SonidosJuego(sonido, ctx, jugador);
   const derechaCamara = new THREE.Vector3();
+  // consejos de controles la primera vez que hacen falta (src/ui/consejos.ts)
+  const consejos = new Consejos(ctx, jugador, tactil);
   const alternarSonido = () => {
     sonido.desbloquear();
     const mudo = sonido.alternarSilencio();
@@ -401,6 +404,7 @@ async function iniciar(): Promise<void> {
     hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
     if (controlesTactiles) controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false);
     derechaCamara.setFromMatrixColumn(camara.matrixWorld, 0);
+    consejos.actualizar(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura && !!campana?.jugando);
     calidad?.medir(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura);
     sonidos.actualizar(dt, (pantallas?.bloqueaJuego ?? false) || modoCaptura, camara.position, derechaCamara, ambiente.mezcla, cielo.esDeNoche);
     renderer.render(escena, camara);

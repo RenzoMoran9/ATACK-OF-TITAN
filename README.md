@@ -34,7 +34,8 @@ npm run dev                       # http://localhost:5173
 | --- | --- |
 | **Clic izquierdo** (o **F**) | **Tajo**: un toque = tajo rápido; mantener = enroscarse y cargar; soltar = barrido. Agarrado por un titán: clics rápidos para cortarle los dedos |
 | **Clic derecho** | Los **dos ganchos** a la vez hacia la mira — mantener = recoger cable, soltar = desenganchar |
-| **Q** / **E** | Solo el gancho izquierdo / derecho (para orbitar alrededor de un ancla) |
+| **Q** / **E** | Gancho izquierdo / derecho **automático, tipo Spider-Man**: busca solo dónde clavarse a ese lado (algo por delante y por encima; un titán cuenta más), sin apuntar. Mantenido, haces de péndulo (solo recoge cable para arrancar); al soltar en marcha, sales despedido hacia arriba y adelante. Alterna Q y E para encadenar balanceos |
+| *(sujetar el gancho al llegar)* | Si llegas recogiendo cable a un tronco o una pared y sigues sujetando, te quedas **agachado de lado sobre ella**, como en el anime. Suelta para saltar hacia fuera; salto (Espacio) te lanza con gas hacia donde miras |
 | **Espacio** | Toque: **salto**. **Mantenido: salto con gas** — el gas te sigue empujando hasta **10 m** sobre el despegue y luego planeas despacio (para escapar de los que corren a cuatro patas o caer sobre un titán desde arriba); con WASD, el gas te lanza hacia delante. En el aire sin ganchos: solo, **freno**; con WASD, impulso. Enganchado: impulso y órbita del ancla |
 | **Shift** (mantener) | **Correr** a pie; gasta la barra de **aguante**, que se recupera al parar (vacía, te agotas y andas más lento). Shift o Espacio justo antes de tocar el suelo: **rodada** (evita el daño por caída) |
 | **WASD** | Mover en el suelo. En el aire sin cables ni gas: dirige el salto hacia donde pulsas sin perder impulso, y la tecla contraria frena (para caer justo sobre una rama) |
@@ -57,6 +58,9 @@ npm run dev                       # http://localhost:5173
 opciones y la distancia/flecha a cada una: pedir gas a un compañero (como Armin con Mikasa en Trost), recoger el equipo
 de un caído (haz de luz verde) o ir al depósito. Sin gas puedes seguir a pie y saltar.
 
+Los **consejos** de controles salen una sola vez, la primera vez que hacen falta (primer bosque, primer titán cerca,
+primer balanceo, poco gas…), para aprenderlos jugando (`src/ui/consejos.ts`).
+
 ### En el celular o la tableta
 
 Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en horizontal.
@@ -67,7 +71,7 @@ Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en
 | Arrastrar en la mitad derecha | Mirar (cámara) |
 | **GANCHOS** / **TAJO** | Clic derecho / clic izquierdo (mantener = recoger cable / cargar el tajo). Si arrastras sin soltarlos, apuntas a la vez |
 | **SALTO/GAS** | Espacio: salto, freno en el aire, impulso si mueves el joystick |
-| **Q** / **E** | Un solo gancho |
+| **◀ GANCHO** / **GANCHO ▶** | Q / E: el izquierdo junto al joystick (pulgar izquierdo), el derecho junto a GANCHOS (pulgar derecho) |
 | Fila de arriba | Cuchillas (R), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), pantalla completa, pausa |
 
 Al tocar **Empezar** el juego pasa a pantalla completa. El HUD se reparte arriba para dejar libres los pulgares.

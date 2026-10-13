@@ -21,6 +21,8 @@ export interface Apunte {
   etiqueta: Etiqueta | null;
   /** Objeto móvil (parte de titán) al que pertenece el punto, si lo hay. */
   objeto: THREE.Object3D | null;
+  /** Normal de la superficie en el punto (para quedarse de pie en un tronco o una pared). */
+  normal?: THREE.Vector3 | null;
 }
 
 const PUNTOS_CABLE = 18;
@@ -38,6 +40,10 @@ class Gancho {
   readonly anclaLocal = new THREE.Vector3();
   etiquetaAncla: Etiqueta | null = null;
   longitud = 0;
+  /** Lanzado con Q / E: balanceo tipo Spider-Man (no recoge cable; al soltar, impulso). */
+  balanceo = false;
+  /** Normal de la superficie donde se clavó (null si se desconoce o es un titán). */
+  normalAncla: THREE.Vector3 | null = null;
   bobina = 0;
   tenso = false;
   readonly linea: THREE.Line;
@@ -72,6 +78,8 @@ export interface ContextoODM {
 
 export class EquipoODM {
   readonly ganchos: [Gancho, Gancho];
+  /** El jugador está de pie en un tronco o una pared, sujeto por un cable. */
+  pegado = false;
   readonly apuntes: [Apunte, Apunte] = [
     { valido: false, punto: null, etiqueta: null, objeto: null },
     { valido: false, punto: null, etiqueta: null, objeto: null },
@@ -109,10 +117,11 @@ export class EquipoODM {
         apunte.punto = central.punto;
         apunte.etiqueta = central.etiqueta;
         apunte.objeto = central.objeto;
+        apunte.normal = central.normal;
         return;
       }
       // Cono de asistencia
-      let mejor: { punto: THREE.Vector3; etiqueta: Etiqueta; objeto: THREE.Object3D | null; puntos: number } | null = null;
+      let mejor: { punto: THREE.Vector3; etiqueta: Etiqueta; objeto: THREE.Object3D | null; normal: THREE.Vector3; puntos: number } | null = null;
       const lateral = new THREE.Vector3().crossVectors(dir, arribaCam).normalize();
       const arriba = new THREE.Vector3().crossVectors(lateral, dir).normalize();
       for (const grados of [o.asistenciaGrados * 0.5, o.asistenciaGrados]) {
@@ -123,7 +132,7 @@ export class EquipoODM {
           const hit = this.fisica.lanzarRayo(origenCam, d, maxRayo, this.excluir());
           if (!hit || hit.punto.distanceTo(posJugador) > alcance) continue;
           const puntos = hit.punto.y + (hit.etiqueta === 'titan' || hit.etiqueta === 'nuca' ? 40 : 0);
-          if (!mejor || puntos > mejor.puntos) mejor = { punto: hit.punto, etiqueta: hit.etiqueta, objeto: hit.objeto, puntos };
+          if (!mejor || puntos > mejor.puntos) mejor = { punto: hit.punto, etiqueta: hit.etiqueta, objeto: hit.objeto, normal: hit.normal, puntos };
         }
       }
       if (mejor) {
@@ -131,6 +140,7 @@ export class EquipoODM {
         apunte.punto = mejor.punto;
         apunte.etiqueta = mejor.etiqueta;
         apunte.objeto = mejor.objeto;
+        apunte.normal = mejor.normal;
       } else {
         apunte.valido = false;
         apunte.punto = central ? central.punto : null;
@@ -138,6 +148,47 @@ export class EquipoODM {
         apunte.objeto = central ? central.objeto : null;
       }
     });
+  }
+
+  /**
+   * Q / E: el gancho de ese lado busca solo dónde clavarse, sin apuntar. Lanza un abanico de
+   * rayos hacia su costado (algo adelantados y hacia arriba, como en el anime al rodear un
+   * tronco) y elige el mejor: a media altura, ni pegado ni al límite del cable; un titán
+   * cuenta más. Si no hay nada a ese lado, sale recto hacia el costado y vuelve.
+   */
+  apunteLateral(lado: Lado, pos: THREE.Vector3, dirMirada: THREE.Vector3): Apunte & { dir: THREE.Vector3 } {
+    const alcance = config.odm.alcanceCable;
+    const f = new THREE.Vector3(dirMirada.x, 0, dirMirada.z);
+    if (f.lengthSq() < 1e-6) f.set(0, 0, -1);
+    f.normalize();
+    const costado = new THREE.Vector3(-f.z, 0, f.x).multiplyScalar(lado === 'der' ? 1 : -1);
+    const arriba = new THREE.Vector3(0, 1, 0);
+    let mejor: (Apunte & { dir: THREE.Vector3; coste: number }) | null = null;
+    const d = new THREE.Vector3();
+    for (const elev of [40, 25, 55, 68, 10]) {
+      for (const adelante of [35, 15, 55, 0, 72]) {
+        const e = THREE.MathUtils.degToRad(elev);
+        const a = THREE.MathUtils.degToRad(adelante);
+        d.copy(costado)
+          .multiplyScalar(Math.cos(a))
+          .addScaledVector(f, Math.sin(a))
+          .multiplyScalar(Math.cos(e))
+          .addScaledVector(arriba, Math.sin(e))
+          .normalize();
+        const hit = this.fisica.lanzarRayo(pos, d, alcance, this.excluir());
+        if (!hit) continue;
+        const dist = hit.punto.distanceTo(pos);
+        const titan = hit.etiqueta === 'titan' || hit.etiqueta === 'nuca';
+        // el suelo bajo los pies no sirve para girar
+        if (dist < 3 || (!titan && hit.punto.y < pos.y + 0.5)) continue;
+        // ideal para balancearse: por delante y por encima, a unos 22 m
+        const coste = Math.abs(elev - 40) / 30 + Math.abs(adelante - 35) / 40 + Math.abs(dist - 22) / 30 - (titan ? 0.8 : 0);
+        if (!mejor || coste < mejor.coste) mejor = { valido: true, punto: hit.punto.clone(), etiqueta: hit.etiqueta, objeto: hit.objeto, normal: hit.normal.clone(), dir: d.clone(), coste };
+      }
+    }
+    if (mejor) return mejor;
+    const recto = costado.clone().multiplyScalar(Math.cos(0.5)).addScaledVector(arriba, Math.sin(0.5)).normalize();
+    return { valido: false, punto: null, etiqueta: null, objeto: null, dir: recto };
   }
 
   /** Paso fijo: disparo, vuelo, anclaje, recogida e impulso. Modifica pos/vel del contexto. */
@@ -152,12 +203,15 @@ export class EquipoODM {
 
     this.ganchos.forEach((g, i) => {
       const tecla = teclas[g.lado];
-      const pulsado = c.entrada.consumir(tecla) || ambosPulsado;
+      const porTecla = c.entrada.consumir(tecla);
+      const pulsado = porTecla || ambosPulsado;
       const mantenido = c.entrada.mantenida(tecla) || ambosMantenido;
 
       if (pulsado && g.estado === 'listo' && (this.gasInfinito || c.gas.consumir(gc.costeDisparo))) {
         const origen = salida(g.lado);
-        const apunte = this.apuntes[i];
+        // Q / E solas: el gancho busca su costado; con el clic derecho, va a la mira
+        const lateral = porTecla && !ambosPulsado ? this.apunteLateral(g.lado, c.pos, dirMirada) : null;
+        const apunte = lateral ?? this.apuntes[i];
         g.punta.copy(origen);
         g.recorrido = 0;
         g.objetoAncla = null;
@@ -175,13 +229,23 @@ export class EquipoODM {
           g.distanciaObjetivo = origen.distanceTo(g.objetivo);
         } else {
           g.objetivo = null;
-          g.dir.copy(dirMirada);
+          g.dir.copy(lateral ? lateral.dir : dirMirada);
           g.distanciaObjetivo = o.alcanceCable;
         }
+        g.balanceo = lateral !== null;
+        g.normalAncla = apunte.valido && !apunte.objeto && apunte.normal ? apunte.normal.clone() : null;
         g.estado = 'volando';
       }
 
-      if ((g.estado === 'volando' || g.estado === 'anclado') && !mantenido) g.estado = 'volviendo';
+      if ((g.estado === 'volando' || g.estado === 'anclado') && !mantenido) {
+        // soltar un balanceo en marcha: salto hacia arriba y adelante, como Spider-Man
+        if (g.estado === 'anclado' && g.balanceo && c.vel.length() > 8) {
+          const h = new THREE.Vector3(c.vel.x, 0, c.vel.z);
+          if (h.lengthSq() > 1) c.vel.addScaledVector(h.normalize(), 3);
+          c.vel.y = Math.max(c.vel.y, 0) + 5;
+        }
+        g.estado = 'volviendo';
+      }
 
       // Ancla sobre algo que se mueve (titán): el punto viaja con el objeto; si desaparece, se suelta.
       if (g.objetoAncla && (g.estado === 'volando' || g.estado === 'anclado')) {
@@ -223,6 +287,17 @@ export class EquipoODM {
         if (d <= avance) g.estado = 'listo';
         else g.punta.lerp(origen, avance / d);
       } else if (g.estado === 'anclado') {
+        // De pie en la pared: el cable solo sujeta, no recoge ni gasta
+        if (this.pegado) {
+          g.bobina = 0;
+          return;
+        }
+        // Balanceo (Q / E): el cable no se recoge y haces de péndulo; solo tira para arrancar
+        // (desde el suelo o casi parado) hasta coger velocidad con el cable a ≤ 18 m
+        if (g.balanceo && c.vel.length() > 12 && g.longitud <= 18) {
+          g.bobina = 0;
+          return;
+        }
         // Mantener = recoger cable (la bobina gasta gas)
         const f = this.gasInfinito ? 1 : c.gas.consumirContinuo(gc.costeRecogidaPorSegundo, dt);
         if (f > 0) {

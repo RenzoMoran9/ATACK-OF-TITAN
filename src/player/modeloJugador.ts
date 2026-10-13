@@ -564,7 +564,7 @@ export class ModeloJugador {
 
     // Cuchillas: sin filo o en mitad del cambio, sin hoja
     // Pies sobre el terreno (IK): ningún pie atraviesa el suelo al andar, correr o en pendiente
-    const apoyado = !enAire && !e.agarrado && !e.muerto && this.tRodada < 0;
+    const apoyado = !enAire && !e.agarrado && !e.muerto && this.tRodada < 0 && !e.pegado;
     this.ajustarPies(apoyado, dt);
 
     const filo = e.filo ?? 1;
@@ -995,7 +995,17 @@ export class ModeloJugador {
     const qYawInv = this.grupo.quaternion.clone().invert();
     let qLocal = new THREE.Quaternion();
     let k = 14;
-    if (enAire && !e.agarrado && this.tRodada < 0) {
+    if (e.pegado && !e.agarrado) {
+      // agachado de lado sobre el tronco: los pies contra la superficie, el cuerpo hacia fuera
+      // y algo hacia arriba, mirando hacia donde apunta la cámara
+      k = 10;
+      const eje = e.pegado.clone().addScaledVector(ARRIBA, 0.55).normalize();
+      const mira = e.mirar ? e.mirar.clone().sub(this.grupo.position) : new THREE.Vector3(0, 0, 1);
+      const base = baseCuerpo(eje, mira, this.frenteAnterior);
+      this.frenteAnterior.copy(base.frente);
+      const m = new THREE.Matrix4().makeBasis(base.izq, base.eje, base.frente);
+      qLocal = qYawInv.clone().multiply(new THREE.Quaternion().setFromRotationMatrix(m));
+    } else if (enAire && !e.agarrado && this.tRodada < 0) {
       k = 8;
       const vhat = rapidez > 0.5 ? v.clone().divideScalar(rapidez) : new THREE.Vector3(0, 1, 0);
       let eje: THREE.Vector3;

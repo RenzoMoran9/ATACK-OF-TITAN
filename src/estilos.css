@@ -583,17 +583,23 @@ body {
   font-size: 10px;
 }
 .tactil-acciones .chico {
-  width: 44px;
-  height: 44px;
-  font-size: 14px;
+  width: 58px;
+  height: 58px;
+  font-size: 16px;
+  border-color: rgba(127, 227, 154, 0.6);
 }
+.tactil-acciones .chico small {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+}
+/* cada pulgar su gancho: el izquierdo junto al joystick, el derecho junto a GANCHOS */
 .tactil-acciones .q {
-  right: calc(218px + env(safe-area-inset-right));
-  bottom: 30px;
+  left: calc(22px + env(safe-area-inset-left));
+  bottom: 168px;
 }
 .tactil-acciones .e {
-  right: calc(122px + env(safe-area-inset-right));
-  bottom: 158px;
+  right: calc(124px + env(safe-area-inset-right));
+  bottom: 156px;
 }
 .tactil-menu {
   position: absolute;
@@ -662,8 +668,8 @@ body.tactil .hud-equipo {
   transform-origin: top left;
 }
 body.tactil .hud-sin-gas {
-  left: calc(14px + env(safe-area-inset-left));
-  top: 170px;
+  left: calc(240px + env(safe-area-inset-left));
+  top: 70px;
   bottom: auto;
   min-width: 0;
   font-size: 11px;
