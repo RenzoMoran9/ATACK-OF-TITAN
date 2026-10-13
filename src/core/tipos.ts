@@ -31,6 +31,11 @@ export interface Humano {
   alSerDevorado(): void;
   /** Mientras está agarrado, el titán lo coloca en su mano cada paso. */
   fijarPosicion(p: THREE.Vector3): void;
+  /**
+   * ¿Ha hecho una maniobra evasiva (impulso de gas, cambio de ancla) en los últimos `ventana`
+   * segundos? Si coincide con el cierre de la mano, esquiva el agarre (solo el jugador).
+   */
+  esquivaReciente?(ventana: number): boolean;
 }
 
 // ───────────────────────── Titanes ─────────────────────────
@@ -89,6 +94,7 @@ export type EfectoCorte =
   | 'liberacion' // soltó a quien tenía en la mano o en la boca
   | 'superficial' // por debajo del umbral de la zona
   | 'rebote' // demasiado lento (< 8 m/s): no corta y mella
+  | 'coraza' // piel endurecida (Acorazado, Hembra): la hoja rebota y se mella mucho
   | 'nada';
 
 export interface ResultadoCorte {
@@ -98,8 +104,17 @@ export interface ResultadoCorte {
   danio: number;
 }
 
+/** Cambiantes con comportamiento propio. */
+export type EspecialTitan = 'acorazado' | 'hembra';
+
 export interface TitanAPI {
   readonly id: number;
+  /** Acorazado o Hembra (null en los puros). */
+  readonly especial?: EspecialTitan | null;
+  /** Está cerrando la mano o saltando: el momento de esquivar (impulso o cambio de ancla). */
+  readonly cerrando?: boolean;
+  /** Cegado por una bengala o por los ojos cortados. */
+  readonly cegado?: boolean;
   /** Altura en metros (3–15 para puros). */
   readonly altura: number;
   readonly anormal: boolean;
@@ -124,6 +139,10 @@ export interface TitanAPI {
   recibirCorte(zona: ZonaTitan, danio: number, atacante: Humano | null): ResultadoCorte;
   /** Cebo: se fija en `h` durante `segundos` aunque haya otros humanos más cerca. */
   distraer(h: Humano, segundos: number): void;
+  /** Bengala que le estalla en la cara: ciego `segundos` (no es una herida: no se regenera). */
+  deslumbrar?(segundos: number): void;
+  /** Marcha hacia un punto (un pueblo) mientras no vea a nadie; null la cancela. */
+  dirigirA?(p: THREE.Vector3 | null): void;
 }
 
 // ───────────────────────── Eventos de juego ─────────────────────────
@@ -137,6 +156,14 @@ export type EventoJuego =
   | { tipo: 'civilSalvado'; humano: Humano }
   | { tipo: 'brecha' }
   | { tipo: 'mensaje'; texto: string; segundos?: number }
+  | { tipo: 'esquiva'; humano: Humano; titan: TitanAPI }
+  | { tipo: 'endurece'; titan: TitanAPI }
+  | { tipo: 'caballo'; accion: 'montar' | 'llamar' | 'bajar'; pos: THREE.Vector3 }
+  | { tipo: 'alarmaPueblo'; nombre: string; pos: THREE.Vector3 }
+  | { tipo: 'puebloLiberado'; nombre: string; pos: THREE.Vector3 }
+  | { tipo: 'puebloDefendido'; nombre: string; pos: THREE.Vector3 }
+  | { tipo: 'puebloCaido'; nombre: string; pos: THREE.Vector3 }
+  | { tipo: 'puebloEnPaz'; nombre: string; pos: THREE.Vector3 }
   | { tipo: 'recarga'; quien: Humano };
 
 export type TipoEvento = EventoJuego['tipo'];
@@ -172,6 +199,8 @@ export interface EstadoAnimacion {
   /** Rodada al aterrizar (Shift o Espacio justo antes de tocar el suelo). */
   rodando?: boolean;
   agarrado: boolean;
+  /** A caballo. */
+  montado?: boolean;
   muerto: boolean;
   /** Recién aterrizado: segundos desde el aterrizaje (para flexionar/rodar), o null. */
   aterrizaje: number | null;
@@ -215,6 +244,8 @@ export interface OpcionesTitan {
   semilla?: number;
   /** Anormal que corre a cuatro patas, muy rápido (bosques). Implica `anormal`. */
   cuadrupedo?: boolean;
+  /** Acorazado (15 m) o Titana Hembra (14 m): proporciones humanas y reglas propias. */
+  especial?: EspecialTitan;
 }
 
 export interface GestorTitanesAPI {
@@ -302,6 +333,10 @@ export interface CivilesAPI {
   /** Vivos y aún sin evacuar. */
   readonly restantes: number;
   generar(n: number, centro: THREE.Vector3, radio: number): void;
+  /** Vecinos de un pueblo: pasean por él y huyen de los titanes sin ir a Trost. */
+  generarAldeanos(n: number, centro: THREE.Vector3, radio: number): Humano[];
+  /** Quita civiles concretos sin contarlos (vuelven a sus casas al alejarse el jugador). */
+  retirar(lista: readonly Humano[]): void;
   /** true: corren hacia la puerta de evacuación (y huyen de los titanes por el camino). */
   evacuar(si: boolean): void;
   limpiar(): void;

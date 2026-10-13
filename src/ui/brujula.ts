@@ -1,10 +1,12 @@
 import type { ContextoJuego } from '../core/contexto';
+import type { GestorPueblos } from '../missions/pueblos';
 import { depositoMasCercano } from '../world/mundo';
 
 /**
  * Brújula en la parte superior: los puntos cardinales giran con la cámara y encima se ven
  * Trost, el depósito más cercano, los lugares (los que faltan por descubrir, atenuados),
- * tu escuadrón (verde), los titanes cercanos (rojo) y los equipos caídos. Norte = −Z.
+ * tu escuadrón (verde), los titanes cercanos (rojo), los equipos caídos, los pueblos atacados,
+ * los cambiantes avistados y tu caballo. Norte = −Z.
  */
 
 /** Campo de visión de la tira (rad): lo que cabe de un extremo a otro. */
@@ -42,6 +44,8 @@ export class Brujula {
   private readonly cardinales: HTMLSpanElement[] = [];
   private readonly pozo: HTMLDivElement[] = [];
   private readonly marcas: Marca[] = [];
+  /** Pueblos del mundo abierto (para marcar los que están siendo atacados). */
+  pueblos: (() => GestorPueblos | null) | null = null;
 
   constructor(contenedor: HTMLElement, visible: boolean) {
     this.raiz = document.createElement('div');
@@ -88,6 +92,11 @@ export class Brujula {
       m.push({ clase: l.descubierto ? 'lugar' : 'lugar oculto', x: l.pos.x, z: l.pos.z, texto: l.descubierto ? l.nombre : '?' });
     }
     for (const s of ctx.escuadron.soldados) if (s.vivo) m.push({ clase: 'soldado', x: s.posicion.x, z: s.posicion.z });
+    // pueblos atacados (con su campana), cambiantes a la vista y tu caballo
+    for (const p of this.pueblos?.()?.lista ?? []) if (p.enAlarma) m.push({ clase: 'alarma', x: p.centro.x, z: p.centro.z, texto: `¡${p.nombre}!` });
+    for (const t of ctx.poblacion.titanesCerca(j, 1500)) if (t.vivo && t.especial) m.push({ clase: 'jefe', x: t.posicion.x, z: t.posicion.z, texto: t.especial === 'acorazado' ? 'Acorazado' : 'Hembra' });
+    const caballo = (ctx.jugador as { caballo?: { pos: { x: number; z: number }; montado: boolean; grupo: { visible: boolean } } | null }).caballo;
+    if (caballo && !caballo.montado && caballo.grupo.visible) m.push({ clase: 'caballo', x: caballo.pos.x, z: caballo.pos.z });
     for (const e of ctx.suministros.lista) m.push({ clase: 'equipo', x: e.pos.x, z: e.pos.z });
     for (const t of ctx.poblacion.titanesCerca(j, 150)) m.push({ clase: t.cuadrupedo ? 'titan cuadrupedo' : 'titan', x: t.posicion.x, z: t.posicion.z });
 

@@ -71,6 +71,10 @@ export class ControlesTactiles {
       </div>
       <div class="tactil-menu" data-mover="menu">
         <button class="t-btn mini" data-k="KeyR" title="Cambiar cuchillas">⚔<small>R</small></button>
+        <button class="t-btn mini" data-k="KeyB" title="Bengala (en la cara, ciega 3 s)">✷<small>Bengala</small></button>
+        <button class="t-btn mini" data-k="KeyX" title="Fijar parte del titán">◎<small>Parte</small></button>
+        <button class="t-btn mini" data-k="KeyC" title="Caballo: montar, bajar o silbar">♞<small>Caballo</small></button>
+        <button class="t-btn mini" data-k="KeyH" title="Descansar hasta el amanecer">☾<small>Dormir</small></button>
         <button class="t-btn mini" data-k="KeyL" title="Linterna">☀<small>Luz</small></button>
         <button class="t-btn mini" data-k="KeyM" title="Mapa">⌖<small>Mapa</small></button>
         <button class="t-btn mini" data-k="KeyG" title="Recoger equipo / pedir gas">✚<small>G</small></button>

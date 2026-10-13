@@ -679,9 +679,10 @@ export class Soldado implements Humano {
 
   decir(frase: string): void {
     const t = this.ctx.reloj.t;
-    if (t - this.ultimaFrase < 4) return;
+    // pocas frases: que el escuadrón no llene la pantalla de texto
+    if (t - this.ultimaFrase < 15) return;
     this.ultimaFrase = t;
-    this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${this.nombre}: ${frase}`, segundos: 2.2 });
+    this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${this.nombre}: ${frase}`, segundos: 1.8 });
   }
 
   /** Lo que hace ahora, si no es solo cumplir la orden (panel del escuadrón). */

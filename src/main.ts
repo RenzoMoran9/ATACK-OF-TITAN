@@ -16,16 +16,15 @@ import { CamaraTercera } from './player/camara';
 import { Jugador } from './player/jugador';
 import { Campana } from './missions/campana';
 import { GestorCiviles } from './npc/civiles';
-import { CapEntrenamiento } from './missions/capitulos/entrenamiento';
-import { CapLibre } from './missions/capitulos/libre';
-import { CapTrost } from './missions/capitulos/trost';
+import { CapMundo } from './missions/capitulos/mundo';
+import { CicloDia } from './core/cicloDia';
 import { Hud } from './ui/hud';
 import { MandoEscuadron } from './ui/ordenes';
 import { Brujula } from './ui/brujula';
 import { Mapa } from './ui/mapa';
 import { Pantallas } from './ui/pantallas';
 import { crearPanel } from './ui/panel';
-import { Cielo } from './world/cielo';
+import { Cielo, HORA_DE } from './world/cielo';
 import { ajustarNoche } from './world/materiales';
 import { actualizarMundo, ajustarHoraMundo, construirMundo, depositoMasCercano } from './world/mundo';
 import { AmbienteBosque } from './world/ambiente';
@@ -33,7 +32,6 @@ import { Linterna } from './player/linterna';
 import { Calidad, PERFILES } from './core/calidad';
 import { Sonido } from './audio/sonido';
 import { SonidosJuego } from './audio/sonidosJuego';
-import { Consejos } from './ui/consejos';
 import { ControlesTactiles, esDispositivoTactil } from './ui/tactil';
 import { alternarPantallaCompleta, esIOS, registrarServiceWorker } from './ui/pantallaCompleta';
 import { aplicarLimite, puntoDentro } from './world/region';
@@ -82,6 +80,9 @@ async function iniciar(): Promise<void> {
   const camara = new THREE.PerspectiveCamera(config.camara.fovBase, window.innerWidth / window.innerHeight, 0.3, 5000);
 
   const fisica = await Fisica.crear(config.fisica.gravedad);
+  // Reloj del mundo: hora y día (src/core/cicloDia.ts); el cielo lo sigue cada fotograma
+  const ciclo = new CicloDia();
+  ciclo.hora = HORA_DE[urlDepuracion.hora];
   const cielo = new Cielo(escena, config.render.radioSombra, config.render.tamanoSombra);
   const mundo = construirMundo(escena, fisica, config);
   fisica.paso(1 / config.fisica.hz); // construye la estructura de consultas antes del primer rayo
@@ -124,6 +125,7 @@ async function iniciar(): Promise<void> {
     suministros: null as unknown as Suministros,
     puntoReaparicion: mundo.inicio.clone(),
     esDeNoche: () => cielo.esDeNoche,
+    ciclo,
     orientarCamara: (p) => rig.mirarA(p),
   };
   ctx.titanes = new GestorTitanes(ctx);
@@ -181,7 +183,7 @@ async function iniciar(): Promise<void> {
     for (const o of mundo.titanesReferencia) ctx.titanes.generar(o);
     ctx.titanes.congelado = true;
   } else {
-    campana = new Campana(ctx, [new CapEntrenamiento(), new CapTrost(), new CapLibre()]);
+    campana = new Campana(ctx, [new CapMundo()]);
     escuadron.depositoDisponible = () => campana?.depositoDisponible() ?? true;
     pantallas = new Pantallas(campana, () => entrada.capturar(), tactil, {
       texto: () => (calidad ? `Gráficos: ${calidad.auto ? 'Auto · ' : ''}${calidad.perfil.etiqueta}` : 'Gráficos'),
@@ -215,9 +217,12 @@ async function iniciar(): Promise<void> {
   // Sonido (src/audio): empieza a cargar con el primer toque o tecla
   const sonido = new Sonido();
   const sonidos = new SonidosJuego(sonido, ctx, jugador);
+  /** El mundo abierto en marcha (o null en el menú y en las capturas). */
+  const mundoAbierto = (): CapMundo | null => (campana?.capitulo instanceof CapMundo ? campana.capitulo : null);
+  sonidos.pueblos = () => mundoAbierto()?.pueblos ?? null;
+  brujula.pueblos = sonidos.pueblos;
+  mapa.pueblos = sonidos.pueblos;
   const derechaCamara = new THREE.Vector3();
-  // consejos de controles la primera vez que hacen falta (src/ui/consejos.ts)
-  const consejos = new Consejos(ctx, jugador, tactil);
   const alternarSonido = () => {
     sonido.desbloquear();
     const mudo = sonido.alternarSilencio();
@@ -228,23 +233,40 @@ async function iniciar(): Promise<void> {
     const on = linterna.alternar();
     ctx.eventos.emit({ tipo: 'mensaje', texto: on ? 'Linterna encendida' : 'Linterna apagada', segundos: 1.2 });
   };
-  let horaActual: Hora = urlDepuracion.hora;
   let factorDistancia = 1;
-  const cambiarHora = (h: Hora) => {
-    horaActual = h;
-    cielo.aplicar(h, renderer);
-    // menos distancia de dibujado con menos calidad: la niebla tapa el corte
-    if (escena.fog instanceof THREE.Fog) {
-      escena.fog.near *= factorDistancia;
-      escena.fog.far *= factorDistancia;
-      camara.far = factorDistancia < 1 ? Math.max(700, escena.fog.far * 1.1) : 5000;
-      camara.updateProjectionMatrix();
-      cielo.ajustarLejania(camara.far);
+  /** Hora del ciclo aplicada al cielo por última vez (para no recalcularlo si no cambia). */
+  let horaCielo = -1;
+  let horaBosques = -1;
+  let nocheAntes: boolean | null = null;
+  const aplicarCielo = (forzar = false) => {
+    const h = ciclo.hora;
+    if (!forzar && Math.abs(h - horaCielo) < 0.004) return;
+    horaCielo = h;
+    cielo.factorDistancia = factorDistancia;
+    cielo.aplicarHora(h, renderer);
+    ajustarNoche(mundo.mats, cielo.noche);
+    if (nocheAntes !== cielo.esDeNoche) {
+      nocheAntes = cielo.esDeNoche;
+      mundo.antorchas.encender(cielo.esDeNoche);
     }
-    ajustarNoche(mundo.mats, cielo.esDeNoche);
-    mundo.antorchas.encender(cielo.esDeNoche);
-    ajustarHoraMundo(mundo, h, cielo.dirSol);
-    ambiente.tomarBase(cielo.esDeNoche);
+    // los haces de los bosques se reorientan cada ~6 minutos de juego
+    if (forzar || Math.abs(h - horaBosques) > 0.1) {
+      horaBosques = h;
+      ajustarHoraMundo(mundo, cielo.noche, cielo.calidez, cielo.dirSol);
+    }
+    ambiente.tomarBase(cielo.noche);
+  };
+  /** Menos calidad, menos distancia de dibujado: la niebla tapa el corte. */
+  const ajustarLejania = () => {
+    camara.far = factorDistancia < 1 ? Math.max(700, cielo.lejaniaDia * 1.1) : 5000;
+    camara.updateProjectionMatrix();
+    cielo.ajustarLejania(camara.far);
+  };
+  /** Hora fija (panel F1, capturas): salta el reloj a la hora típica de ese momento. */
+  const cambiarHora = (h: Hora) => {
+    ciclo.hora = HORA_DE[h];
+    cielo.hora = h;
+    aplicarCielo(true);
   };
   const irA = (nombre: string) => {
     const p = mundo.puntos[nombre];
@@ -252,7 +274,8 @@ async function iniciar(): Promise<void> {
     jugador.teletransportar(p.jugador, p.rumbo);
     rig.fijarPose(p.camara, p.mirar);
   };
-  cambiarHora(urlDepuracion.hora);
+  ciclo.congelado = modoCaptura;
+  aplicarCielo(true);
 
   // Calidad adaptable: en el celular empieza en «media» y baja sola si no va fluido
   calidad = new Calidad(tactil ? 'media' : 'alta', window.devicePixelRatio || 1, (perfil, resolucion, nivelCambiado) => {
@@ -273,7 +296,8 @@ async function iniciar(): Promise<void> {
       });
     }
     factorDistancia = perfil.distancia;
-    cambiarHora(horaActual);
+    ajustarLejania();
+    aplicarCielo(true);
   });
 
   const panel = crearPanel(Object.keys(mundo.puntos), urlDepuracion.hora, {
@@ -301,7 +325,14 @@ async function iniciar(): Promise<void> {
   // Soltar el ratón (Esc) pausa la partida
   document.addEventListener('pointerlockchange', () => {
     const capturado = document.pointerLockElement === renderer.domElement;
-    if (!capturado && !entrada.sinCaptura) pantallas?.ponerPausa(true);
+    if (!capturado && !entrada.sinCaptura) {
+      pantallas?.ponerPausa(true);
+      mundoAbierto()?.guardar();
+    }
+  });
+  // al cambiar de pestaña o cerrar la app, se guarda la partida
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') mundoAbierto()?.guardar();
   });
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' && entrada.sinCaptura) pantallas?.ponerPausa(!pantallas.pausado);
@@ -324,6 +355,7 @@ async function iniciar(): Promise<void> {
       return;
     }
     reloj.t += dt;
+    if (campana?.jugando && ciclo.avanzar(dt)) ctx.eventos.emit({ tipo: 'mensaje', texto: `Día ${ciclo.dia}`, segundos: 2 });
     mando.actualizar();
     if (entrada.consumir('KeyM')) mapa.alternar();
     if (entrada.consumir('KeyL')) alternarLinterna();
@@ -332,15 +364,15 @@ async function iniciar(): Promise<void> {
     if (entrada.consumir('KeyG') && jugador.vivo) {
       const recogido = ctx.suministros.recoger();
       if (recogido) ctx.eventos.emit({ tipo: 'mensaje', texto: recogido, segundos: 3 });
-      else if (jugador.gas.nivel >= jugador.gas.capacidad * 0.9) ctx.eventos.emit({ tipo: 'mensaje', texto: 'Tienes el gas casi lleno', segundos: 1.5 });
-      else if (!ctx.escuadron.pedirGas()) ctx.eventos.emit({ tipo: 'mensaje', texto: 'Nadie del escuadrón puede pasarte gas ahora', segundos: 2.5 });
+      else if (jugador.gas.nivel >= jugador.gas.capacidad * 0.9) ctx.eventos.emit({ tipo: 'mensaje', texto: 'Gas casi lleno', segundos: 1 });
+      else if (!ctx.escuadron.pedirGas()) ctx.eventos.emit({ tipo: 'mensaje', texto: 'Nadie puede pasarte gas', segundos: 1.5 });
     }
     jugador.paso(dt, entrada, { dir: rig.dir, yaw: rig.yaw });
     // Borde de la región: viento en contra y, muy lejos, de vuelta dentro
     const fuera = aplicarLimite(jugador.pos, jugador.vel, dt);
     if (fuera > 0 && !avisoBorde) {
       avisoBorde = true;
-      ctx.eventos.emit({ tipo: 'mensaje', texto: 'Más allá no queda nada que explorar: el viento te empuja de vuelta', segundos: 3 });
+      ctx.eventos.emit({ tipo: 'mensaje', texto: 'Viento en contra: vuelve', segundos: 2 });
     } else if (fuera === 0) avisoBorde = false;
     if (fuera >= 1) {
       const dentro = puntoDentro(jugador.pos.x, jugador.pos.z);
@@ -377,6 +409,7 @@ async function iniciar(): Promise<void> {
     const fy = (entrada.mantenida('ArrowDown') ? 1 : 0) - (entrada.mantenida('ArrowUp') ? 1 : 0);
     rig.girar(dx + fx * 900 * dt, dy + fy * 600 * dt);
     jugador.dibujar(alfa, dt * bucleRef.escalaTiempo, tiempo);
+    jugador.caballo?.dibujar(alfa, dt * bucleRef.escalaTiempo);
     laboratorio?.actualizar(dt, tiempo);
     rig.sacudida = jugador.combate?.sacudida ?? 0;
     rig.agarrado = jugador.agarradoPor !== null;
@@ -384,13 +417,17 @@ async function iniciar(): Promise<void> {
     rig.actualizar(dt, jugador.posRender, jugador.vel);
     // con la cámara metida en el personaje (rincones), se oculta para no tapar la vista
     jugador.modelo.grupo.visible = jugador.vivo && rig.distancia > 0.8;
-    jugador.odm.apuntar(camara.position, rig.dir, camara.up, jugador.pos);
+    // con una parte del titán fijada (X), los ganchos van a ella aunque la mira esté en otro sitio
+    const fijado = jugador.combate?.puntoFijado;
+    const dirGanchos = fijado && fijado.centro.distanceTo(jugador.pos) < config.odm.alcanceCable ? fijado.centro.clone().sub(camara.position).normalize() : rig.dir;
+    jugador.odm.apuntar(camara.position, dirGanchos, camara.up, jugador.pos);
+    aplicarCielo();
+    if ((fotogramas & 31) === 0) mundo.antorchas.refrescar();
     cielo.seguir(jugador.posRender, camara);
     mundo.antorchas.actualizar(dt, camara.position, tiempo);
     ambiente.actualizar(dt, camara.position);
     if (!linterna.manual && !linterna.encendida && jugador.vivo && !modoCaptura && (ambiente.mezcla > 0.55 || cielo.esDeNoche)) {
       linterna.encendida = true;
-      ctx.eventos.emit({ tipo: 'mensaje', texto: 'Está oscuro: linterna encendida (L para apagarla)', segundos: 3 });
     }
     linterna.actualizar(dt, jugador.posRender, rig.dir, jugador.modelo.puntoLinterna(puntoLinterna), jugador.vivo, tiempo);
     actualizarMundo(mundo, dt, camara.position, escena.fog instanceof THREE.Fog ? escena.fog.far : 3000);
@@ -405,7 +442,6 @@ async function iniciar(): Promise<void> {
     hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
     if (controlesTactiles) controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false) || controlesTactiles.editando;
     derechaCamara.setFromMatrixColumn(camara.matrixWorld, 0);
-    consejos.actualizar(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura && !!campana?.jugando);
     calidad?.medir(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura);
     sonidos.actualizar(dt, (pantallas?.bloqueaJuego ?? false) || modoCaptura, camara.position, derechaCamara, ambiente.mezcla, cielo.esDeNoche);
     renderer.render(escena, camara);

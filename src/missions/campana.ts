@@ -3,13 +3,13 @@ import type { ContextoJuego } from '../core/contexto';
 import type { EventoJuego, TipoEvento } from '../core/tipos';
 
 /**
- * Campaña por capítulos siguiendo la cronología de la historia (docs/investigacion/historia.json).
- * Cada capítulo es una pequeña máquina de estados que se dispara por lugar, tiempo y
- * eventos (titanes muertos, civiles salvados…). La campaña lleva la cuenta, los puntos
- * de control y las pantallas de victoria y derrota.
+ * Marco de la partida: el estado (menú, presentación, jugando), las estadísticas y la API
+ * con la que el «capítulo» habla con el resto del juego. Ahora solo hay uno, el mundo abierto
+ * (src/missions/capitulos/mundo.ts), sin final; la estructura admite más si algún día vuelven
+ * misiones con historia.
  */
 
-export type IdCapitulo = 'entrenamiento' | 'trost' | 'libre';
+export type IdCapitulo = 'mundo';
 export type EstadoCampana = 'menu' | 'intro' | 'jugando' | 'victoria' | 'derrota';
 
 export interface Estadisticas {
@@ -50,6 +50,8 @@ export interface Capitulo {
   terminar(): void;
   /** El gas solo se recarga en el depósito si el capítulo lo permite. */
   depositoDisponible?(): boolean;
+  /** Mundo abierto: true = seguir la partida guardada en vez de empezar una nueva. */
+  continuar?: boolean;
 }
 
 const CLAVE_PROGRESO = 'atack-of-titan:progreso';
@@ -117,10 +119,11 @@ export class Campana {
   }
 
   /** Prepara un capítulo y enseña su presentación (el juego espera a `empezar`). */
-  cargar(id: IdCapitulo): void {
+  cargar(id: IdCapitulo, continuar = false): void {
     this.limpiar();
     const c = this.capitulos.find((x) => x.id === id);
     if (!c) return;
+    if ('continuar' in c) c.continuar = continuar;
     this.capitulo = c;
     this.stats = Campana.statsVacias();
     this.objetivoTexto = '';
@@ -154,7 +157,7 @@ export class Campana {
     if (!this.capitulo) return null;
     const i = this.capitulos.findIndex((c) => c.id === this.capitulo!.id);
     const sig = this.capitulos[i + 1];
-    return sig && sig.id !== 'libre' ? sig.id : null;
+    return sig ? sig.id : null;
   }
 
   depositoDisponible(): boolean {

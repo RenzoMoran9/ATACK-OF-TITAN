@@ -13,7 +13,7 @@ const COLOR_NOCHE = new THREE.Color('#070c16');
 
 export class AmbienteBosque {
   /** Mezcla actual (0 fuera, 1 en lo hondo del bosque). */
-  mezcla = 0;
+  mezcla = -1;
   private readonly base = { color: new THREE.Color(), cerca: 300, lejos: 3000, sol: 1, hemi: 1 };
   private readonly colorBosque = new THREE.Color();
 
@@ -24,8 +24,10 @@ export class AmbienteBosque {
     private readonly bosques: readonly Bosque[],
   ) {}
 
-  /** Guarda niebla y luces de la hora (llamar justo después de que el cielo las cambie). */
-  tomarBase(noche: boolean): void {
+  private forzar = true;
+
+  /** Guarda niebla y luces de la hora (llamar justo después de que el cielo las cambie); `noche` de 0 a 1. */
+  tomarBase(noche: number): void {
     const f = this.escena.fog;
     if (f instanceof THREE.Fog) {
       this.base.color.copy(f.color);
@@ -34,8 +36,8 @@ export class AmbienteBosque {
     }
     this.base.sol = this.sol.intensity;
     this.base.hemi = this.hemi.intensity;
-    this.colorBosque.copy(noche ? COLOR_NOCHE : COLOR_DIA);
-    this.mezcla = -1; // fuerza la aplicación en el siguiente fotograma
+    this.colorBosque.copy(COLOR_DIA).lerp(COLOR_NOCHE, noche);
+    this.forzar = true; // el cielo ha pisado niebla y luces: hay que volver a mezclar
   }
 
   /** Profundidad efectiva (0–1) de un punto dentro de algún bosque. */
@@ -56,7 +58,8 @@ export class AmbienteBosque {
     const objetivo = this.dentro(camara);
     const previa = this.mezcla;
     const f = previa < 0 ? objetivo : previa + (objetivo - previa) * Math.min(1, dt * 1.5);
-    if (Math.abs(f - previa) < 1e-4) return;
+    if (Math.abs(f - previa) < 1e-4 && !this.forzar) return;
+    this.forzar = false;
     this.mezcla = f;
     const niebla = this.escena.fog;
     if (niebla instanceof THREE.Fog) {

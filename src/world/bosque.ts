@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import type { Hora } from '../core/depuracion';
 import type { Fisica } from '../core/fisica';
 import type { Rng } from '../core/rng';
 import { areaForma, cajaForma, centroForma, contiene, contorno, distanciaBorde, type Caja, type Forma } from './formas';
@@ -7,6 +6,11 @@ import { Lote, escalarUV, matriz } from './geometria';
 import type { Materiales } from './materiales';
 import { texturaParticula } from './texturas';
 import { arbolesDeBosque, type ArbolSimple } from './vegetacion';
+
+
+const TINTE_CALIDO = new THREE.Color('#ffb070');
+const TINTE_BRUMA_CALIDA = new THREE.Color('#d8b391');
+const TINTE_BRUMA_NOCHE = new THREE.Color('#26324d');
 
 /**
  * Bosques del mundo abierto, la zona más peligrosa del juego. Dos clases:
@@ -256,7 +260,7 @@ export class Bosque {
     escena.add(bancos);
   }
 
-  /** Haces de luz entre las copas (se orientan con el sol en `ajustarHora`). */
+  /** Haces de luz entre las copas (se orientan con el sol en `ajustarLuz`). */
   private crearHaces(escena: THREE.Scene, rng: Rng, limites: Caja): void {
     const n = this.forma.tipo === 'rect' ? 34 : Math.min(50, Math.round(areaForma(this.forma) / 6000));
     for (let i = 0; i < n; i++) {
@@ -337,17 +341,20 @@ export class Bosque {
     hojas.añadir(g, matriz(x, y, z, rng.rango(0, 6)), color);
   }
 
-  /** Orienta los haces según el sol y ajusta niebla y luz a la hora. */
-  ajustarHora(hora: Hora, dirSol: THREE.Vector3): void {
+  /**
+   * Orienta los haces según el sol y ajusta niebla y luz a la hora: `noche` (0–1) apaga los
+   * haces y oscurece la bruma; `calidez` (0–1) la tiñe de naranja al amanecer y al atardecer.
+   */
+  ajustarLuz(noche: number, calidez: number, dirSol: THREE.Vector3): void {
     const u = materialHaz().uniforms;
-    u.intensidad.value = hora === 'dia' ? 0.28 : hora === 'atardecer' ? 0.2 : 0;
-    (u.color.value as THREE.Color).set(hora === 'atardecer' ? '#ffb070' : '#fff1c9');
+    u.intensidad.value = (0.28 - 0.08 * calidez) * (1 - noche);
+    (u.color.value as THREE.Color).set('#fff1c9').lerp(TINTE_CALIDO, calidez);
     const un = materialNiebla().uniforms;
-    (un.color.value as THREE.Color).set(hora === 'dia' ? '#d5dde3' : hora === 'atardecer' ? '#d8b391' : '#26324d');
-    un.opacidad.value = hora === 'noche' ? 0.12 : 0.2;
+    (un.color.value as THREE.Color).set('#d5dde3').lerp(TINTE_BRUMA_CALIDA, calidez).lerp(TINTE_BRUMA_NOCHE, noche);
+    un.opacidad.value = 0.2 - 0.08 * noche;
     const haces = this.haces;
     if (!haces) return;
-    haces.visible = hora !== 'noche';
+    haces.visible = noche < 0.95;
     const dir = dirSol.clone();
     if (dir.y < 0.35) dir.y = 0.35; // al atardecer, que no queden casi horizontales
     dir.normalize();

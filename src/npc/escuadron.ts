@@ -568,7 +568,7 @@ export class Escuadron implements EscuadronAPI {
         this.avisados.add(titan.id);
         this.tAviso = t;
         s.ultimaFrase = t;
-        ctx.eventos.emit({ tipo: 'mensaje', texto: textoAviso(s.nombre, titan, titan.posicion.x - j.x, titan.posicion.z - j.z), segundos: 3.5 });
+        ctx.eventos.emit({ tipo: 'mensaje', texto: textoAviso(s.nombre, titan, titan.posicion.x - j.x, titan.posicion.z - j.z), segundos: 2.5 });
         ctx.efectos.bengala(s.posicion.clone().setY(s.posicion.y + 2), COLOR_AVISO);
         return;
       }

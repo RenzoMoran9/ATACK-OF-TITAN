@@ -477,6 +477,8 @@ export class ModeloJugador {
 
     if (e.agarrado) {
       this.poseAgarrado(P, t);
+    } else if (e.montado) {
+      this.poseMontado(P, t, vh);
     } else if (this.tRodada >= 0) {
       this.poseRodada(P);
     } else if (!enAire) {
@@ -564,7 +566,7 @@ export class ModeloJugador {
 
     // Cuchillas: sin filo o en mitad del cambio, sin hoja
     // Pies sobre el terreno (IK): ningún pie atraviesa el suelo al andar, correr o en pendiente
-    const apoyado = !enAire && !e.agarrado && !e.muerto && this.tRodada < 0 && !e.pegado;
+    const apoyado = !enAire && !e.agarrado && !e.montado && !e.muerto && this.tRodada < 0 && !e.pegado;
     this.ajustarPies(apoyado, dt);
 
     const filo = e.filo ?? 1;
@@ -863,6 +865,26 @@ export class ModeloJugador {
     }
     P.cabezaX = 0.7 * g;
     P.torsoX = 0.6 * g;
+  }
+
+  /** A caballo: piernas abiertas a los lados de la silla, riendas delante y el cuerpo botando al galope. */
+  private poseMontado(P: Pose, t: number, vh: number): void {
+    const galope = THREE.MathUtils.smoothstep(vh, 4, 16);
+    const bote = Math.sin(t * Math.PI * 2 * THREE.MathUtils.lerp(1.6, 2.6, galope));
+    for (let i = 0; i < 2; i++) {
+      const c = i as 0 | 1;
+      const l = lado(i);
+      P[`caderaX${c}`] = -1.3;
+      P[`caderaZ${c}`] = l * 0.42;
+      P[`rodilla${c}`] = 1.55;
+      P[`hombroX${c}`] = -0.55;
+      P[`hombroZ${c}`] = l * 0.05;
+      P[`codo${c}`] = -1.05 + 0.08 * bote * galope;
+      P[`munecaX${c}`] = 2.0;
+    }
+    P.pelvisY = 0.03 * bote * galope;
+    P.torsoX = 0.12 + 0.18 * galope + 0.04 * bote * galope;
+    P.cabezaX = -0.1 - 0.12 * galope;
   }
 
   private poseAgarrado(P: Pose, t: number): void {

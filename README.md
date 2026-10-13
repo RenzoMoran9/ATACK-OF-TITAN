@@ -40,6 +40,10 @@ npm run dev                       # http://localhost:5173
 | **Shift** (mantener) | **Correr** a pie; gasta la barra de **aguante**, que se recupera al parar (vacía, te agotas y andas más lento). Shift o Espacio justo antes de tocar el suelo: **rodada** (evita el daño por caída) |
 | **WASD** | Mover en el suelo. En el aire sin cables ni gas: dirige el salto hacia donde pulsas sin perder impulso, y la tecla contraria frena (para caer justo sobre una rama) |
 | **R** | Cambiar de par de cuchillas (4 de repuesto) |
+| **B** | **Bengala** roja hacia la mira (50 m/s). Si estalla a 4 m o menos de la cara de un titán, lo ciega 3 s. 4 bengalas; se reponen en los depósitos |
+| **X** | **Fijar parte** del titán que tienes delante: nuca → ojos → brazos → corvas → tendones → nada. El tajo asistido y los ganchos (clic derecho) van a ella aunque la mira esté en otro sitio |
+| **C** | **Caballo**: al lado, montar; montado, bajar; lejos, silbar (viene al galope). Montado: WASD lo dirige, Shift galope, Espacio salta de la silla, y si clavas un gancho sales volando de ella |
+| **H** | Descansar hasta el amanecer (de noche, en un refugio: Trost, un puesto, el campamento o un pueblo en paz) |
 | **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, pedir gas a un compañero |
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
 | **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
@@ -58,8 +62,8 @@ npm run dev                       # http://localhost:5173
 opciones y la distancia/flecha a cada una: pedir gas a un compañero (como Armin con Mikasa en Trost), recoger el equipo
 de un caído (haz de luz verde) o ir al depósito. Sin gas puedes seguir a pie y saltar.
 
-Los **consejos** de controles salen una sola vez, la primera vez que hacen falta (primer bosque, primer titán cerca,
-primer balanceo, poco gas…), para aprenderlos jugando (`src/ui/consejos.ts`).
+Los avisos son pocos y discretos: los golpes («¡Nuca!», «¡Esquivado!») salen un instante junto a la mira y lo
+importante (un pueblo atacado, liberado o en paz) en una lista pequeña a la izquierda.
 
 ### En el celular o la tableta
 
@@ -72,7 +76,7 @@ Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en
 | **GANCHOS** / **TAJO** | Clic derecho / clic izquierdo (mantener = recoger cable / cargar el tajo). Si arrastras sin soltarlos, apuntas a la vez |
 | **SALTO/GAS** | Espacio: salto, freno en el aire, impulso si mueves el joystick |
 | **◀ GANCHO** / **GANCHO ▶** | Q / E: el izquierdo junto al joystick (pulgar izquierdo), el derecho junto a GANCHOS (pulgar derecho) |
-| Fila de arriba | Cuchillas (R), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), pantalla completa, pausa |
+| Fila de arriba | Cuchillas (R), bengala (B), parte (X), caballo (C), dormir (H), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), sonido, pantalla completa, pausa |
 
 **Mover los botones:** en la pausa, **✥ Mover botones**: arrastra cada botón (y la fila de arriba) donde te quede cómodo, cambia su tamaño con − / + y pulsa **Listo**. Se guarda en el celular; **Restablecer** vuelve a la disposición original.
 
@@ -87,12 +91,15 @@ Auto, Alta, Media o Fluida. Cada soldado se dibuja con ~25 piezas fundidas (ante
 
 ## Sonido
 
-Efectos generados con ElevenLabs a partir de descripciones inspiradas en el anime (`public/sonidos/`, 31 archivos, ~0,8 MB):
+Efectos generados con ElevenLabs a partir de descripciones inspiradas en el anime (`public/sonidos/`, 47 archivos, ~1,4 MB):
 gas y silbido del cable al disparar los ganchos, golpe del ancla, bobina al recoger, viento a toda velocidad, «shing»
 de las hojas, corte en la carne y vapor de la nuca, cambio de cuchillas, pasos y aterrizajes, cada pisada de los titanes
 (más grave cuanto más grandes; galope en los de cuatro patas), su rugido al verte y el resoplido antes de atraparte,
 agarre, mordisco y masticar, derrumbe y vapor al morir, bengalas, la puerta de Trost y las campanas, y ambientes de
-bosque, llanura y noche. `src/audio/sonido.ts` es el motor (Web Audio: volumen por distancia y lado) y
+bosque, llanura y noche. En el mundo abierto, además: trote, galope y relincho del caballo y tu silbido; la campana de
+alarma y los gritos de los vecinos cuando atacan su pueblo, los martillos de la reconstrucción, el ambiente de un pueblo
+habitado, los vítores al liberarlo o defenderlo y las hogueras de noche; la esquiva, el disparo de la bengala, el
+rebote en la coraza, el endurecimiento de la Hembra y el rugido de los cambiantes. `src/audio/sonido.ts` es el motor (Web Audio: volumen por distancia y lado) y
 `src/audio/sonidosJuego.ts` decide qué suena y cuándo. **N** (o ♪ en el celular) lo silencia.
 
 ## Instalar en el celular y actualizaciones
@@ -125,6 +132,19 @@ archivos), así que cada cambio publicado es una versión nueva.
 - Son **agresivos**: ven en un cono de ±70°, oyen/huelen a quien tienen cerca, huelen las multitudes desde 150 m, te
   persiguen por las calles, se agachan para agarrarte, te levantan a la boca y te devoran. Por la noche se van apagando.
 - Si te agarran: QTE con F; o un compañero te rescata cortando la mano o la mandíbula.
+- **Esquiva del agarre**: si en los 0,25 s antes de que cierre la mano das un impulso de gas o clavas un gancho nuevo
+  (con gas en los cilindros), la mano se cierra en el aire: cámara lenta ×0,5 durante 0,4 s y el titán queda
+  descolocado. El borde de la pantalla se vuelve dorado con «¡AHORA!» en ese momento.
+- **Pasada baja**: volando por debajo de 0,2·H del titán y a menos de 3 m de un tendón o una corva, el tajo sale corto
+  (0,15 s, sin carga) directo a esa zona. Funciona también al galope.
+- **Bengala cegadora** (B): estalla al chocar, al pasar rozando una cara o a 70 m. A 4 m o menos de la cara, el titán
+  queda ciego 3 s (no es una herida: no se regenera).
+- **Cambiantes**: el **Titán Acorazado** (15 m) tiene coraza en todo el cuerpo salvo corvas y codos: la hoja rebota y se
+  mella; al caer de rodillas con una corva cortada se le agrieta la coraza de la nuca unos segundos. La **Titana Hembra**
+  (14 m), rápida, endurece la nuca cuando te ve lanzarte a ella (1,3 s, luego tarda 5 s en poder repetirlo): espera, o
+  cégala (ojos o bengala) o inutilízale los brazos, y entonces no puede. Ninguno de los dos se apaga de noche.
+- El giro de Levi sigue con su disparador (3 nucas y más de 25 m/s recogiendo cable anclado a un titán); los cuerpos de
+  los titanes siguen pudiendo meterse un poco en las casas (pendiente de decidir, ver el análisis).
 
 ## Escuadrón
 
@@ -137,20 +157,33 @@ va a la nuca cuando el titán no le mira. Rescatan a quien esté en la mano de u
 150). No pelea: cuando a ti te queda menos del 35 % o a un compañero menos del 30 %, vuela hasta él y le pasa gas. Con
 **G** se lo pides a él primero, esté donde esté.
 
-Hay escuadrón en todos los capítulos (en el entrenamiento, tus compañeros cadetes). En la exploración, si cae entero,
-en la puerta sur, un puesto de avanzada o el campamento se te unen **refuerzos de la Legión**. Si das una orden y no
+Si cae entero, en un refugio (Trost, un puesto de avanzada, el campamento o un pueblo en paz) se te unen
+**refuerzos de la Legión**. Si das una orden y no
 queda nadie, el juego te dice por qué.
-
-## Historia (capítulos)
-
-1. **Cadetes del 104.º** — entrenamiento con siluetas de madera en el linde del bosque: nuca, tendones, ojos y cambio de cuchillas.
-2. **Defensa de Trost** — el Titán Colosal revienta la puerta sur; cubres la evacuación hacia la puerta norte, suena la
-   campana de retirada con los cilindros vacíos, recuperáis el depósito de suministros y escapáis por la muralla norte.
-3. **Exploración: territorio perdido** — mundo abierto al sur de Trost (ver abajo): 14 lugares por descubrir.
 
 ## Mundo abierto
 
-Unos 4 × 4 km alrededor de Trost, con el territorio perdido al sur:
+Ya no hay niveles ni capítulos: el juego es un **mundo abierto sin final** para partidas largas. No hay objetivo
+obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos para que la gente vuelva a vivir en paz.
+
+- **Día y noche** (`src/core/cicloDia.ts`): una hora de juego dura un minuto real de día y medio de noche (un día
+  ≈ 19 min). El sol sale por el este, pasa por el sur y se pone por el oeste; amanecer y atardecer tiñen el cielo, de
+  noche hay luna y estrellas, se encienden ventanas y faroles, y casi todos los titanes se apagan (los cambiantes no).
+- **Pueblos** (Pastores, Molino, Ragako y Dauper): empiezan **tomados** por titanes. Al acercarte aparecen; mátalos a
+  todos y el pueblo queda **liberado**. Llegan refugiados de Trost, pasean por sus calles y, de día y sin titanes,
+  **reconstruyen** por etapas (andamios y martillos, y las ruinas pasan a casas nuevas, campos de cultivo, faroles).
+  Terminado, el pueblo **vive en paz**: sus cajas de la plaza recargan gas, cuchillas y bengalas, y puedes descansar y
+  reaparecer allí.
+- **Ataques**: cada pocas horas, de día, un grupo de titanes marcha hacia un pueblo habitado (más cuantos más días
+  llevas; desde el día 3, a veces con un cambiante al frente). Cuando entran, **los propios aldeanos dan la alarma**:
+  repica la campana, gritan, y una bengala roja sube sobre la plaza (se ve y se oye desde lejos; la brújula y el mapa lo
+  marcan). Con titanes dentro se pierde obra y, si nadie los defiende, la gente huye o muere y el pueblo cae.
+- **Cambiantes avistados**: desde el segundo día, a media mañana, a veces aparece el Acorazado o la Hembra en la llanura.
+- **Caballo** (C): para cruzar la llanura rápido (trote 9 m/s, galope 20 m/s). Huye de los titanes cuando está suelto.
+- **La partida se guarda sola** (cada 30 s, al pausar y al cambiar de pestaña): día, hora, pueblos, lugares
+  descubiertos y estadísticas. El menú ofrece continuarla o empezar otra.
+
+El territorio, unos 4 × 4 km alrededor de Trost:
 
 - **Seis bosques**, la zona más peligrosa del juego: tres de árboles gigantes de 80–90 m (el Bosque de los Árboles
   Gigantes junto a la puerta, el Gigante del Oeste y el Gigante del Sur) y tres densos de 25–45 m (Pinar Negro,
@@ -158,14 +191,11 @@ Unos 4 × 4 km alrededor de Trost, con el territorio perdido al sur:
   titanes genera el doble y pico que en la llanura, y casi todos son anormales: el 40 % son **titanes que corren a
   cuatro patas** (13–28 m/s), se agazapan un instante (aviso «¡Corre a cuatro patas!») y saltan a morder. Si fallan,
   derrapan: es el momento de cortarles la nuca o una pata delantera, que los tumba.
-- **Lugares**: aldeas abandonadas (de Pastores y del Molino), las ruinas del Castillo de Utgard, el río con el Puente
+- **Lugares**: cuatro pueblos (Pastores, Molino, Ragako y Dauper), las ruinas del Castillo de Utgard, el río con el Puente
   de Piedra, tres puestos de avanzada (recargan gas y cuchillas) y el campamento de la Legión de Reconocimiento.
 - Arboledas por toda la llanura, montes al fondo y viento en contra si te sales de la región.
-- **Brújula** arriba (Trost, recarga más cercana, lugares, escuadrón, titanes cercanos) y **mapa** con M.
-
-Los siguientes arcos (la Titán Hembra en el bosque, el asalto a Stohess, la recuperación de Shiganshina) están en el plan
-de la historia para las próximas fases; el mundo abierto ya tiene el escenario de la 57.ª expedición (bosques gigantes,
-Castillo de Utgard).
+- **Brújula** arriba (Trost, recarga más cercana, lugares, escuadrón, titanes cercanos, pueblos atacados, cambiantes y
+  tu caballo) y **mapa** con M (con el estado de cada pueblo: tomado, reconstruyendo o en paz).
 
 ## Modo de depuración por URL
 
@@ -226,7 +256,7 @@ src/
   core/      bucle de paso fijo (60 Hz + interpolación), entrada, configuración, física (Rapier), parámetros de URL
   data/      config.json — todos los valores ajustables
   combat/    modelo de corte (corte.ts), cuchillas, efectos (vapor, sangre, bengalas), suministros recogibles
-  missions/  campaña por capítulos (entrenamiento, Trost, libre), Titán Colosal, siluetas de entrenamiento
+  missions/  mundo abierto (capitulos/mundo.ts), pueblos (pueblos.ts + logicaPueblo.ts), guardado, siluetas
   npc/       aldeanos (huida por campo de flujo, cola en la puerta) y escuadrón (soldado con ODM + coordinador)
   player/    controlador, ODM, combate, cuerda.ts y gas.ts (lógica pura + tests), cámara al hombro, modelo articulado y poses
   titans/    titán puro articulado (colisionadores por segmento, puntos débiles, IA, agarre) y gestor
@@ -245,9 +275,12 @@ Hecho:
 - Animación procedural del soldado con articulaciones y muelles (carrera, vuelo tirado por el cable, péndulo, impulsos,
   aterrizaje agachado, voltereta, corte con estela, giro de Levi, cambio de cuchillas, pataleo al ser agarrado).
 - Cámara sobre el hombro sin parpadeo al mirar hacia arriba (el brazo se desliza sobre el suelo), mira rediseñada.
-- Aldeanos que huyen hacia la puerta norte, escuadrón con tácticas, opciones al quedarse sin gas, campaña con dos capítulos.
+- Aldeanos que huyen hacia la puerta norte, escuadrón con tácticas, opciones al quedarse sin gas.
+- Mundo abierto sin niveles con día y noche, pueblos que se liberan, se repueblan, se reconstruyen y piden ayuda,
+  caballo, cambiantes (Acorazado y Hembra), esquiva, bengala cegadora, pasada baja y fijar parte, partida guardada.
 
 Pendiente:
-- Arcos siguientes de la historia (Titán Hembra, Stohess, Shiganshina) y titanes cambiantes.
+- Caballo con modelo 3D de verdad (ahora es de primitivas).
+- Decidir la solidez de los titanes contra las casas.
 - Modelos 3D de verdad (los cuerpos son primitivas): se podrían sustituir por modelos GLB con licencia libre (habría que
   añadir la carga con GLTFLoader y adaptar las articulaciones).

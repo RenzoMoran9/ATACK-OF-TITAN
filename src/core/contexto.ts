@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Efectos } from '../combat/efectos';
+import type { CicloDia } from './cicloDia';
 import type { Suministros } from '../combat/suministros';
 import type { Mundo } from '../world/mundo';
 import type { Entrada } from './entrada';
@@ -55,6 +56,8 @@ export interface ContextoJuego {
   /** Dónde reaparece el jugador si lo devoran (lo mueven las misiones). */
   puntoReaparicion: THREE.Vector3;
   esDeNoche(): boolean;
+  /** Hora y día del mundo abierto (el cielo la sigue). */
+  ciclo: CicloDia;
   /** Gira la cámara hacia un punto (momentos de historia: el Colosal asomando...). */
   orientarCamara(p: THREE.Vector3): void;
 }
@@ -147,6 +150,10 @@ export class CivilesNulos implements CivilesAPI {
   muertos = 0;
   restantes = 0;
   generar(): void {}
+  generarAldeanos(): Humano[] {
+    return [];
+  }
+  retirar(): void {}
   evacuar(): void {}
   limpiar(): void {}
   actualizar(): void {}
