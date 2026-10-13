@@ -145,12 +145,15 @@ export class EquipoODM {
     const o = config.odm;
     const gc = config.gas;
     this.recogiendo = false;
-    const teclas: Record<Lado, string[]> = { izq: ['Mouse0', 'KeyQ'], der: ['Mouse2', 'KeyE'] };
+    // Clic derecho: los dos ganchos a la vez hacia la mira; Q / E: cada uno por separado
+    const teclas: Record<Lado, string> = { izq: 'KeyQ', der: 'KeyE' };
+    const ambosPulsado = c.entrada.consumir('Mouse2');
+    const ambosMantenido = c.entrada.mantenida('Mouse2');
 
     this.ganchos.forEach((g, i) => {
-      const [boton, tecla] = teclas[g.lado];
-      const pulsado = c.entrada.consumir(boton) || c.entrada.consumir(tecla);
-      const mantenido = c.entrada.mantenida(boton) || c.entrada.mantenida(tecla);
+      const tecla = teclas[g.lado];
+      const pulsado = c.entrada.consumir(tecla) || ambosPulsado;
+      const mantenido = c.entrada.mantenida(tecla) || ambosMantenido;
 
       if (pulsado && g.estado === 'listo' && (this.gasInfinito || c.gas.consumir(gc.costeDisparo))) {
         const origen = salida(g.lado);

@@ -231,7 +231,7 @@ export class Hud {
     const qte = jugador.combate?.qte;
     this.qte.hidden = !qte || !jugador.agarradoPor;
     if (qte) {
-      this.qteTexto.textContent = qte.restante > 0 ? `¡Pulsa F! ${qte.hechas}/${qte.necesarias}` : 'No llegas… ¡que alguien te ayude!';
+      this.qteTexto.textContent = qte.restante > 0 ? `¡Clic! ¡Clic! ${qte.hechas}/${qte.necesarias}` : 'No llegas… ¡que alguien te ayude!';
       this.qteBarra.style.width = `${(qte.restante / qte.total) * 100}%`;
     }
 

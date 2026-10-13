@@ -161,7 +161,7 @@ export interface EstadoAnimacion {
   corte: number | null;
   /** Corte giratorio estilo Levi en curso. */
   giro: boolean;
-  /** Manteniendo F: brazos atrás, cuerpo enrollado, listo para el tajo. */
+  /** Manteniendo el tajo (clic izq o F): brazos atrás, cuerpo enrollado, listo para el tajo. */
   preparandoCorte?: boolean;
   /** Cambiando de par de cuchillas. */
   cambiandoCuchillas?: boolean;

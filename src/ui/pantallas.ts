@@ -7,10 +7,11 @@ import type { Campana, IdCapitulo } from '../missions/campana';
 
 const CONTROLES = `
   <ul class="controles">
-    <li><b>Clic izq / Q</b> gancho izquierdo · <b>Clic der / E</b> gancho derecho <i>(mantener = recoger cable)</i></li>
+    <li><b>Clic izq</b> tajo (mantén para cargar) · <b>Clic der</b> los dos ganchos a la mira <i>(mantener = recoger cable)</i></li>
+    <li><b>Q / E</b> solo el gancho izquierdo / derecho (para orbitar)</li>
     <li><b>Espacio</b> saltar · en el aire: solo, frena; con WASD o enganchado, impulso de gas</li>
     <li><b>Shift</b> (mantener) correr, gasta aguante · Shift o Espacio justo antes de tocar el suelo: rodada</li>
-    <li><b>F</b> tajo (mantén para cargar) · <b>R</b> cambiar cuchillas · <b>WASD</b> mover · <b>Ratón/flechas</b> cámara</li>
+    <li><b>F</b> también da el tajo · <b>R</b> cambiar cuchillas · <b>WASD</b> mover · <b>Ratón/flechas</b> cámara</li>
     <li><b>1</b> seguidme · <b>2</b> atacad · <b>3</b> proteged a los civiles · <b>4</b> retirada · <b>5</b> esperad aquí · <b>6</b> id allí · <b>7</b> atacad a ese titán · <b>8</b> explorad</li>
     <li><b>Tab</b> a quién mandas (todos o uno) · <b>F1/P</b> ajustes · <b>Esc</b> pausa</li>
   </ul>`;

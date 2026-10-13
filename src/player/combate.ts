@@ -7,12 +7,12 @@ import type { EfectoCorte, Humano, PuntoDebil, TitanAPI } from '../core/tipos';
 
 /**
  * Combate del jugador como en el anime:
- * - F: mantener prepara el tajo (brazos atrás), soltar lo lanza (0,25 s). Un toque es un tajo rápido.
+ * - Clic izquierdo (o F): mantener prepara el tajo (brazos atrás), soltar lo lanza (0,25 s). Un toque es un tajo rápido.
  * - Al lanzarlo, un pequeño impulso te lleva hacia el punto débil activo más cercano delante de ti.
  * - El daño sale de la velocidad, del ángulo respecto a la columna y del filo (combat/corte.ts).
- * - Giro de Levi: F mientras recoges cable anclado a un titán a más de 25 m/s (tras 3 nucas).
+ * - Giro de Levi: clic izquierdo (o F) mientras recoges cable anclado a un titán a más de 25 m/s (tras 3 nucas).
  * - R: cambiar de par de cuchillas (0,6 s).
- * - Agarrado: pulsa F muchas veces para cortarle los dedos antes de que te lleve a la boca.
+ * - Agarrado: haz clic (o F) muchas veces para cortarle los dedos antes de que te lleve a la boca.
  */
 
 const ALCANCE_TAJO = 1.6;
@@ -107,8 +107,9 @@ export class CombateJugador {
       }
     }
 
-    const pulsado = entrada.consumir('KeyF');
-    const mantenido = entrada.mantenida('KeyF');
+    // Tajo: clic izquierdo (o F)
+    const pulsado = entrada.consumir('Mouse0') || entrada.consumir('KeyF');
+    const mantenido = entrada.mantenida('Mouse0') || entrada.mantenida('KeyF');
     if (pulsado && !this.tajo) {
       if (!this.cuchillas.puedeCortar) {
         this.mensaje(this.cuchillas.cambiando > 0 ? 'Cambiando de cuchillas…' : 'Cuchillas rotas: cámbialas con R', 1.2);
@@ -221,11 +222,12 @@ export class CombateJugador {
       this.tajo = null;
       this.sacudida = 1;
       this.ctx.efectos.bengala(this.c.pos.clone(), '#7b3fe4'); // bengala morada: emergencia
-      this.mensaje('¡Te ha atrapado! Pulsa F muchas veces para cortarle los dedos', 2.5);
+      this.mensaje('¡Te ha atrapado! Haz clic (o F) muchas veces para cortarle los dedos', 2.5);
     }
     const q = this.qte;
     q.restante = Math.max(0, q.restante - dt);
-    if (entrada.consumir('KeyF') && q.restante > 0) {
+    const corte = entrada.consumir('Mouse0') || entrada.consumir('KeyF');
+    if (corte && q.restante > 0) {
       q.hechas++;
       this.cuchillas.desgastar(0.02);
       this.sacudida = Math.max(this.sacudida, 0.4);
