@@ -75,6 +75,7 @@ export class ControlesTactiles {
         <button class="t-btn mini" data-k="KeyB" title="Bengala (en la cara, ciega 3 s)">✷<small>Bengala</small></button>
         <button class="t-btn mini" data-k="KeyX" title="Fijar parte del titán">◎<small>Parte</small></button>
         <button class="t-btn mini" data-k="KeyC" title="Caballo: montar, bajar o silbar">♞<small>Caballo</small></button>
+        <button class="t-btn mini" data-k="KeyK" title="Armar campamento aquí">⛺<small>Acampar</small></button>
         <button class="t-btn mini" data-k="KeyH" title="Descansar hasta el amanecer">☾<small>Dormir</small></button>
         <button class="t-btn mini" data-k="KeyL" title="Linterna">☀<small>Luz</small></button>
         <button class="t-btn mini" data-k="KeyM" title="Mapa">⌖<small>Mapa</small></button>
@@ -126,6 +127,8 @@ export class ControlesTactiles {
 
     for (const b of r.querySelectorAll<HTMLButtonElement>('.t-btn')) {
       const k = b.dataset.k;
+      // la tecla se lee al pulsar: el botón contextual cambia de tecla (caballo, martillo)
+      let pulsada: string | undefined;
       const movible = b.closest<HTMLElement>('[data-mover]');
       const accion = b.dataset.accion;
       // los de acción giran la cámara si arrastras sin soltarlos (salvo el gancho izquierdo,
@@ -141,7 +144,8 @@ export class ControlesTactiles {
         }
         b.classList.add('pulsado');
         ultimo = { x: e.clientX, y: e.clientY };
-        if (k) this.entrada.presionar(k);
+        pulsada = b.dataset.k;
+        if (pulsada) this.entrada.presionar(pulsada);
         if (accion === 'pausa') acciones.pausa();
         if (accion === 'pantalla') acciones.pantallaCompleta();
         if (accion === 'ordenes') this.ordenes.hidden = !this.ordenes.hidden;
@@ -160,7 +164,8 @@ export class ControlesTactiles {
         this.arrastre = null;
         b.classList.remove('pulsado');
         ultimo = null;
-        if (k) this.entrada.liberar(k);
+        if (pulsada) this.entrada.liberar(pulsada);
+        pulsada = undefined;
       };
       b.addEventListener('pointerup', soltar);
       b.addEventListener('pointercancel', soltar);
@@ -169,19 +174,22 @@ export class ControlesTactiles {
   }
 
   /**
-   * Botón grande del caballo junto a los de acción: «MONTAR» al lado del caballo, «BAJAR»
-   * montado; si no, oculto (para silbarle está ♞ en la fila de arriba).
+   * Botón grande que cambia según dónde estés, junto a los de acción: «MARTILLO» al lado de
+   * una obra del campamento, «MONTAR» al lado del caballo, «BAJAR» montado; si no, oculto.
    */
-  caballo(estado: 'montar' | 'bajar' | null): void {
+  contextual(c: { icono: string; texto: string; tecla: string } | null): void {
     const b = this.botonCaballo;
     if (this.editando) {
       b.hidden = false;
       return;
     }
-    b.hidden = estado === null;
-    const texto = estado === 'bajar' ? 'BAJAR' : 'MONTAR';
+    b.hidden = c === null;
+    if (!c) return;
+    b.dataset.k = c.tecla;
+    const icono = b.querySelector('span')!;
     const s = b.querySelector('small')!;
-    if (s.textContent !== texto) s.textContent = texto;
+    if (icono.textContent !== c.icono) icono.textContent = c.icono;
+    if (s.textContent !== c.texto) s.textContent = c.texto;
   }
 
   private get botonCaballo(): HTMLButtonElement {

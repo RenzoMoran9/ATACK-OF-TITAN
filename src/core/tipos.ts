@@ -143,6 +143,8 @@ export interface TitanAPI {
   deslumbrar?(segundos: number): void;
   /** Marcha hacia un punto (un pueblo) mientras no vea a nadie; null la cancela. */
   dirigirA?(p: THREE.Vector3 | null): void;
+  /** Enredado en el alambre de un campamento: anda a `factor` de su velocidad unos `segundos`. */
+  enredar?(segundos: number, factor: number): void;
 }
 
 // ───────────────────────── Eventos de juego ─────────────────────────
@@ -160,6 +162,8 @@ export type EventoJuego =
   | { tipo: 'endurece'; titan: TitanAPI }
   | { tipo: 'caballo'; accion: 'montar' | 'llamar' | 'bajar'; pos: THREE.Vector3 }
   | { tipo: 'alarmaPueblo'; nombre: string; pos: THREE.Vector3 }
+  | { tipo: 'martillazo'; pos: THREE.Vector3; golpe: 'perfecto' | 'bueno' | 'fallo' }
+  | { tipo: 'alambre'; pos: THREE.Vector3 }
   | { tipo: 'puebloLiberado'; nombre: string; pos: THREE.Vector3 }
   | { tipo: 'puebloDefendido'; nombre: string; pos: THREE.Vector3 }
   | { tipo: 'puebloCaido'; nombre: string; pos: THREE.Vector3 }
@@ -313,6 +317,11 @@ export interface EscuadronAPI {
   crear(miembros: MiembroEscuadron[], cerca: THREE.Vector3): void;
   /** Da la orden a la selección; los demás conservan la suya. */
   ordenar(o: OrdenEscuadron, destino?: DestinoOrden): void;
+  /**
+   * Manda a un soldado a trabajar junto a `punto` (montar el campamento) o, con null, lo deja
+   * esperando junto a `descanso` (o siguiéndote si no hay). No lanza bengala ni habla.
+   */
+  trabajarEn(s: Humano, punto: THREE.Vector3 | null, descanso?: THREE.Vector3): void;
   /** Tab: Todos → cada soldado vivo → Todos. Devuelve la nueva selección. */
   cambiarSeleccion(): Humano | null;
   /** Orden, gas y cuchillas de un soldado (null si no es del escuadrón). */
@@ -353,6 +362,10 @@ export interface JugadorAPI extends Humano {
   /** Filo del par montado (0 = roto, 1 = nuevo). */
   readonly filo: number;
   readonly cambiandoCuchillas: boolean;
+  /** Hacia dónde mira el soldado (rad). */
+  readonly rumbo?: number;
+  /** Va a caballo. */
+  readonly montado?: boolean;
   /** Depósito de gas (las misiones pueden vaciarlo: «los cilindros silban vacíos»). */
   readonly gas: { nivel: number; readonly capacidad: number };
   teletransportar(pies: THREE.Vector3, rumbo?: number): void;

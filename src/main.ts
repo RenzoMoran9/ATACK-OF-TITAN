@@ -17,6 +17,7 @@ import { Jugador } from './player/jugador';
 import { Campana } from './missions/campana';
 import { GestorCiviles } from './npc/civiles';
 import { CapMundo } from './missions/capitulos/mundo';
+import { ANCHO_ZONA } from './missions/logicaCampamento';
 import { CicloDia } from './core/cicloDia';
 import { Hud } from './ui/hud';
 import { MandoEscuadron } from './ui/ordenes';
@@ -221,6 +222,14 @@ async function iniciar(): Promise<void> {
   const mundoAbierto = (): CapMundo | null => (campana?.capitulo instanceof CapMundo ? campana.capitulo : null);
   sonidos.pueblos = () => mundoAbierto()?.pueblos ?? null;
   brujula.pueblos = sonidos.pueblos;
+  if (pantallas) pantallas.guardar = () => mundoAbierto()?.guardar() ?? false;
+  sonidos.campamento = () => mundoAbierto()?.campamento ?? null;
+  brujula.campamento = sonidos.campamento;
+  hud.obraMartillo = () => {
+    const c = mundoAbierto()?.campamento;
+    const o = c && c.obraJugador >= 0 ? c.obras[c.obraJugador] : null;
+    return c && o ? { aguja: c.aguja, zona: c.zona, ancho: ANCHO_ZONA, progreso: o.progreso } : null;
+  };
   mapa.pueblos = sonidos.pueblos;
   const derechaCamara = new THREE.Vector3();
   const alternarSonido = () => {
@@ -361,7 +370,7 @@ async function iniciar(): Promise<void> {
     if (entrada.consumir('KeyL')) alternarLinterna();
     if (entrada.consumir('KeyN')) alternarSonido();
     // G: recoger el equipo de un caído o, si no hay ninguno al lado, pedir gas a un compañero
-    if (entrada.consumir('KeyG') && jugador.vivo) {
+    if (entrada.consumir('KeyG') && jugador.vivo && !mundoAbierto()?.martillazo()) {
       const recogido = ctx.suministros.recoger();
       if (recogido) ctx.eventos.emit({ tipo: 'mensaje', texto: recogido, segundos: 3 });
       else if (jugador.gas.nivel >= jugador.gas.capacidad * 0.9) ctx.eventos.emit({ tipo: 'mensaje', texto: 'Gas casi lleno', segundos: 1 });
@@ -444,7 +453,10 @@ async function iniciar(): Promise<void> {
       controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false) || controlesTactiles.editando;
       const c = jugador.caballo;
       const alLado = !!c && c.grupo.visible && jugador.vivo && !jugador.agarradoPor && Math.hypot(c.pos.x - jugador.pos.x, c.pos.z - jugador.pos.z) < 3.5 && jugador.pos.y < 4;
-      controlesTactiles.caballo(jugador.montado ? 'bajar' : alLado ? 'montar' : null);
+      const obra = !jugador.montado && (mundoAbierto()?.campamento?.obraJugador ?? -1) >= 0;
+      controlesTactiles.contextual(
+        obra ? { icono: '⚒', texto: 'MARTILLO', tecla: 'KeyG' } : jugador.montado ? { icono: '♞', texto: 'BAJAR', tecla: 'KeyC' } : alLado ? { icono: '♞', texto: 'MONTAR', tecla: 'KeyC' } : null,
+      );
     }
     derechaCamara.setFromMatrixColumn(camara.matrixWorld, 0);
     calidad?.medir(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura);

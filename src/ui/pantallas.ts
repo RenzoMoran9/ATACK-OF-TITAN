@@ -1,4 +1,5 @@
 import type { Campana } from '../missions/campana';
+import { textoHora } from '../core/cicloDia';
 import { leerPartida } from '../missions/guardado';
 import { alCambiarInstalable, enModoApp, entrarPantallaCompleta, alternarPantallaCompleta, esIOS, instalarApp, pantallaCompletaDisponible, puedeInstalarse } from './pantallaCompleta';
 
@@ -40,6 +41,8 @@ function escapar(t: string): string {
 export class Pantallas {
   private readonly raiz: HTMLDivElement;
   pausado = false;
+  /** Guarda la partida ahora (lo pone main.ts); devuelve si se ha podido. */
+  guardar: (() => boolean) | null = null;
   /** En el celular: abre el modo de mover botones (se le pasa qué hacer al terminar). */
   editarBotones: ((alTerminar: () => void) => void) | null = null;
 
@@ -132,7 +135,7 @@ export class Pantallas {
       const partida = leerPartida();
       if (partida) {
         const enPaz = partida.pueblos.filter((p) => p.liberado && p.progreso >= 1).length;
-        fila.append(this.boton(`Continuar · Día ${partida.dia} · ${enPaz} pueblos en paz`, () => this.entrar(true), 'principal'));
+        fila.append(this.boton(`Continuar · Día ${partida.dia}, ${textoHora(partida.hora)} · ${enPaz} pueblos en paz`, () => this.entrar(true), 'principal'));
         const nueva = this.boton('Nueva partida', () => {
           // dos toques: la partida guardada se pierde
           if (nueva.dataset.confirmar) this.entrar(false);
@@ -164,10 +167,15 @@ export class Pantallas {
         return;
       }
       r.className = 'pantalla pausa';
-      r.innerHTML = `<h2>Pausa</h2><p class="texto">${escapar(c.objetivoTexto)}</p><p class="texto">${escapar(c.objetivoDetalle)}</p><p class="pista">La partida se guarda sola.</p>`;
+      r.innerHTML = `<h2>Pausa</h2><p class="texto">${escapar(c.objetivoTexto)}</p><p class="texto">${escapar(c.objetivoDetalle)}</p><p class="pista">También se guarda sola cada 30 s. Al continuar, sigues justo donde lo dejaste.</p>`;
       const fila = document.createElement('div');
       fila.className = 'botones';
-      fila.append(this.boton('Continuar', () => void this.jugar(), 'principal'), this.boton('Guardar y salir al menú', () => c.irAlMenu()));
+      const guardar = this.boton('Guardar partida', () => {
+        const ok = this.guardar?.() ?? false;
+        const p = ok ? leerPartida() : null;
+        guardar.textContent = p ? `✓ Guardada · Día ${p.dia}, ${textoHora(p.hora)}` : 'No se pudo guardar';
+      });
+      fila.append(this.boton('Continuar', () => void this.jugar(), 'principal'), guardar, this.boton('Guardar y salir al menú', () => c.irAlMenu()));
       r.appendChild(fila);
       const editar = this.editarBotones;
       if (editar) {

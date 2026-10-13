@@ -46,6 +46,8 @@ export class Brujula {
   private readonly marcas: Marca[] = [];
   /** Pueblos del mundo abierto (para marcar los que están siendo atacados). */
   pueblos: (() => GestorPueblos | null) | null = null;
+  /** Tu campamento (si has armado uno). */
+  campamento: (() => { centro: { x: number; z: number } } | null) | null = null;
 
   constructor(contenedor: HTMLElement, visible: boolean) {
     this.raiz = document.createElement('div');
@@ -95,6 +97,8 @@ export class Brujula {
     // pueblos atacados (con su campana), cambiantes a la vista y tu caballo
     for (const p of this.pueblos?.()?.lista ?? []) if (p.enAlarma) m.push({ clase: 'alarma', x: p.centro.x, z: p.centro.z, texto: `¡${p.nombre}!` });
     for (const t of ctx.poblacion.titanesCerca(j, 1500)) if (t.vivo && t.especial) m.push({ clase: 'jefe', x: t.posicion.x, z: t.posicion.z, texto: t.especial === 'acorazado' ? 'Acorazado' : 'Hembra' });
+    const camp = this.campamento?.();
+    if (camp) m.push({ clase: 'campamento', x: camp.centro.x, z: camp.centro.z, texto: 'Campamento' });
     const caballo = (ctx.jugador as { caballo?: { pos: { x: number; z: number }; montado: boolean; grupo: { visible: boolean } } | null }).caballo;
     if (caballo && !caballo.montado && caballo.grupo.visible) m.push({ clase: 'caballo', x: caballo.pos.x, z: caballo.pos.z });
     for (const e of ctx.suministros.lista) m.push({ clase: 'equipo', x: e.pos.x, z: e.pos.z });

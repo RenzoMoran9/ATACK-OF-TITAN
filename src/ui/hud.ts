@@ -51,6 +51,9 @@ export class Hud {
   private readonly nombreFijado: HTMLSpanElement;
   private readonly accion: HTMLDivElement;
   private readonly textoPeligro: HTMLDivElement;
+  private readonly martillo: HTMLDivElement;
+  /** Obra del campamento junto al jugador: aguja, zona verde y progreso (lo pone main.ts). */
+  obraMartillo: (() => { aguja: number; zona: number; ancho: number; progreso: number } | null) | null = null;
   private acumFps = 0;
   private framesFps = 0;
   private reloj = 0;
@@ -91,6 +94,7 @@ export class Hud {
       <div class="hud-qte" hidden><div class="texto"></div><div class="barra"><div class="tiempo"></div></div></div>
       <div class="hud-fijado" hidden><span class="marco"></span><span class="nombre"></span></div>
       <div class="hud-accion" hidden></div>
+      <div class="hud-martillo" hidden><div class="barra"><div class="zona"></div><div class="aguja"></div></div><div class="obra"><div class="hecho"></div></div><div class="tecla"></div></div>
       <div class="hud-velocidad">0 m/s</div>
       <div class="hud-fps"></div>
       <div class="hud-muerte" hidden><div>Has sido devorado</div></div>`;
@@ -124,6 +128,8 @@ export class Hud {
     this.nombreFijado = q('.hud-fijado .nombre');
     this.accion = q('.hud-accion');
     this.textoPeligro = q('.hud-peligro .texto');
+    this.martillo = q('.hud-martillo');
+    this.martillo.querySelector('.tecla')!.innerHTML = document.body.classList.contains('tactil') ? '<b>MARTILLO</b> cuando la aguja pase por lo verde' : '<b>G</b> martillazo cuando la aguja pase por lo verde';
     ctx.eventos.on('mensaje', (e) => this.mensaje(e.texto, e.segundos ?? 3));
   }
 
@@ -279,6 +285,17 @@ export class Hud {
     const tb = `BENGALAS ×${nb}`;
     if (this.bengalas.textContent !== tb) this.bengalas.textContent = tb;
     this.bengalas.classList.toggle('vacio', nb === 0);
+
+    // Minijuego del martillo junto a una obra del campamento
+    const obra = jugador.vivo && !jugador.montado ? this.obraMartillo?.() : null;
+    this.martillo.hidden = !obra;
+    if (obra) {
+      const zona = this.martillo.querySelector<HTMLDivElement>('.zona')!;
+      zona.style.left = `${(obra.zona - obra.ancho / 2) * 100}%`;
+      zona.style.width = `${obra.ancho * 100}%`;
+      this.martillo.querySelector<HTMLDivElement>('.aguja')!.style.left = `${obra.aguja * 100}%`;
+      this.martillo.querySelector<HTMLDivElement>('.hecho')!.style.width = `${Math.min(1, obra.progreso) * 100}%`;
+    }
 
     // Pistas de lo que se puede hacer ahora mismo
     let pista = '';

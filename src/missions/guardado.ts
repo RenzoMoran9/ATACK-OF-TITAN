@@ -1,3 +1,4 @@
+import type { EstadoGuardadoCampamento } from './campamento';
 import type { EstadoGuardadoPueblo } from './logicaPueblo';
 
 /**
@@ -16,6 +17,13 @@ export interface PartidaGuardada {
   stats: { titanes: number; nucas: number; jefes: number; defensas: number };
   /** Último sitio seguro (x, z). */
   reaparicion: [number, number];
+  /** Dónde estabas exactamente y con qué equipo (para seguir justo ahí). */
+  jugador?: { x: number; y: number; z: number; rumbo: number; gas: number; cuchillas: number; bengalas: number };
+  /** Dónde estaba tu caballo (x, z). */
+  caballo?: [number, number];
+  campamento?: EstadoGuardadoCampamento;
+  /** Momento del guardado (ms desde 1970), para el menú. */
+  fecha?: number;
 }
 
 export function leerPartida(): PartidaGuardada | null {
@@ -32,6 +40,10 @@ export function leerPartida(): PartidaGuardada | null {
       descubiertos: Array.isArray(p.descubiertos) ? p.descubiertos.filter((x) => typeof x === 'string') : [],
       stats: { titanes: 0, nucas: 0, jefes: 0, defensas: 0, ...(p.stats ?? {}) },
       reaparicion: Array.isArray(p.reaparicion) && p.reaparicion.length === 2 ? [Number(p.reaparicion[0]) || 0, Number(p.reaparicion[1]) || 0] : [6, 300],
+      jugador: p.jugador && [p.jugador.x, p.jugador.y, p.jugador.z].every(Number.isFinite) ? p.jugador : undefined,
+      caballo: Array.isArray(p.caballo) && p.caballo.length === 2 && p.caballo.every(Number.isFinite) ? p.caballo : undefined,
+      campamento: p.campamento && Number.isFinite(p.campamento.x) && Array.isArray(p.campamento.postes) ? p.campamento : undefined,
+      fecha: typeof p.fecha === 'number' ? p.fecha : undefined,
     };
   } catch {
     return null;

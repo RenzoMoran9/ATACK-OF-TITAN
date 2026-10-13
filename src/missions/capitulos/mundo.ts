@@ -6,6 +6,8 @@ import { Poblador } from '../../titans/poblador';
 import type { Lugar } from '../../world/lugares';
 import type { ApiCapitulo, Capitulo } from '../campana';
 import { borrarPartida, guardarPartida, leerPartida, type PartidaGuardada } from '../guardado';
+import { Campamento } from '../campamento';
+import { RADIO_CARPAS, RADIO_CERCO, puntosCerco } from '../logicaCampamento';
 import { GestorPueblos } from '../pueblos';
 
 /**
@@ -16,6 +18,9 @@ import { GestorPueblos } from '../pueblos';
  *
  * - Lugares por descubrir (bosques, pueblos, Utgard, puente, puestos, campamento).
  * - Caballo (C) para cruzar la llanura; escuadrón con órdenes (1–8).
+ * - K: armar un campamento (cerco de alambre y carpas) donde estés; el escuadrón lo monta y
+ *   tú ayudas con el martillo (G). Es un refugio más.
+ * - Se guarda dónde estás exactamente: al continuar sigues en el mismo sitio.
  * - H en un refugio (Trost, un puesto, el campamento o un pueblo en paz), de noche: descansar
  *   hasta el amanecer.
  * - A partir del segundo día a veces se avista a un cambiante (Acorazado o Hembra).
@@ -60,6 +65,7 @@ export class CapMundo implements Capitulo {
   continuar = false;
   pueblos: GestorPueblos | null = null;
   caballo: Caballo | null = null;
+  campamento: Campamento | null = null;
   private api!: ApiCapitulo;
   private partida: PartidaGuardada | null = null;
   private poblador: Poblador | null = null;
@@ -100,8 +106,19 @@ export class CapMundo implements Capitulo {
     const inicio = p ? new THREE.Vector3(p.reaparicion[0], 0, p.reaparicion[1]) : puerta;
     const libre = ctx.nav.puntoLibreCercano(inicio.x, inicio.z, 1.5) ?? inicio;
     inicio.set(libre.x, 0, libre.z);
-    ctx.jugador.revivir(inicio, 0);
-    api.puntoControl(inicio);
+    api.puntoControl(inicio.clone());
+    // seguir justo donde lo dejaste (en un tejado, en una rama…), con el mismo equipo
+    const pj = p?.jugador;
+    if (pj) inicio.set(pj.x, Math.max(0, pj.y - 0.85), pj.z);
+    ctx.jugador.revivir(inicio, pj?.rumbo ?? 0);
+    if (pj) {
+      const jug = ctx.jugador as unknown as { gas: { nivel: number }; combate: { cuchillas: { repuesto: number }; bengalas: number } | null };
+      jug.gas.nivel = Math.max(0, pj.gas);
+      if (jug.combate) {
+        jug.combate.cuchillas.repuesto = Math.max(0, Math.min(4, Math.round(pj.cuchillas)));
+        jug.combate.bengalas = Math.max(0, Math.min(4, Math.round(pj.bengalas)));
+      }
+    }
     ctx.escuadron.crear(ESCUADRON, inicio.clone().add(new THREE.Vector3(-5, 0, -4)));
     // la vida sigue dentro de la muralla
     ctx.civiles.generar(30, new THREE.Vector3(0, 0, 0), 150);
@@ -112,7 +129,10 @@ export class CapMundo implements Capitulo {
     this.caballo ??= new Caballo(ctx.escena, ctx.nav, ctx.poblacion);
     this.caballo.grupo.visible = true;
     this.caballo.montado = false;
-    this.caballo.colocar(inicio.clone().add(new THREE.Vector3(4, 0, 3)), Math.PI);
+    const pc = p?.caballo;
+    this.caballo.colocar(pc ? new THREE.Vector3(pc[0], 0, pc[1]) : inicio.clone().setY(0).add(new THREE.Vector3(4, 0, 3)), Math.PI);
+    this.campamento?.eliminar();
+    this.campamento = p?.campamento ? new Campamento(ctx, new THREE.Vector3(p.campamento.x, 0, p.campamento.z), p.campamento) : null;
     (ctx.jugador as { caballo?: Caballo | null }).caballo = this.caballo;
     this.tRevisar = 0;
     this.tGuardar = 20;
@@ -143,8 +163,10 @@ export class CapMundo implements Capitulo {
     this.poblador?.actualizar(dt);
     this.caballo?.actualizar(dt);
     this.pueblos?.actualizar(dt, Math.max(0, horas), !ciclo.noche, factorNoche(ciclo.hora), ciclo.dia);
+    this.campamento?.actualizar(dt);
     this.pasoDescanso();
     if (ctx.entrada.consumir('KeyH')) this.alternarDescanso();
+    if (ctx.entrada.consumir('KeyK')) this.armarCampamento();
     this.avistamientos();
     this.tGuardar -= dt;
     if (this.tGuardar <= 0) {
@@ -174,6 +196,8 @@ export class CapMundo implements Capitulo {
     this.poblador = null;
     this.pueblos?.limpiar();
     this.pueblos = null;
+    this.campamento?.eliminar();
+    this.campamento = null;
     const ctx = this.api?.ctx;
     if (ctx) {
       ctx.ciclo.aceleracion = 1;
@@ -182,12 +206,14 @@ export class CapMundo implements Capitulo {
     if (this.caballo) this.caballo.grupo.visible = false;
   }
 
-  /** Estado para guardar (también lo usa el menú de pausa). */
-  guardar(): void {
-    if (!this.api || !this.pueblos) return;
+  /** Guarda la partida (también lo usa el botón de la pausa). Devuelve si se ha podido. */
+  guardar(): boolean {
+    if (!this.api || !this.pueblos) return false;
     const ctx = this.api.ctx;
     const s = this.api.estadisticas;
     const r = ctx.puntoReaparicion;
+    const j = ctx.jugador;
+    const enPeligro = !j.vivo || j.agarradoPor;
     guardarPartida({
       version: 1,
       dia: ctx.ciclo.dia,
@@ -201,7 +227,45 @@ export class CapMundo implements Capitulo {
         defensas: this.base.defensas + this.defensas,
       },
       reaparicion: [r.x, r.z],
+      // si te están comiendo, mejor volver al refugio que a la mano del titán
+      jugador: enPeligro ? undefined : { x: j.posicion.x, y: j.posicion.y, z: j.posicion.z, rumbo: ctx.jugador.rumbo ?? 0, gas: j.gas.nivel, cuchillas: j.paresRepuesto, bengalas: (j as unknown as { combate?: { bengalas: number } }).combate?.bengalas ?? 4 },
+      caballo: this.caballo ? [this.caballo.pos.x, this.caballo.pos.z] : undefined,
+      campamento: this.campamento?.guardar(),
+      fecha: Date.now(),
     });
+    return true;
+  }
+
+  /** G junto a una obra del campamento: martillazo. Devuelve true si lo ha usado. */
+  martillazo(): boolean {
+    const c = this.campamento;
+    if (!c || c.obraJugador < 0 || this.api.ctx.jugador.montado) return false;
+    const g = c.martillazo();
+    if (!g) return false;
+    this.api.mensaje(g === 'perfecto' ? '¡Perfecto!' : g === 'bueno' ? '¡Bien!' : 'Fallo', 0.7);
+    return true;
+  }
+
+  /** K: arma un campamento aquí (si ya había uno, se desmonta). */
+  private armarCampamento(): void {
+    const ctx = this.api.ctx;
+    const j = ctx.jugador;
+    const p = j.posicion;
+    if (!j.vivo || j.agarradoPor || j.montado || p.y > 3) return this.api.mensaje('Baja al suelo', 1.2);
+    if (Math.hypot(p.x, p.z) < ctx.mundo.muralla.radioExterior + 25) return this.api.mensaje('Dentro de Trost no hace falta', 1.5);
+    if (this.amenazado(p)) return this.api.mensaje('Hay titanes cerca', 1.5);
+    const libre = (x: number, z: number, r: number) => ctx.nav.libre(x, z, r);
+    const carpas = Array.from({ length: 6 }, (_, i) => {
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      return { x: p.x + Math.cos(a) * RADIO_CARPAS, z: p.z + Math.sin(a) * RADIO_CARPAS };
+    });
+    const sitios = [...puntosCerco(p.x, p.z), ...carpas, { x: p.x, z: p.z }];
+    if (!sitios.every((s) => libre(s.x, s.z, 0.6)) || ctx.mundo.pueblos.some((x) => Math.hypot(x.centro.x - p.x, x.centro.z - p.z) < x.radio + RADIO_CERCO)) {
+      return this.api.mensaje('Aquí no cabe: busca un claro', 1.5);
+    }
+    this.campamento?.eliminar();
+    this.campamento = new Campamento(ctx, p.clone().setY(0));
+    this.api.mensaje('¡A montar el campamento!', 2);
   }
 
   get titanesTotales(): number {
@@ -224,6 +288,7 @@ export class CapMundo implements Capitulo {
   private enRefugio(p: THREE.Vector3): boolean {
     const ctx = this.api.ctx;
     if (Math.hypot(p.x, p.z) < ctx.mundo.muralla.radioInterior) return true;
+    if (this.campamento?.listo && this.campamento.dentro(p)) return true;
     if (ctx.mundo.lugares.some((l) => (l.tipo === 'puesto' || l.tipo === 'campamento') && Math.hypot(l.pos.x - p.x, l.pos.z - p.z) < l.radio + 25)) return true;
     return (this.pueblos?.refugios() ?? []).some((x) => Math.hypot(x.centro.x - p.x, x.centro.z - p.z) < x.datos.radio);
   }
@@ -321,6 +386,7 @@ export class CapMundo implements Capitulo {
     const candidatos: THREE.Vector3[] = [new THREE.Vector3(6, 0, ctx.mundo.muralla.radioExterior + 30)];
     for (const l of ctx.mundo.lugares) if (l.descubierto && (l.tipo === 'puesto' || l.tipo === 'campamento' || l.tipo === 'castillo' || l.tipo === 'puente')) candidatos.push(l.pos);
     for (const x of this.pueblos?.refugios() ?? []) candidatos.push(x.datos.deposito);
+    if (this.campamento?.listo) candidatos.push(this.campamento.centro.clone().add(new THREE.Vector3(2, 0, 2)));
     let mejor = candidatos[0];
     let d = Infinity;
     for (const c of candidatos) {

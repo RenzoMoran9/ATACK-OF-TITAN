@@ -43,7 +43,9 @@ npm run dev                       # http://localhost:5173
 | **B** | **Bengala** roja hacia la mira (50 m/s). Si estalla a 4 m o menos de la cara de un titán, lo ciega 3 s. 4 bengalas; se reponen en los depósitos |
 | **X** | **Fijar parte** del titán que tienes delante: nuca → ojos → brazos → corvas → tendones → nada. El tajo asistido y los ganchos (clic derecho) van a ella aunque la mira esté en otro sitio |
 | **C** | **Caballo**: al lado, montar; montado, bajar; lejos, silbar (viene al galope). Montado: WASD lo dirige, Shift galope, Espacio salta de la silla, y si clavas un gancho sales volando de ella |
-| **H** | Descansar hasta el amanecer (de noche, en un refugio: Trost, un puesto, el campamento o un pueblo en paz) |
+| **K** | **Armar un campamento** donde estés (en un claro): cerco de alambre con latas y seis carpas alrededor de una hoguera. El escuadrón se reparte las obras y tú ayudas con el martillo |
+| **G** junto a una obra | **Martillazo**: pulsa cuando la aguja pase por la zona verde. En el centro, el poste entra de una vez; bien, en tres golpes; fuera, apenas avanza |
+| **H** | Descansar hasta el amanecer (de noche, en un refugio: Trost, un puesto, el campamento de la Legión, tu campamento o un pueblo en paz) |
 | **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, pedir gas a un compañero |
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
 | **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
@@ -76,8 +78,9 @@ Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en
 | **GANCHOS** / **TAJO** | Clic derecho / clic izquierdo (mantener = recoger cable / cargar el tajo). Si arrastras sin soltarlos, apuntas a la vez |
 | **SALTO/GAS** | Espacio: salto, freno en el aire, impulso si mueves el joystick |
 | **◀ GANCHO** / **GANCHO ▶** | Q / E: el izquierdo junto al joystick (pulgar izquierdo), el derecho junto a GANCHOS (pulgar derecho) |
+| **⚒ MARTILLO** | Sale en el mismo sitio que MONTAR cuando estás junto a un poste o una carpa sin terminar |
 | **♞ MONTAR** / **BAJAR** | Aparece a la izquierda de GANCHOS cuando estás al lado de tu caballo, y montado pasa a BAJAR. A caballo: joystick para dirigirlo (al fondo, galope) y SALTO/GAS para saltar de la silla. Si el caballo está lejos, ♞ Caballo en la fila de arriba le silba y viene |
-| Fila de arriba | Cuchillas (R), bengala (B), parte (X), caballo (C), dormir (H), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), sonido, pantalla completa, pausa |
+| Fila de arriba | Cuchillas (R), bengala (B), parte (X), caballo (C), acampar (K), dormir (H), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), sonido, pantalla completa, pausa |
 
 **Mover los botones:** en la pausa, **✥ Mover botones**: arrastra cada botón (y la fila de arriba) donde te quede cómodo, cambia su tamaño con − / + y pulsa **Listo**. Se guarda en el celular; **Restablecer** vuelve a la disposición original.
 
@@ -181,8 +184,15 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   marcan). Con titanes dentro se pierde obra y, si nadie los defiende, la gente huye o muere y el pueblo cae.
 - **Cambiantes avistados**: desde el segundo día, a media mañana, a veces aparece el Acorazado o la Hembra en la llanura.
 - **Caballo** (C): para cruzar la llanura rápido (trote 9 m/s, galope 20 m/s). Huye de los titanes cuando está suelto.
-- **La partida se guarda sola** (cada 30 s, al pausar y al cambiar de pestaña): día, hora, pueblos, lugares
-  descubiertos y estadísticas. El menú ofrece continuarla o empezar otra.
+- **Campamento** (K): donde quieras, en un claro fuera de Trost. Cada soldado va a su poste o a su carpa y la monta
+  en unos segundos; tú clavas postes con el martillo. Entre cada dos postes clavados se tiende el alambre. Un titán
+  que se mete en él se **enreda** (va a un cuarto de su velocidad), las latas suenan y lo va rompiendo poco a poco.
+  Terminado, el escuadrón se queda dentro defendiéndolo, se enciende la hoguera y es un refugio: duermes en las carpas
+  (H) y reapareces allí. Solo hay uno: armar otro desmonta el anterior.
+- **Guardar partida**: botón en la pausa (y además se guarda sola cada 30 s, al pausar y al cambiar de pestaña).
+  Se guarda **dónde estás exactamente** (aunque sea en un tejado), tu gas, cuchillas y bengalas, dónde está tu
+  caballo, tu campamento, el día y la hora, los pueblos, los lugares descubiertos y las estadísticas. En el menú,
+  **Continuar** te deja justo ahí.
 
 El territorio, unos 4 × 4 km alrededor de Trost:
 

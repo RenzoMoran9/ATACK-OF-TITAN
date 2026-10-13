@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { ContextoJuego } from '../core/contexto';
 import type { TitanAPI } from '../core/tipos';
+import type { Campamento } from '../missions/campamento';
 import type { GestorPueblos } from '../missions/pueblos';
 import type { Jugador } from '../player/jugador';
 import type { Sonido } from './sonido';
@@ -34,6 +35,7 @@ export class SonidosJuego {
   private readonly arriba = new THREE.Vector3(0, 1, 0);
   /** Pueblos del mundo abierto (los pone main.ts cuando hay partida). */
   pueblos: (() => GestorPueblos | null) | null = null;
+  campamento: (() => Campamento | null) | null = null;
 
   constructor(
     private readonly s: Sonido,
@@ -96,6 +98,9 @@ export class SonidosJuego {
       const d = this.s.distancia(e.pos);
       this.s.tocar('campana_alarma', d < 900 ? { pos: e.pos, alcance: 140, volumen: 1.1 } : { volumen: 0.3 });
     });
+    // martillazos al montar el campamento y latas del alambre cuando un titán lo toca
+    ev.on('martillazo', (e) => this.s.tocar('golpe', { pos: e.pos, alcance: 8, volumen: e.golpe === 'fallo' ? 0.4 : e.golpe === 'perfecto' ? 1.1 : 0.8, tono: e.golpe === 'perfecto' ? 0.8 : 1 }));
+    ev.on('alambre', (e) => this.s.tocar('coraza', { pos: e.pos, alcance: 40, volumen: 0.9, tono: 1.6, variacion: 0.15 }));
     for (const tipo of ['puebloDefendido', 'puebloLiberado', 'puebloEnPaz'] as const) {
       ev.on(tipo, (e) => this.s.tocar('vitores', { pos: e.pos.clone().setY(2), alcance: 90, volumen: 1, retraso: 0.8 }));
     }
@@ -134,6 +139,13 @@ export class SonidosJuego {
         else gente = Math.max(gente, k * Math.min(1, p.logica.habitantes / 12));
         if (p.datos.vista && p.logica.enObras(!noche, p.amenaza)) obras = Math.max(obras, k);
       }
+    }
+    // tu campamento: martillos mientras se monta y hoguera cuando está listo
+    const camp = this.campamento?.();
+    if (camp) {
+      const k = this.atenuar(camp.centro, 25);
+      if (camp.listo) fuego = Math.max(fuego, k);
+      else obras = Math.max(obras, k);
     }
     // el campamento de la Legión siempre tiene su hoguera
     for (const l of this.ctx.mundo.lugares) if (l.tipo === 'campamento' && noche) fuego = Math.max(fuego, this.atenuar(l.pos, 30));

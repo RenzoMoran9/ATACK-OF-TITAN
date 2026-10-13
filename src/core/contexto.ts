@@ -130,6 +130,7 @@ export class EscuadronNulo implements EscuadronAPI {
   cambiarSeleccion(): null {
     return null;
   }
+  trabajarEn(): void {}
   info(): null {
     return null;
   }

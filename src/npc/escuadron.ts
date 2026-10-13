@@ -147,6 +147,20 @@ export class Escuadron implements EscuadronAPI {
     habla.decir(fraseConfirmacion(o, !this.seleccion && grupo.length > 1, Math.random, titan?.altura));
   }
 
+  trabajarEn(h: Humano, punto: THREE.Vector3 | null, descanso?: THREE.Vector3): void {
+    const s = this.soldados.find((x) => x === h);
+    if (!s || !s.vivo) return;
+    if (punto) {
+      // a pie de obra, a la altura del cuerpo
+      const p = punto.clone().setY(0);
+      s.orden = { tipo: 'irA', punto: p, puesto: p.clone().setY(0.9), trabajo: true };
+    } else if (descanso) {
+      const p = descanso.clone().setY(0);
+      s.orden = { tipo: 'esperar', punto: p, puesto: this.puestoJunto(p, this.soldados.indexOf(s), this.soldados.length) };
+    } else s.orden = { tipo: 'seguir' };
+    this.tCoordinar = 0;
+  }
+
   /** Tab: Todos → cada soldado vivo → Todos. */
   cambiarSeleccion(): Soldado | null {
     const i = this.seleccion ? this.soldados.indexOf(this.seleccion) : null;
@@ -165,7 +179,8 @@ export class Escuadron implements EscuadronAPI {
       gas: (s.gas / s.gasMax) * 100,
       filo: s.cuchillas.filo,
       repuesto: s.cuchillas.repuesto,
-      punto: s.orden.punto,
+      // el trabajo del campamento no lleva banderín
+      punto: s.orden.trabajo ? undefined : s.orden.punto,
       titan: s.orden.titan,
     };
   }

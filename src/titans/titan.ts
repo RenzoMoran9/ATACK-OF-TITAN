@@ -150,6 +150,9 @@ export class Titan implements TitanAPI {
   private tEsperaEndurecer = 0;
   /** Marcha hacia un pueblo (ataques). */
   private marcha: THREE.Vector3 | null = null;
+  /** Enredado en el alambre de un campamento. */
+  private tEnredo = 0;
+  private factorEnredo = 1;
   private tTambaleo = 0;
   private readonly brazoInutil: [number, number] = [0, 0];
   private readonly amputado: [boolean, boolean] = [false, false];
@@ -268,6 +271,11 @@ export class Titan implements TitanAPI {
     this.estado = 'cegado';
     this.objetivo = null;
     if (this.agarre && !this.agarre.victima) this.agarre = null;
+  }
+
+  enredar(segundos: number, factor: number): void {
+    this.tEnredo = Math.max(this.tEnredo, segundos);
+    this.factorEnredo = factor;
   }
 
   dirigirA(p: THREE.Vector3 | null): void {
@@ -498,6 +506,7 @@ export class Titan implements TitanAPI {
     }
     if (this.tTambaleo > 0) this.tTambaleo -= dt;
     if (this.tCorazaRota > 0) this.tCorazaRota -= dt;
+    if (this.tEnredo > 0) this.tEnredo -= dt;
     if (this.tEndurecida > 0) this.tEndurecida -= dt;
     if (this.tEsperaEndurecer > 0) this.tEsperaEndurecer -= dt;
     if (this.estado === 'cegado') this.tCegado += dt;
@@ -894,6 +903,7 @@ export class Titan implements TitanAPI {
       }
     }
 
+    if (this.tEnredo > 0) velObjetivo *= this.factorEnredo;
     // cojera con un tendón cortado
     if (ZONAS_TENDON.some((z) => z.startsWith('tendon') && !this.punto(z).activo)) velObjetivo *= 0.45;
     // anormales: esprints y giros bruscos (el cuadrúpedo ya va a tope)

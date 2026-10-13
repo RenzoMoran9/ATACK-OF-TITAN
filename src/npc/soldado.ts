@@ -50,6 +50,8 @@ export interface OrdenAsignada {
   titan?: TitanAPI;
   /** Orden a la que vuelve cuando muere el titán señalado. */
   previa?: OrdenAsignada;
+  /** Trabajando en el campamento: sin banderín y con su propia actividad en el panel. */
+  trabajo?: boolean;
 }
 
 interface Ancla {
@@ -700,6 +702,7 @@ export class Soldado implements Humano {
         if (m.cebo) return 'de cebo';
         return this.orden.tipo === 'atacar' || this.orden.tipo === 'atacarTitan' ? '' : 'en combate';
       case 'mantener':
+        if (this.orden.trabajo) return m.destino && this.posicion.distanceTo(m.destino) > 4 ? 'va a la obra' : 'montando el campamento';
         if (m.destino && this.posicion.distanceTo(m.destino) > 8) return 'en camino';
         return this.orden.tipo === 'irA' ? 'en posición' : '';
       default:

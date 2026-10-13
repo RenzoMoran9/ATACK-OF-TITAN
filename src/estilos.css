@@ -433,6 +433,51 @@ body {
   text-shadow: 0 0 4px #000, 0 1px 2px #000;
 }
 
+/* Minijuego del martillo (campamento) */
+.hud-martillo {
+  position: absolute;
+  left: 50%;
+  top: 64%;
+  transform: translateX(-50%);
+  width: min(320px, 70vw);
+  text-align: center;
+  font-size: 13px;
+}
+.hud-martillo[hidden] {
+  display: none;
+}
+.hud-martillo .barra {
+  position: relative;
+  height: 16px;
+  background: rgba(10, 14, 20, 0.6);
+  border: 1px solid rgba(243, 239, 230, 0.6);
+}
+.hud-martillo .zona {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(127, 227, 154, 0.75);
+}
+.hud-martillo .aguja {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 3px;
+  margin-left: -1.5px;
+  background: #fff3c4;
+  box-shadow: 0 0 4px #000;
+}
+.hud-martillo .obra {
+  margin: 5px auto 3px;
+  height: 4px;
+  width: 60%;
+  background: rgba(255, 255, 255, 0.2);
+}
+.hud-martillo .hecho {
+  height: 100%;
+  background: #c48a52;
+}
+
 /* Pista de lo que se puede hacer ahora (pasada baja, caballo) */
 .hud-accion {
   position: absolute;
@@ -1047,6 +1092,10 @@ body.tactil .hud-objetivo {
 .hud-brujula .marca.jefe::before {
   background: #f2c94c;
   border: 1px solid #5a1a10;
+}
+.hud-brujula .marca.campamento::before {
+  background: #e8a84a;
+  border-radius: 1px;
 }
 .hud-brujula .marca.caballo::before {
   background: #c48a52;
