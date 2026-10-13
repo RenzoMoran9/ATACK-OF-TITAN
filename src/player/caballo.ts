@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { Navegacion } from '../core/navegacion';
 import type { Poblacion } from '../core/poblacion';
-import { girarHacia } from '../titans/ia';
 import { REGION } from '../world/region';
+import { ikPata, marcha, pata, type Marcha } from './marchaCaballo';
 import { cargarModeloCaballo, type ModeloCaballo } from './modeloCaballo';
 
 /**
@@ -15,15 +15,22 @@ import { cargarModeloCaballo, type ModeloCaballo } from './modeloCaballo';
  * - Suelto, se aparta de los titanes que se le acercan y pasta.
  * Choca con lo que bloquea la rejilla de navegación (casas, troncos, la muralla).
  *
+ * Física: avanza siempre hacia donde mira (no derrapa), acelera y frena como un animal de
+ * 500 kg, gira con inercia (velocidad angular que crece y decae) y cuanto más rápido va, más
+ * abierto gira; si le pides dar media vuelta al galope, frena para girar. Las patas siguen la
+ * marcha de src/player/marchaCaballo.ts (paso, trote, galope) con los cascos clavados en el suelo.
+ *
  * Se ve con el modelo 3D de src/player/modeloCaballo.ts (Roberto Domínguez, CC BY 4.0) en cuanto
  * termina de cargar; mientras tanto, o si no carga, con uno hecho de primitivas.
  */
 
-export const VELOCIDAD_PASO = 3.2;
-export const VELOCIDAD_TROTE = 9;
-export const VELOCIDAD_GALOPE = 20;
-const ACELERACION = 7;
-const FRENADA = 11;
+export const VELOCIDAD_PASO = 1.8;
+export const VELOCIDAD_TROTE = 6;
+export const VELOCIDAD_GALOPE = 16;
+const ACELERACION = 4.5;
+const FRENADA = 7;
+/** Aceleración angular (rad/s²): el giro no es instantáneo. */
+const ACEL_GIRO = 7;
 /** Altura de la silla (centro del jinete) sobre el suelo. */
 export const ALTURA_SILLA = 2.05;
 const RADIO = 0.9;
@@ -34,9 +41,16 @@ export function velocidadObjetivo(mueve: boolean, galope: boolean): number {
   return galope ? VELOCIDAD_GALOPE : VELOCIDAD_TROTE;
 }
 
-/** Giro máximo (rad/s): ágil al paso, más abierto al galope. */
+/** Giro máximo (rad/s): ágil al paso, más abierto al galope (radio de unos 17 m). */
 export function giroCaballo(v: number): number {
-  return THREE.MathUtils.lerp(3.2, 1.6, THREE.MathUtils.clamp(v / VELOCIDAD_GALOPE, 0, 1));
+  return THREE.MathUtils.lerp(2.2, 0.95, THREE.MathUtils.clamp(v / VELOCIDAD_GALOPE, 0, 1));
+}
+
+/** Velocidad a la que conviene ir para girar `angulo` (rad): media vuelta, casi parado. */
+export function velocidadParaGirar(v: number, angulo: number): number {
+  const a = Math.abs(angulo);
+  if (a < 0.9) return v;
+  return Math.min(v, THREE.MathUtils.lerp(v, VELOCIDAD_PASO * 1.5, THREE.MathUtils.smoothstep(a, 0.9, 2.2)));
 }
 
 interface Pata {
@@ -69,6 +83,14 @@ export class Caballo {
   /** Centro del jinete sobre los pies del caballo. */
   private alturaSilla = ALTURA_SILLA;
   private fase = 0;
+  /** Bote del lomo en el último fotograma (el jinete sube y baja con él). */
+  private bote = 0;
+  /** Velocidad angular actual (rad/s). */
+  omega = 0;
+  /** Cascos en el suelo ahora mismo (delantera izq, delantera der, trasera izq, trasera der). */
+  readonly apoyadas = [true, true, true, true];
+  /** Marcha actual (para el sonido de los cascos). */
+  marchaActual: Marcha = marcha(0, 1.3);
   private tPasto = 0;
   private huyendo = 0;
 
@@ -147,7 +169,7 @@ export class Caballo {
   /** Centro del jinete en la silla. */
   silla(out = new THREE.Vector3()): THREE.Vector3 {
     const atras = this.modelo ? 0.15 : 0.1;
-    return out.set(this.pos.x - Math.sin(this.rumbo) * atras, this.pos.y + this.alturaSilla, this.pos.z - Math.cos(this.rumbo) * atras);
+    return out.set(this.pos.x - Math.sin(this.rumbo) * atras, this.pos.y + this.alturaSilla + this.bote, this.pos.z - Math.cos(this.rumbo) * atras);
   }
 
   colocar(pies: THREE.Vector3, rumbo: number): void {
@@ -173,8 +195,12 @@ export class Caballo {
   conducir(dt: number, deseo: THREE.Vector3, galope: boolean): void {
     this.llamado = null;
     const mueve = deseo.lengthSq() > 0.01;
-    if (mueve) this.rumbo = girarHacia(this.rumbo, Math.atan2(deseo.x, deseo.z), giroCaballo(this.velocidad) * dt);
-    this.acelerar(dt, velocidadObjetivo(mueve, galope));
+    let objetivo = velocidadObjetivo(mueve, galope);
+    if (mueve) {
+      const angulo = this.virar(dt, Math.atan2(deseo.x, deseo.z));
+      objetivo = velocidadParaGirar(objetivo, angulo);
+    } else this.virar(dt, null);
+    this.acelerar(dt, objetivo);
     this.mover(dt);
   }
 
@@ -182,29 +208,49 @@ export class Caballo {
   actualizar(dt: number): void {
     if (this.montado) return;
     let objetivo = 0;
+    let rumbo: number | null = null;
     const titan = this.poblacion.titanMasCercano(this.pos, 45);
     if (titan && titan.vivo && titan.estado !== 'apagado') this.huyendo = 4;
     if (this.huyendo > 0 && titan) {
       this.huyendo -= dt;
-      const lejos = Math.atan2(this.pos.x - titan.posicion.x, this.pos.z - titan.posicion.z);
-      this.rumbo = girarHacia(this.rumbo, lejos, giroCaballo(this.velocidad) * dt);
-      objetivo = VELOCIDAD_GALOPE * 0.8;
+      rumbo = Math.atan2(this.pos.x - titan.posicion.x, this.pos.z - titan.posicion.z);
+      objetivo = VELOCIDAD_GALOPE * 0.85;
     } else if (this.llamado) {
       const d = Math.hypot(this.llamado.x - this.pos.x, this.llamado.z - this.pos.z);
-      if (d < 4) this.llamado = null;
+      if (d < 3.5 && this.velocidad < 1) this.llamado = null;
       else {
-        this.rumbo = girarHacia(this.rumbo, Math.atan2(this.llamado.x - this.pos.x, this.llamado.z - this.pos.z), giroCaballo(this.velocidad) * dt);
-        objetivo = d > 30 ? VELOCIDAD_GALOPE : d > 10 ? VELOCIDAD_TROTE : VELOCIDAD_PASO;
+        rumbo = Math.atan2(this.llamado.x - this.pos.x, this.llamado.z - this.pos.z);
+        // llega frenando poco a poco (del galope al trote y al paso), sin pararse en seco
+        objetivo = Math.min(VELOCIDAD_GALOPE, Math.sqrt(2 * FRENADA * 0.6 * Math.max(0, d - 3)));
       }
     } else {
       // pasea un poco y pasta
       this.tPasto -= dt;
       if (this.tPasto <= 0) this.tPasto = 4 + Math.random() * 6;
       objetivo = this.tPasto < 1.5 ? VELOCIDAD_PASO * 0.6 : 0;
-      if (this.tPasto < 1.5) this.rumbo += (Math.random() - 0.5) * dt;
+      if (this.tPasto < 1.5) rumbo = this.rumbo + (Math.sin(this.tPasto * 3) * 0.4);
     }
-    this.acelerar(dt, objetivo);
+    const angulo = this.virar(dt, rumbo);
+    this.acelerar(dt, velocidadParaGirar(objetivo, angulo));
     this.mover(dt);
+  }
+
+  /**
+   * Gira hacia `rumbo` con inercia: la velocidad angular sube y baja con ACEL_GIRO y no pasa
+   * del máximo para la velocidad actual. Devuelve lo que falta por girar (rad).
+   */
+  private virar(dt: number, rumbo: number | null): number {
+    let falta = 0;
+    let objetivo = 0;
+    if (rumbo !== null) {
+      falta = Math.atan2(Math.sin(rumbo - this.rumbo), Math.cos(rumbo - this.rumbo));
+      const max = giroCaballo(this.velocidad);
+      // frena el giro al llegar al rumbo (sin pasarse)
+      objetivo = THREE.MathUtils.clamp(falta * 3, -max, max);
+    }
+    this.omega += THREE.MathUtils.clamp(objetivo - this.omega, -ACEL_GIRO * dt, ACEL_GIRO * dt);
+    this.rumbo += this.omega * dt;
+    return falta;
   }
 
   private acelerar(dt: number, objetivo: number): void {
@@ -230,40 +276,66 @@ export class Caballo {
     this.vel.set(this.pos.x - this.posPrevia.x, 0, this.pos.z - this.posPrevia.z).divideScalar(Math.max(dt, 1e-4));
   }
 
-  /** Posición y patas (interpolado). */
+  /** Posición, inclinación y patas (interpolado). */
   dibujar(alfa: number, dt: number): void {
     this.grupo.position.lerpVectors(this.posPrevia, this.pos, alfa);
     this.grupo.rotation.y = this.rumbo;
     const v = this.velocidad;
-    const galope = THREE.MathUtils.smoothstep(v, VELOCIDAD_TROTE, VELOCIDAD_GALOPE);
-    // ciclos por segundo: 1 al paso, ~2 al trote, ~2,4 al galope
-    this.fase += dt * (v < 0.2 ? 0 : THREE.MathUtils.lerp(0.9, 2.4, THREE.MathUtils.clamp(v / VELOCIDAD_GALOPE, 0, 1)));
-    const amp = THREE.MathUtils.clamp(v / VELOCIDAD_TROTE, 0, 1) * THREE.MathUtils.lerp(0.55, 0.85, galope);
+    // patas desde el hombro y la cadera hasta el casco, y la caña bajo la rodilla
+    const L = this.modelo ? this.modelo.pivote : 1.32;
+    const cana = this.modelo ? this.modelo.rodilla : 0.64;
+    const m = marcha(v, L, this.omega);
+    this.marchaActual = m;
+    this.fase = (this.fase + dt * m.frecuencia) % 1;
+    // con las patas abiertas el cuerpo baja un poco (el 70 % de lo que haría falta con la pata
+    // recta: en los extremos del apoyo el casco se despega un par de centímetros)
+    const bajada = 0.7 * L * (1 - Math.cos(m.amplitud));
+    // bote: dos por ciclo al trote, uno con suspensión al galope; cabeceo suave al galope
+    const ciclo = Math.PI * 2 * this.fase;
+    // el rebote solo baja desde la altura a la que las patas llegan al suelo, nunca sube de ella
+    const rebote = -0.03 * m.trote * (1 - m.galope) * (0.5 + 0.5 * Math.cos(2 * ciclo)) - 0.06 * m.galope * (0.5 + 0.5 * Math.sin(ciclo - 1));
+    const bote = -bajada + rebote;
+    const cabeceo = 0.035 * m.galope * Math.sin(ciclo);
+    const alturaPivote = L + bote;
+    // cuánto recoge la pata en el aire: poco al paso, más al trote y al galope; nada parado
+    const flexAire = THREE.MathUtils.lerp(THREE.MathUtils.lerp(0.55, 1.0, m.trote), 1.3, m.galope) * Math.min(1, m.amplitud / 0.15);
     this.patas.forEach((p, i) => {
-      // al trote, diagonales; al galope, las delanteras juntas y luego las traseras
-      const desfase = THREE.MathUtils.lerp(p.fase, p.delantera ? p.fase * 0.5 : 0.5 + p.fase * 0.3, galope);
-      const a = Math.PI * 2 * (this.fase + desfase);
-      p.arriba.rotation.x = Math.sin(a) * amp;
-      p.abajo.rotation.x = (p.delantera ? -1 : 1) * Math.max(0, Math.sin(a + 1.2)) * amp * 1.3;
-      // modelo 3D: el mismo vaivén; al levantar la pata, la delantera dobla la rodilla hacia
-      // atrás y la trasera el corvejón algo hacia delante
-      const flexion = Math.max(0, Math.sin(a + 1.2)) * amp;
-      this.muslos[i] = p.arriba.rotation.x * 0.8;
-      this.canas[i] = p.delantera ? flexion * 1.2 : -flexion * 0.7;
+      const r = pata(this.fase - m.desfases[i], m.apoyo, m.amplitud);
+      this.apoyadas[i] = r.apoyada || v < 0.05;
+      const signo = p.delantera ? 1 : -1;
+      let cadera = r.muslo;
+      let rodilla = signo * r.flexion * flexAire * (p.delantera ? 1 : 0.75);
+      if (r.apoyada) {
+        // casco clavado: va hacia atrás en línea recta por el suelo; cadera y rodilla se ajustan (IK)
+        const ik = ikPata(L * Math.sin(r.muslo), alturaPivote, L - cana, cana, signo);
+        // la pata cuelga del cuerpo: se descuenta su cabeceo para que el casco no se mueva
+        cadera = ik.cadera - cabeceo;
+        rodilla = ik.rodilla;
+      }
+      p.arriba.rotation.x = cadera;
+      p.abajo.rotation.x = rodilla;
+      this.muslos[i] = cadera;
+      this.canas[i] = rodilla;
     });
-    const bote = Math.abs(Math.sin(Math.PI * 2 * this.fase)) * 0.09 * amp;
-    const cabeceo = Math.sin(Math.PI * 2 * this.fase) * 0.05 * galope;
+    // se inclina hacia dentro en las curvas, más cuanto más rápido
+    const inclinacion = THREE.MathUtils.clamp(-this.omega * v * 0.012, -0.14, 0.14);
+    this.bote = bote;
     this.cuerpo.position.y = 1.42 + bote;
     this.cuerpo.rotation.x = cabeceo;
+    this.cuerpo.rotation.order = 'YXZ';
+    this.cuerpo.rotation.z = inclinacion;
     if (this.modelo) {
-      this.modelo.grupo.position.y = bote;
-      this.modelo.grupo.rotation.x = cabeceo * 0.6;
+      // cabecea alrededor de los hombros y la cadera (no del suelo), como el de primitivas
+      const hc = this.modelo.pivote;
+      this.modelo.grupo.position.set(0, bote + hc * (1 - Math.cos(cabeceo)), -hc * Math.sin(cabeceo));
+      this.modelo.grupo.rotation.set(cabeceo, 0, inclinacion);
       this.sillaG.position.y = this.modelo.lomo - 0.47 + bote;
+      this.sillaG.rotation.z = inclinacion;
       this.modelo.posar(this.muslos, this.canas);
     } else this.sillaG.position.y = 1.42 + bote;
     // cabeza: baja a pastar parado, se estira al galope
-    const pasta = v < 0.3 && !this.montado ? 1 : 0;
-    this.cuello.rotation.x += ((pasta ? 1.0 : -0.25 * galope) - this.cuello.rotation.x) * Math.min(1, dt * 3);
-    this.cola.rotation.x = -2.4 + 0.5 * galope + Math.sin(this.fase * 9) * 0.06;
+    const pasta = v < 0.3 && !this.montado && Math.abs(this.omega) < 0.2 ? 1 : 0;
+    this.cuello.rotation.x += ((pasta ? 1.0 : -0.25 * m.galope) - this.cuello.rotation.x) * Math.min(1, dt * 3);
+    this.cola.rotation.x = -2.4 + 0.5 * m.galope + Math.sin(ciclo * 2) * 0.06 * (0.3 + m.trote);
   }
 }

@@ -191,9 +191,15 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   repica la campana, gritan, y una bengala roja sube sobre la plaza (se ve y se oye desde lejos; la brújula y el mapa lo
   marcan). Con titanes dentro se pierde obra y, si nadie los defiende, la gente huye o muere y el pueblo cae.
 - **Cambiantes avistados**: desde el segundo día, a media mañana, a veces aparece el Acorazado o la Hembra en la llanura.
-- **Caballo** (C): para cruzar la llanura rápido (trote 9 m/s, galope 20 m/s). Huye de los titanes cuando está suelto.
-  Es un modelo 3D (`public/modelos/caballo.glb`, ~1 MB): el modelo es estático, así que las patas se doblan en el
-  shader por zonas (`src/player/modeloCaballo.ts`); si no carga, se ve uno hecho de primitivas.
+- **Caballo** (C): para cruzar la llanura rápido (paso 1,8 m/s, trote 6 m/s, galope 16 m/s ≈ 58 km/h). Huye de los
+  titanes cuando está suelto. Es un modelo 3D (`public/modelos/caballo.glb`, ~1 MB) sin huesos: las patas se doblan en
+  el shader por zonas (`src/player/modeloCaballo.ts`); si no carga, se ve uno hecho de primitivas.
+  **Física de la marcha** (`src/player/marchaCaballo.ts`): paso a cuatro tiempos, trote en diagonal y galope con su
+  orden de pisadas y suspensión, con cambio suave según la velocidad. Cada casco apoyado va hacia atrás justo a la
+  velocidad del suelo (cinemática inversa de hombro y rodilla), así que no patina; la cadencia y la zancada salen de la
+  velocidad. El cuerpo bota según el andar, cabecea al galope y se inclina en las curvas; gira con inercia (cuanto más
+  rápido, más abierto), frena para dar media vuelta y, cuando lo llamas, llega frenando poco a poco. Parado y girando,
+  da pasitos. Los cascos suenan al ritmo de la marcha.
 - **Campamento** (K): donde quieras, en un claro fuera de Trost. Cada soldado va a su poste o a su carpa y la monta
   en unos segundos; tú clavas postes con el martillo. Entre cada dos postes clavados se tiende el alambre. Un titán
   que se mete en él se **enreda** (va a un cuarto de su velocidad), las latas suenan y lo va rompiendo poco a poco.

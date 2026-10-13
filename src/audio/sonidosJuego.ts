@@ -117,14 +117,17 @@ export class SonidosJuego {
     const c = this.jugador.caballo;
     let galope = 0;
     let trote = 0;
-    if (c && c.grupo.visible) {
-      const v = c.velocidad;
+    let cadencia = 1;
+    if (c && c.grupo.visible && c.velocidad > 0.4) {
+      // los cascos suenan al ritmo de la marcha: trote (y paso, más flojo) o galope
+      const m = c.marchaActual;
       const cerca = c.montado ? 1 : this.atenuar(c.pos, 15);
-      galope = THREE.MathUtils.smoothstep(v, 12, 18) * cerca;
-      trote = (v > 1.5 ? 1 : 0) * (1 - THREE.MathUtils.smoothstep(v, 12, 18)) * cerca;
+      galope = m.galope * cerca;
+      trote = (1 - m.galope) * THREE.MathUtils.lerp(0.45, 1, m.trote) * cerca;
+      cadencia = m.frecuencia;
     }
-    s.bucle('caballo_galope', 0.7 * galope, 0.95 + 0.1 * galope);
-    s.bucle('caballo_trote', 0.5 * trote);
+    s.bucle('caballo_galope', 0.7 * galope, THREE.MathUtils.clamp(cadencia / 2.3, 0.7, 1.4));
+    s.bucle('caballo_trote', 0.5 * trote, THREE.MathUtils.clamp(cadencia / 1.7, 0.6, 1.4));
 
     let gente = 0;
     let obras = 0;

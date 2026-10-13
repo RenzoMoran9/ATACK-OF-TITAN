@@ -22,6 +22,10 @@ export interface ModeloCaballo {
   grupo: THREE.Group;
   /** Altura del lomo donde va la silla. */
   lomo: number;
+  /** Altura de la articulación del hombro y la cadera (de ahí cuelga y gira cada pata). */
+  pivote: number;
+  /** Altura de la rodilla (y largo de la caña hasta el casco). */
+  rodilla: number;
   /** Ángulos de muslo y caña por pata: [delantera izq, delantera der, trasera izq, trasera der]. */
   posar(muslo: readonly number[], cana: readonly number[]): void;
 }
@@ -94,7 +98,8 @@ function prepararGLTF(gltf: { scene: THREE.Object3D }): ModeloCaballo {
 
   const grupo = new THREE.Group();
   const patas: Patas = { uMuslo: { value: new THREE.Vector4() }, uCana: { value: new THREE.Vector4() } };
-  const parametros = { vientre, rodilla: vientre * 0.48, zDel, zTras };
+  // las patas giran desde la escápula y la cadera, bastante por encima del vientre
+  const parametros = { vientre, pivote: vientre + 0.4, rodilla: vientre * 0.48, zDel, zTras };
   mallas.forEach((m, i) => {
     const original = m.material as THREE.MeshStandardMaterial;
     const cuerpo = i === iCuerpo;
@@ -121,6 +126,8 @@ function prepararGLTF(gltf: { scene: THREE.Object3D }): ModeloCaballo {
   return {
     grupo,
     lomo: ALTURA_LOMO,
+    pivote: parametros.pivote,
+    rodilla: parametros.rodilla,
     posar(muslo, cana) {
       patas.uMuslo.value.set(muslo[0], muslo[1], muslo[2], muslo[3]);
       patas.uCana.value.set(cana[0], cana[1], cana[2], cana[3]);
@@ -129,7 +136,7 @@ function prepararGLTF(gltf: { scene: THREE.Object3D }): ModeloCaballo {
 }
 
 /** Inyecta en el shader el giro de cada pata (también en la normal, para que la luz acompañe). */
-function doblarPatas(mat: THREE.Material, patas: Patas, p: { vientre: number; rodilla: number; zDel: number; zTras: number }): void {
+function doblarPatas(mat: THREE.Material, patas: Patas, p: { vientre: number; pivote: number; rodilla: number; zDel: number; zTras: number }): void {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uMuslo = patas.uMuslo;
     sh.uniforms.uCana = patas.uCana;
@@ -157,7 +164,7 @@ vec3 doblar(vec3 p) {
   vec3 a = pataDe(p);
   if (a.x == 0.0 && a.y == 0.0) return p;
   p = girarX(p, a.y, ${f(p.rodilla)}, a.z);
-  return girarX(p, a.x, ${f(p.vientre + 0.1)}, a.z);
+  return girarX(p, a.x, ${f(p.pivote)}, a.z);
 }
 `;
     sh.vertexShader = sh.vertexShader
