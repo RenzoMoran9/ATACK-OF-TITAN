@@ -381,9 +381,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
   gap: 14px;
-  padding-inline: 16px;
+  padding: 16px;
   text-align: center;
   background: radial-gradient(ellipse at center, rgba(10, 14, 20, 0.6), rgba(10, 14, 20, 0.9));
   overflow-y: auto;
@@ -481,14 +481,216 @@ body {
   }
 }
 
-.pantalla .tactil {
+.pantalla .botones.app:empty {
   display: none;
+}
+.pantalla .pista {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
   color: #ffcf9e;
 }
-@media (pointer: coarse) {
-  .pantalla .tactil {
-    display: block;
+
+/* ── Controles táctiles (src/ui/tactil.ts) ── */
+.tactil-capa {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.tactil-capa[hidden] {
+  display: none;
+}
+.tactil-zona {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.tactil-joy {
+  position: absolute;
+  width: 112px;
+  height: 112px;
+  margin: -56px 0 0 -56px;
+  border-radius: 50%;
+  border: 2px solid rgba(243, 239, 230, 0.45);
+  background: rgba(10, 14, 20, 0.25);
+  pointer-events: none;
+}
+.tactil-joy[hidden] {
+  display: none;
+}
+.tactil-joy .pomo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(243, 239, 230, 0.55);
+  transform: translate(-50%, -50%);
+}
+.tactil-joy.corre {
+  border-color: #f2dc93;
+}
+.tactil-joy.corre .pomo {
+  background: rgba(242, 220, 147, 0.85);
+}
+.t-btn {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font: 600 11px/1.15 Georgia, 'Times New Roman', serif;
+  letter-spacing: 1px;
+  color: #f3efe6;
+  border-radius: 50%;
+  border: 2px solid rgba(243, 239, 230, 0.5);
+  background: rgba(10, 14, 20, 0.42);
+  text-shadow: 0 1px 2px #000;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.t-btn.pulsado {
+  background: rgba(243, 239, 230, 0.35);
+  border-color: #fff;
+}
+.tactil-acciones .grande {
+  width: 86px;
+  height: 86px;
+  font-size: 12px;
+}
+.tactil-acciones .tajo {
+  right: calc(22px + env(safe-area-inset-right));
+  bottom: 26px;
+  border-color: rgba(217, 88, 63, 0.85);
+  background: rgba(120, 20, 22, 0.45);
+}
+.tactil-acciones .ganchos {
+  right: calc(122px + env(safe-area-inset-right));
+  bottom: 58px;
+  border-color: rgba(127, 227, 154, 0.75);
+}
+.tactil-acciones .salto {
+  right: calc(36px + env(safe-area-inset-right));
+  bottom: 128px;
+  width: 64px;
+  height: 64px;
+  font-size: 10px;
+}
+.tactil-acciones .chico {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+.tactil-acciones .q {
+  right: calc(218px + env(safe-area-inset-right));
+  bottom: 30px;
+}
+.tactil-acciones .e {
+  right: calc(122px + env(safe-area-inset-right));
+  bottom: 158px;
+}
+.tactil-menu {
+  position: absolute;
+  top: 6px;
+  right: calc(8px + env(safe-area-inset-right));
+  display: flex;
+  gap: 5px;
+}
+.tactil-menu .t-btn,
+.tactil-ordenes .t-btn {
+  position: static;
+}
+.tactil-menu .mini {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  font-size: 16px;
+}
+.tactil-menu .mini small {
+  font-size: 8px;
+  letter-spacing: 0;
+  opacity: 0.85;
+}
+.tactil-ordenes {
+  position: absolute;
+  top: 54px;
+  right: calc(8px + env(safe-area-inset-right));
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 6px;
+  padding: 8px;
+  background: rgba(10, 14, 20, 0.75);
+  border: 1px solid rgba(242, 194, 48, 0.55);
+}
+.tactil-ordenes[hidden] {
+  display: none;
+}
+.tactil-ordenes .t-btn {
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.tactil-girar {
+  display: none;
+}
+@media (orientation: portrait) {
+  .tactil-girar {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    font-size: 20px;
+    background: rgba(10, 14, 20, 0.92);
   }
+}
+/* el HUD se reparte para dejar libres los pulgares */
+body.tactil .hud-equipo {
+  left: calc(14px + env(safe-area-inset-left));
+  top: 84px;
+  bottom: auto;
+  transform: scale(0.78);
+  transform-origin: top left;
+}
+body.tactil .hud-sin-gas {
+  left: calc(14px + env(safe-area-inset-left));
+  top: 170px;
+  bottom: auto;
+  min-width: 0;
+  font-size: 11px;
+}
+body.tactil .hud-velocidad {
+  display: none;
+}
+body.tactil .hud-brujula {
+  top: 54px;
+  transform: translateX(-50%) scale(0.7);
+  transform-origin: top center;
+}
+body.tactil .hud-mando {
+  top: 54px;
+  transform: scale(0.62);
+  transform-origin: top right;
+}
+/* las teclas de órdenes ya están en el botón ⚑; sin leyenda ni detalle de actividad */
+body.tactil .hud-mando .leyenda,
+body.tactil .hud-mando .l2 {
+  display: none;
+}
+body.tactil .hud-objetivo {
+  left: calc(14px + env(safe-area-inset-left));
+  top: 8px;
+  transform: scale(0.85);
+  transform-origin: top left;
 }
 .pantalla.derrota h2 {
   color: #ff9c8a;
@@ -796,4 +998,34 @@ body {
 .hud-brujula[hidden],
 .hud-brujula [hidden] {
   display: none;
+}
+
+/* ── Aviso de versión nueva (src/ui/pantallaCompleta.ts) ── */
+.aviso-version {
+  position: fixed;
+  left: 50%;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
+  font-size: 14px;
+  color: #f3efe6;
+  background: rgba(10, 14, 20, 0.92);
+  border: 1px solid rgba(242, 194, 48, 0.7);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.aviso-version button {
+  font: inherit;
+  color: #f3efe6;
+  padding: 6px 14px;
+  border: 1px solid #b3121b;
+  background: rgba(120, 20, 22, 0.9);
+  cursor: pointer;
+}
+.aviso-version button.cerrar {
+  border-color: rgba(243, 239, 230, 0.35);
+  background: transparent;
 }

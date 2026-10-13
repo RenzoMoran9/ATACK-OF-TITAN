@@ -64,7 +64,7 @@ export class AmbienteBosque {
       niebla.near = THREE.MathUtils.lerp(this.base.cerca, 15, f);
       niebla.far = THREE.MathUtils.lerp(this.base.lejos, 420, f);
     }
-    this.sol.intensity = this.base.sol * (1 - 0.45 * f);
-    this.hemi.intensity = this.base.hemi * (1 - 0.5 * f);
+    this.sol.intensity = this.base.sol * (1 - 0.4 * f);
+    this.hemi.intensity = this.base.hemi * (1 - 0.38 * f);
   }
 }

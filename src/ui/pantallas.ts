@@ -1,4 +1,5 @@
 import type { Campana, IdCapitulo } from '../missions/campana';
+import { alCambiarInstalable, enModoApp, entrarPantallaCompleta, alternarPantallaCompleta, esIOS, instalarApp, pantallaCompletaDisponible, puedeInstalarse } from './pantallaCompleta';
 
 /**
  * Pantallas a pantalla completa: menú de capítulos, presentación del capítulo, pausa,
@@ -13,7 +14,16 @@ const CONTROLES = `
     <li><b>Shift</b> (mantener) correr, gasta aguante · Shift o Espacio justo antes de tocar el suelo: rodada</li>
     <li><b>F</b> también da el tajo · <b>R</b> cambiar cuchillas · <b>WASD</b> mover · <b>Ratón/flechas</b> cámara</li>
     <li><b>1</b> seguidme · <b>2</b> atacad · <b>3</b> proteged a los civiles · <b>4</b> retirada · <b>5</b> esperad aquí · <b>6</b> id allí · <b>7</b> atacad a ese titán · <b>8</b> explorad</li>
+    <li><b>L</b> linterna · <b>M</b> mapa · <b>G</b> recoger equipo / pedir gas</li>
     <li><b>Tab</b> a quién mandas (todos o uno) · <b>F1/P</b> ajustes · <b>Esc</b> pausa</li>
+  </ul>`;
+
+const CONTROLES_TACTILES = `
+  <ul class="controles">
+    <li><b>Dedo izquierdo</b> joystick para moverte · empújalo hasta el borde para <b>correr</b></li>
+    <li><b>Dedo derecho</b> arrastra para mirar · <b>GANCHOS</b> mantener = recoger cable · <b>TAJO</b> mantener = cargar</li>
+    <li><b>SALTO/GAS</b> en el suelo salta; en el aire frena, o impulsa si mueves el joystick · <b>Q / E</b> un solo gancho</li>
+    <li>Mientras mantienes un botón de acción, arrástralo para apuntar · arriba: cuchillas, luz, mapa, órdenes, pausa</li>
   </ul>`;
 
 function escapar(t: string): string {
@@ -28,12 +38,35 @@ export class Pantallas {
    * `pedirCaptura` intenta capturar el ratón (devuelve si lo consiguió);
    * se llama desde un clic del usuario, como exige el navegador.
    */
-  constructor(private readonly campana: Campana, private readonly pedirCaptura: () => Promise<boolean>) {
+  constructor(
+    private readonly campana: Campana,
+    private readonly pedirCaptura: () => Promise<boolean>,
+    private readonly tactil = false,
+  ) {
     this.raiz = document.createElement('div');
     this.raiz.className = 'pantalla';
     document.body.appendChild(this.raiz);
     campana.alCambiar = () => this.mostrar();
+    alCambiarInstalable(() => {
+      if (this.campana.estado === 'menu') this.mostrar();
+    });
     this.mostrar();
+  }
+
+  private get controles(): string {
+    return this.tactil ? CONTROLES_TACTILES : CONTROLES;
+  }
+
+  /** Botones de pantalla completa e instalación como app (y la pista para iPhone). */
+  private filaApp(): HTMLDivElement {
+    const fila = document.createElement('div');
+    fila.className = 'botones app';
+    if (!enModoApp()) {
+      if (pantallaCompletaDisponible()) fila.appendChild(this.boton('⛶ Pantalla completa', () => void alternarPantallaCompleta()));
+      if (puedeInstalarse()) fila.appendChild(this.boton('⤓ Instalar como app', () => void instalarApp()));
+      if (esIOS()) fila.insertAdjacentHTML('beforeend', '<p class="pista">En iPhone/iPad: botón <b>Compartir</b> → <b>Añadir a pantalla de inicio</b> para jugar a pantalla completa, como una app.</p>');
+    }
+    return fila;
   }
 
   /** Pausa al soltar el ratón (Esc) mientras se juega. */
@@ -59,6 +92,8 @@ export class Pantallas {
   }
 
   private async jugar(): Promise<void> {
+    // en el móvil, a pantalla completa al empezar (tiene que ser dentro del toque)
+    if (this.tactil) void entrarPantallaCompleta();
     await this.pedirCaptura();
     this.pausado = false;
     if (this.campana.estado === 'intro') this.campana.empezar();
@@ -86,7 +121,8 @@ export class Pantallas {
         lista.appendChild(tarjeta);
       }
       r.appendChild(lista);
-      r.insertAdjacentHTML('beforeend', CONTROLES + '<p class="tactil">Este juego necesita teclado y ratón; los controles táctiles llegarán más adelante.</p>');
+      r.appendChild(this.filaApp());
+      r.insertAdjacentHTML('beforeend', this.controles);
       return;
     }
 
@@ -95,7 +131,7 @@ export class Pantallas {
       r.innerHTML = `<p class="epoca">${escapar(c.capitulo.epoca)}</p><h2>${escapar(c.capitulo.titulo)}</h2><p class="texto">${escapar(c.capitulo.intro)}</p>`;
       const b = this.boton('Empezar', () => void this.jugar(), 'principal');
       r.appendChild(b);
-      r.insertAdjacentHTML('beforeend', CONTROLES);
+      r.insertAdjacentHTML('beforeend', this.controles);
       return;
     }
 
@@ -110,7 +146,7 @@ export class Pantallas {
       fila.className = 'botones';
       fila.append(this.boton('Continuar', () => void this.jugar(), 'principal'), this.boton('Reiniciar capítulo', () => c.reintentar()), this.boton('Menú de capítulos', () => c.irAlMenu()));
       r.appendChild(fila);
-      r.insertAdjacentHTML('beforeend', CONTROLES);
+      r.insertAdjacentHTML('beforeend', this.controles);
       return;
     }
 

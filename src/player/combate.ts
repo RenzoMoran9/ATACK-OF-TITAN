@@ -222,7 +222,7 @@ export class CombateJugador {
       this.tajo = null;
       this.sacudida = 1;
       this.ctx.efectos.bengala(this.c.pos.clone(), '#7b3fe4'); // bengala morada: emergencia
-      this.mensaje('¡Te ha atrapado! Haz clic (o F) muchas veces para cortarle los dedos', 2.5);
+      this.mensaje('¡Te ha atrapado! Tajo (clic o F) muchas veces para cortarle los dedos', 2.5);
     }
     const q = this.qte;
     q.restante = Math.max(0, q.restante - dt);

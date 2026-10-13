@@ -14,6 +14,8 @@ export class Entrada {
    */
   sinCaptura = false;
   onTeclaEspecial: ((code: string) => void) | null = null;
+  /** Controles táctiles: sin ratón que capturar. */
+  tactil = false;
 
   constructor(private readonly lienzo: HTMLElement) {
     window.addEventListener('keydown', (e) => {
@@ -59,7 +61,7 @@ export class Entrada {
    */
   async capturar(): Promise<boolean> {
     if (this.bloqueado) return true;
-    if (!this.lienzo.requestPointerLock) {
+    if (this.tactil || !this.lienzo.requestPointerLock) {
       this.sinCaptura = true;
       return false;
     }
@@ -71,6 +73,22 @@ export class Entrada {
       this.sinCaptura = true;
       return false;
     }
+  }
+
+  /** Pulsación virtual (controles táctiles): igual que bajar una tecla o un botón. */
+  presionar(code: string): void {
+    if (!this.abajo.has(code)) this.pulsadas.add(code);
+    this.abajo.add(code);
+  }
+
+  liberar(code: string): void {
+    this.abajo.delete(code);
+  }
+
+  /** Giro de cámara virtual, en píxeles de ratón. */
+  girar(dx: number, dy: number): void {
+    this.dx += dx;
+    this.dy += dy;
   }
 
   mantenida(code: string): boolean {

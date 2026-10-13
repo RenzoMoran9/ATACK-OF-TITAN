@@ -7,7 +7,9 @@ campaña)**, con la **guía visual aplicada desde el principio** aunque todo sea
 > Nota legal: proyecto personal. Publicarlo o monetizarlo con la marca, nombres o diseños de Attack on Titan
 > exigiría licencia de Kodansha; si algún día se publica, hay que cambiar nombres y diseños.
 
-**Probarlo en el navegador:** https://claude.ai/artifact/6DjD9aBs2qgzD8aMR3AsLM (escritorio, con teclado y ratón).
+**Jugar e instalar en el celular:** https://renzomoran9.github.io/ATACK-OF-TITAN/ (GitHub Pages; ver
+[Instalar en el celular](#instalar-en-el-celular-y-actualizaciones)).
+**Vista rápida en claude.ai:** https://claude.ai/artifact/6DjD9aBs2qgzD8aMR3AsLM
 Vistas directas con ancla: `#tejado`, `#bosque`, `#titan`, `#muralla-noche`, `#tejado-atardecer`…
 
 ## Puesta en marcha
@@ -42,6 +44,7 @@ npm run dev                       # http://localhost:5173
 | **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
 | **Tab** | A quién mandas: todo el escuadrón → cada soldado → todos. Los demás conservan su orden (Todos + 5 = te vas solo; Tab hasta Mikasa + 1 = te la llevas) |
 | **M** | Mapa del territorio (bosques, río, lugares, escuadrón, titanes cercanos, puntos de recarga) |
+| **L** | Linterna: foco hacia donde miras y un halo cálido alrededor del soldado. Se enciende sola la primera vez que todo se queda a oscuras (bosque o noche) |
 | **Retroceso** | Reaparecer en el punto de control |
 | Ratón / **flechas** | Cámara (las flechas sirven si el navegador no deja capturar el ratón) |
 | **F1** o **P** | Panel de ajustes (todos los valores de `src/data/config.json`, en caliente) |
@@ -52,6 +55,41 @@ npm run dev                       # http://localhost:5173
 **Gas**: se recarga en el depósito de la plaza (cajas con banderín verde). Con menos del 20 % aparece un panel con las
 opciones y la distancia/flecha a cada una: pedir gas a un compañero (como Armin con Mikasa en Trost), recoger el equipo
 de un caído (haz de luz verde) o ir al depósito. Sin gas puedes seguir a pie y saltar.
+
+### En el celular o la tableta
+
+Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en horizontal.
+
+| Control | Acción |
+| --- | --- |
+| Dedo en la mitad izquierda | **Joystick** que aparece donde tocas; empujado hasta el borde, **corres** |
+| Arrastrar en la mitad derecha | Mirar (cámara) |
+| **GANCHOS** / **TAJO** | Clic derecho / clic izquierdo (mantener = recoger cable / cargar el tajo). Si arrastras sin soltarlos, apuntas a la vez |
+| **SALTO/GAS** | Espacio: salto, freno en el aire, impulso si mueves el joystick |
+| **Q** / **E** | Un solo gancho |
+| Fila de arriba | Cuchillas (R), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), pantalla completa, pausa |
+
+Al tocar **Empezar** el juego pasa a pantalla completa. El HUD se reparte arriba para dejar libres los pulgares.
+
+## Instalar en el celular y actualizaciones
+
+El juego es una **app web instalable** (PWA), como *Entre Hojas*:
+
+- **Android (Chrome):** abre https://renzomoran9.github.io/ATACK-OF-TITAN/ → menú ⋮ → **Instalar app** (o el botón
+  *Instalar como app* del menú del juego). Queda un icono en el celular y se abre a pantalla completa, sin barras.
+- **iPhone/iPad (Safari):** abre el enlace → **Compartir** → **Añadir a pantalla de inicio**.
+- **PC (Chrome/Edge):** icono de instalar en la barra de direcciones.
+
+Una vez abierto, el juego queda guardado en el dispositivo y **funciona sin internet**.
+
+**Actualizar:** cada `git push` a `main` o a una rama `claude/**` lanza `.github/workflows/publicar.yml`, que revisa los
+tipos, pasa las pruebas, compila y publica en la rama `gh-pages`. El juego instalado lo detecta (al abrirlo, al
+volver a él y cada media hora) y muestra **«Nueva versión del juego · Actualizar»**: al tocarlo se recarga con la
+versión nueva; «Luego» sigue con la actual. La versión la calcula `scripts/pwa.mjs` al compilar (huella de todos los
+archivos), así que cada cambio publicado es una versión nueva.
+
+**Primera vez (una sola vez):** en GitHub, *Settings → Pages → Build and deployment → Source: Deploy from a branch →
+`gh-pages` / `(root)` → Save*. A partir de ahí cada publicación se ve en el enlace en uno o dos minutos.
 
 ## Combate y titanes (como en el anime)
 

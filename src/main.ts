@@ -29,6 +29,9 @@ import { Cielo } from './world/cielo';
 import { ajustarNoche } from './world/materiales';
 import { actualizarMundo, ajustarHoraMundo, construirMundo, depositoMasCercano } from './world/mundo';
 import { AmbienteBosque } from './world/ambiente';
+import { Linterna } from './player/linterna';
+import { ControlesTactiles, esDispositivoTactil } from './ui/tactil';
+import { alternarPantallaCompleta, esIOS, registrarServiceWorker } from './ui/pantallaCompleta';
 import { aplicarLimite, puntoDentro } from './world/region';
 
 declare global {
@@ -38,6 +41,9 @@ declare global {
     __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown };
   }
 }
+
+// Juego instalable y disponible sin conexión (public/sw.js); fuera de un servidor no hace nada
+registrarServiceWorker();
 
 /** Instantánea del jugador para pruebas automáticas desde Playwright. */
 interface EstadoDepuracion {
@@ -150,6 +156,8 @@ async function iniciar(): Promise<void> {
   // Capturas (?cam=...): escena fija con los titanes de referencia congelados, sin menús.
   // Si no, campaña por capítulos con su menú.
   const modoCaptura = urlDepuracion.cam !== null || urlDepuracion.poses;
+  const tactil = esDispositivoTactil(urlDepuracion.tactil);
+  entrada.tactil = tactil;
   let campana: Campana | null = null;
   let pantallas: Pantallas | null = null;
   let laboratorio: LaboratorioPoses | null = null;
@@ -163,11 +171,28 @@ async function iniciar(): Promise<void> {
   } else {
     campana = new Campana(ctx, [new CapEntrenamiento(), new CapTrost(), new CapLibre()]);
     escuadron.depositoDisponible = () => campana?.depositoDisponible() ?? true;
-    pantallas = new Pantallas(campana, () => entrada.capturar());
+    pantallas = new Pantallas(campana, () => entrada.capturar(), tactil);
   }
+  // Móvil y tableta: joystick, arrastre de cámara y botones (src/ui/tactil.ts)
+  const controlesTactiles = tactil && !modoCaptura
+    ? new ControlesTactiles(entrada, {
+        pausa: () => pantallas?.ponerPausa(true),
+        pantallaCompleta: () =>
+          void alternarPantallaCompleta().then((ok) => {
+            if (!ok && esIOS()) ctx.eventos.emit({ tipo: 'mensaje', texto: 'En iPhone: Compartir → Añadir a pantalla de inicio', segundos: 4 });
+          }),
+      })
+    : null;
 
   // Bajo las copas de los bosques la niebla se cierra y la luz baja (src/world/ambiente.ts)
   const ambiente = new AmbienteBosque(escena, cielo.sol, cielo.hemi, mundo.bosques);
+  // Linterna (L): se enciende sola la primera vez que todo se queda a oscuras
+  const linterna = new Linterna(escena);
+  const puntoLinterna = new THREE.Vector3();
+  const alternarLinterna = () => {
+    const on = linterna.alternar();
+    ctx.eventos.emit({ tipo: 'mensaje', texto: on ? 'Linterna encendida' : 'Linterna apagada', segundos: 1.2 });
+  };
   const cambiarHora = (h: Hora) => {
     cielo.aplicar(h, renderer);
     ajustarNoche(mundo.mats, cielo.esDeNoche);
@@ -233,6 +258,7 @@ async function iniciar(): Promise<void> {
     reloj.t += dt;
     mando.actualizar();
     if (entrada.consumir('KeyM')) mapa.alternar();
+    if (entrada.consumir('KeyL')) alternarLinterna();
     // G: recoger el equipo de un caído o, si no hay ninguno al lado, pedir gas a un compañero
     if (entrada.consumir('KeyG') && jugador.vivo) {
       const recogido = ctx.suministros.recoger();
@@ -293,6 +319,11 @@ async function iniciar(): Promise<void> {
     cielo.seguir(jugador.posRender, camara);
     mundo.antorchas.actualizar(dt, camara.position, tiempo);
     ambiente.actualizar(dt, camara.position);
+    if (!linterna.manual && !linterna.encendida && jugador.vivo && !modoCaptura && (ambiente.mezcla > 0.55 || cielo.esDeNoche)) {
+      linterna.encendida = true;
+      ctx.eventos.emit({ tipo: 'mensaje', texto: 'Está oscuro: linterna encendida (L para apagarla)', segundos: 3 });
+    }
+    linterna.actualizar(dt, jugador.posRender, rig.dir, jugador.modelo.puntoLinterna(puntoLinterna), jugador.vivo, tiempo);
     actualizarMundo(mundo, dt, camara.position, escena.fog instanceof THREE.Fog ? escena.fog.far : 3000);
     ctx.titanes.dibujar(dt, tiempo);
     ctx.escuadron.dibujar(dt, tiempo);
@@ -303,6 +334,7 @@ async function iniciar(): Promise<void> {
     ctx.suministros.dibujar(tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
     hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
+    if (controlesTactiles) controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false);
     renderer.render(escena, camara);
     if (pasosEnFotograma > 0) {
       entrada.finFotograma();

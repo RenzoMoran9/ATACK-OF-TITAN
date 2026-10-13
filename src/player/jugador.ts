@@ -226,6 +226,13 @@ export class Jugador implements JugadorAPI {
     this.odm = new EquipoODM(escena, fisica, () => this.collider);
     this.chorros = new Particulas(escena, 260, '#ffffff', 2.4);
     escena.add(this.modelo.grupo);
+    // los pies se apoyan en el terreno real (pendientes, escalones, tejados)
+    const abajo = new THREE.Vector3(0, -1, 0);
+    const origen = new THREE.Vector3();
+    this.modelo.sueloEn = (p) => {
+      const hit = fisica.lanzarRayo(origen.copy(p).setY(p.y + 0.7), abajo, 1.6, this.collider);
+      return hit ? hit.punto.y : null;
+    };
     this.teletransportar(inicio);
   }
 

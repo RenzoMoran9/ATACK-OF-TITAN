@@ -40,6 +40,8 @@ const ARRIBA = new THREE.Vector3(0, 1, 0);
 const MUSLO = 0.45;
 const ESPINILLA = 0.4;
 const ALTURA_CADERA = 0.95;
+/** Del tobillo a la planta de la bota. */
+const SUELA = 0.085;
 
 const CANALES = [
   'pelvisY', 'torsoX', 'torsoY', 'torsoZ', 'cabezaX', 'cabezaY',
@@ -96,6 +98,8 @@ export class ModeloJugador {
   private readonly m = {} as Record<Canal, Muelle>;
   private readonly qActual = new THREE.Quaternion();
   private readonly frenteAnterior = new THREE.Vector3(0, 0, 1);
+  private readonly tmpA = new THREE.Vector3();
+  private readonly tmpB = new THREE.Vector3();
   private fase = 0;
   private tAire = 0;
   private anclasPrevias = 0;
@@ -108,6 +112,13 @@ export class ModeloJugador {
   private tGiro = -1;
   private tCambio = -1;
   private readonly muestrasEstela: THREE.Vector3[][] = [[], []];
+  /**
+   * Altura del suelo bajo un punto del mundo (raycast contra la escena), o null si no se sabe.
+   * Sin ella se toma como suelo la base del modelo (suelo plano).
+   */
+  sueloEn: ((p: THREE.Vector3) => number | null) | null = null;
+  /** Descenso suavizado de la cadera para apoyar el pie que pisa más bajo. */
+  private bajadaPelvis = 0;
 
   constructor(aspecto: AspectoSoldado = {}) {
     const COLORES = {
@@ -477,12 +488,95 @@ export class ModeloJugador {
     for (let s = 0; s < 3; s++) this.capa[s].rotation.set(x(`capaX${s as 0 | 1 | 2}`), 0, x(`capaZ${s as 0 | 1 | 2}`));
 
     // Cuchillas: sin filo o en mitad del cambio, sin hoja
+    // Pies sobre el terreno (IK): ningún pie atraviesa el suelo al andar, correr o en pendiente
+    const apoyado = !enAire && !e.agarrado && !e.muerto && this.tRodada < 0;
+    this.ajustarPies(apoyado, dt);
+
     const filo = e.filo ?? 1;
     const sinHoja = filo <= 0 || (this.tCambio >= 0.22 && this.tCambio < 0.36);
     for (const h of this.hojas) h.visible = !sinHoja;
 
     this.grupo.updateMatrixWorld(true);
     this.actualizarEstela(e, sinHoja);
+  }
+
+  /**
+   * IK de piernas contra el suelo. Primero baja la cadera si un pie pisa más bajo que la base
+   * (pendiente, escalón); luego, si algún tobillo queda por debajo de la altura de la suela,
+   * dobla cadera y rodilla para dejarlo justo encima y pone la planta paralela al suelo.
+   */
+  private ajustarPies(activo: boolean, dt: number): void {
+    const escala = this.grupo.scale.y;
+    this.grupo.updateMatrixWorld(true);
+    const base = this.grupo.getWorldPosition(this.tmpA).y;
+    const suelos = [base, base];
+    if (activo) {
+      for (let i = 0; i < 2; i++) suelos[i] = this.sueloBajoPie(i, base);
+    }
+    const objetivo = activo ? THREE.MathUtils.clamp((Math.min(suelos[0], suelos[1]) - base) / escala, -0.35, 0) : 0;
+    this.bajadaPelvis += (objetivo - this.bajadaPelvis) * Math.min(1, dt * 14);
+    if (Math.abs(this.bajadaPelvis) < 1e-4 && !activo) return;
+    this.cadera.position.y += this.bajadaPelvis;
+    this.grupo.updateMatrixWorld(true);
+    if (!activo) return;
+
+    for (let i = 0; i < 2; i++) {
+      // dos pasadas: la segunda corrige la punta o el talón si aún rozan por la inclinación
+      if (suelos[i] - this.plantaMasBaja(i) <= 0.002) continue;
+      // primero la planta plana (la punta caída es lo que más se hunde), luego subir lo que falte
+      this.tobillos[i].rotation.x = -(this.piernas[i].rotation.x + this.rodillas[i].rotation.x);
+      this.piernas[i].updateMatrixWorld(true);
+      for (let pasada = 0; pasada < 2; pasada++) {
+        const hundido = suelos[i] - this.plantaMasBaja(i);
+        if (hundido <= 0.002) break;
+        this.subirTobillo(i, hundido);
+      }
+    }
+  }
+
+  /** Punto más bajo (mundo) de la suela del pie `i`. */
+  private plantaMasBaja(i: number): number {
+    const tob = this.tobillos[i];
+    let y = Infinity;
+    for (const x of [-0.055, 0.055]) for (const z of [-0.08, 0.17]) y = Math.min(y, tob.localToWorld(this.tmpB.set(x, -SUELA, z)).y);
+    return y;
+  }
+
+  /** Sube el tobillo `i` la altura `dy` (mundo) doblando cadera y rodilla, con la planta plana. */
+  private subirTobillo(i: number, dy: number): void {
+    const tobillo = this.tobillos[i].getWorldPosition(this.tmpA);
+    // objetivo del tobillo en el espacio de la cadera, relativo al arranque de la pierna
+    const pierna = this.piernas[i];
+    const t = this.cadera.worldToLocal(this.tmpB.copy(tobillo).setY(tobillo.y + dy)).sub(pierna.position);
+    const d = THREE.MathUtils.clamp(Math.hypot(t.y, t.z), Math.abs(MUSLO - ESPINILLA) + 1e-3, MUSLO + ESPINILLA - 1e-3);
+    const phi = Math.atan2(t.z, -t.y);
+    const a1 = Math.acos(THREE.MathUtils.clamp((MUSLO * MUSLO + d * d - ESPINILLA * ESPINILLA) / (2 * MUSLO * d), -1, 1));
+    const alfa = phi + a1;
+    const beta = Math.PI - Math.acos(THREE.MathUtils.clamp((MUSLO * MUSLO + ESPINILLA * ESPINILLA - d * d) / (2 * MUSLO * ESPINILLA), -1, 1));
+    pierna.rotation.x = -alfa;
+    this.rodillas[i].rotation.x = beta;
+    // planta plana: compensa el giro de muslo y espinilla
+    this.tobillos[i].rotation.x = alfa - beta;
+    pierna.updateMatrixWorld(true);
+  }
+
+  /** Suelo más alto bajo el talón y la punta del pie `i` (o la base del modelo). */
+  private sueloBajoPie(i: number, base: number): number {
+    if (!this.sueloEn) return base;
+    const tob = this.tobillos[i];
+    let alto = -Infinity;
+    for (const z of [-0.05, 0.16]) {
+      const p = tob.localToWorld(this.tmpB.set(0, 0, z));
+      const g = this.sueloEn(p);
+      if (g !== null) alto = Math.max(alto, g);
+    }
+    // sin suelo cerca (borde de un tejado): la base manda
+    return alto === -Infinity || Math.abs(alto - base) > 0.6 ? base : alto;
+  }
+
+  /** Punto del cinturón (lado izquierdo) donde cuelga la linterna, en mundo. */
+  puntoLinterna(out: THREE.Vector3): THREE.Vector3 {
+    return this.cadera.localToWorld(out.set(0.2, -0.06, 0.08));
   }
 
   // ─────────────────────────── Poses ───────────────────────────
