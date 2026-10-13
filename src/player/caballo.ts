@@ -3,6 +3,7 @@ import type { Navegacion } from '../core/navegacion';
 import type { Poblacion } from '../core/poblacion';
 import { girarHacia } from '../titans/ia';
 import { REGION } from '../world/region';
+import { cargarModeloCaballo, type ModeloCaballo } from './modeloCaballo';
 
 /**
  * Caballo de la Legión: la forma de cruzar rápido la llanura (en el anime, las expediciones
@@ -13,6 +14,9 @@ import { REGION } from '../world/region';
  *   Espacio salta de la silla; si clavas un gancho, sales volando del caballo.
  * - Suelto, se aparta de los titanes que se le acercan y pasta.
  * Choca con lo que bloquea la rejilla de navegación (casas, troncos, la muralla).
+ *
+ * Se ve con el modelo 3D de src/player/modeloCaballo.ts (Roberto Domínguez, CC BY 4.0) en cuanto
+ * termina de cargar; mientras tanto, o si no carga, con uno hecho de primitivas.
  */
 
 export const VELOCIDAD_PASO = 3.2;
@@ -57,6 +61,13 @@ export class Caballo {
   private readonly cuerpo = new THREE.Group();
   private readonly cuello = new THREE.Group();
   private readonly cola: THREE.Mesh;
+  /** Silla y manta verde de la Legión (sirven para los dos modelos). */
+  private readonly sillaG = new THREE.Group();
+  private modelo: ModeloCaballo | null = null;
+  private readonly muslos = [0, 0, 0, 0];
+  private readonly canas = [0, 0, 0, 0];
+  /** Centro del jinete sobre los pies del caballo. */
+  private alturaSilla = ALTURA_SILLA;
   private fase = 0;
   private tPasto = 0;
   private huyendo = 0;
@@ -96,9 +107,11 @@ export class Caballo {
     this.cola = malla(new THREE.ConeGeometry(0.13, 0.85, 8), crin, this.cuerpo, 0, -0.05, -0.98);
     this.cola.rotation.x = -2.4;
     // silla y manta verde de la Legión
-    malla(new THREE.BoxGeometry(0.9, 0.06, 0.8), capa, this.cuerpo, 0, 0.42, -0.05);
-    malla(new THREE.BoxGeometry(0.5, 0.14, 0.62), cuero, this.cuerpo, 0, 0.5, -0.05);
-    malla(new THREE.BoxGeometry(0.42, 0.18, 0.08), cuero, this.cuerpo, 0, 0.6, 0.24);
+    this.grupo.add(this.sillaG);
+    this.sillaG.position.y = 1.42;
+    malla(new THREE.BoxGeometry(0.9, 0.06, 0.8), capa, this.sillaG, 0, 0.42, -0.05);
+    malla(new THREE.BoxGeometry(0.5, 0.14, 0.62), cuero, this.sillaG, 0, 0.5, -0.05);
+    malla(new THREE.BoxGeometry(0.42, 0.18, 0.08), cuero, this.sillaG, 0, 0.6, 0.24);
     // patas: muslo y caña, con el casco
     for (const [x, z, delantera, fase] of [
       [0.24, 0.62, true, 0],
@@ -118,11 +131,23 @@ export class Caballo {
       this.patas.push({ arriba, abajo, fase, delantera });
     }
     escena.add(this.grupo);
+    // el modelo de verdad sustituye al de primitivas en cuanto carga
+    cargarModeloCaballo()
+      .then((m) => {
+        this.modelo = m;
+        this.cuerpo.visible = false;
+        this.grupo.add(m.grupo);
+        // silla en medio del lomo, por detrás de la cruz
+        this.sillaG.position.set(0, m.lomo - 0.47, -0.15);
+        this.alturaSilla = m.lomo + 0.12;
+      })
+      .catch((e) => console.warn('[caballo] no se pudo cargar el modelo 3D; se usa el de primitivas', e));
   }
 
   /** Centro del jinete en la silla. */
   silla(out = new THREE.Vector3()): THREE.Vector3 {
-    return out.set(this.pos.x - Math.sin(this.rumbo) * 0.1, this.pos.y + ALTURA_SILLA, this.pos.z - Math.cos(this.rumbo) * 0.1);
+    const atras = this.modelo ? 0.15 : 0.1;
+    return out.set(this.pos.x - Math.sin(this.rumbo) * atras, this.pos.y + this.alturaSilla, this.pos.z - Math.cos(this.rumbo) * atras);
   }
 
   colocar(pies: THREE.Vector3, rumbo: number): void {
@@ -214,15 +239,28 @@ export class Caballo {
     // ciclos por segundo: 1 al paso, ~2 al trote, ~2,4 al galope
     this.fase += dt * (v < 0.2 ? 0 : THREE.MathUtils.lerp(0.9, 2.4, THREE.MathUtils.clamp(v / VELOCIDAD_GALOPE, 0, 1)));
     const amp = THREE.MathUtils.clamp(v / VELOCIDAD_TROTE, 0, 1) * THREE.MathUtils.lerp(0.55, 0.85, galope);
-    for (const p of this.patas) {
+    this.patas.forEach((p, i) => {
       // al trote, diagonales; al galope, las delanteras juntas y luego las traseras
       const desfase = THREE.MathUtils.lerp(p.fase, p.delantera ? p.fase * 0.5 : 0.5 + p.fase * 0.3, galope);
       const a = Math.PI * 2 * (this.fase + desfase);
       p.arriba.rotation.x = Math.sin(a) * amp;
       p.abajo.rotation.x = (p.delantera ? -1 : 1) * Math.max(0, Math.sin(a + 1.2)) * amp * 1.3;
-    }
-    this.cuerpo.position.y = 1.42 + Math.abs(Math.sin(Math.PI * 2 * this.fase)) * 0.09 * amp;
-    this.cuerpo.rotation.x = Math.sin(Math.PI * 2 * this.fase) * 0.05 * galope;
+      // modelo 3D: el mismo vaivén; al levantar la pata, la delantera dobla la rodilla hacia
+      // atrás y la trasera el corvejón algo hacia delante
+      const flexion = Math.max(0, Math.sin(a + 1.2)) * amp;
+      this.muslos[i] = p.arriba.rotation.x * 0.8;
+      this.canas[i] = p.delantera ? flexion * 1.2 : -flexion * 0.7;
+    });
+    const bote = Math.abs(Math.sin(Math.PI * 2 * this.fase)) * 0.09 * amp;
+    const cabeceo = Math.sin(Math.PI * 2 * this.fase) * 0.05 * galope;
+    this.cuerpo.position.y = 1.42 + bote;
+    this.cuerpo.rotation.x = cabeceo;
+    if (this.modelo) {
+      this.modelo.grupo.position.y = bote;
+      this.modelo.grupo.rotation.x = cabeceo * 0.6;
+      this.sillaG.position.y = this.modelo.lomo - 0.47 + bote;
+      this.modelo.posar(this.muslos, this.canas);
+    } else this.sillaG.position.y = 1.42 + bote;
     // cabeza: baja a pastar parado, se estira al galope
     const pasta = v < 0.3 && !this.montado ? 1 : 0;
     this.cuello.rotation.x += ((pasta ? 1.0 : -0.25 * galope) - this.cuello.rotation.x) * Math.min(1, dt * 3);

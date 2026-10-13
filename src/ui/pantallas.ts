@@ -149,6 +149,7 @@ export class Pantallas {
       r.appendChild(fila);
       r.appendChild(this.filaApp());
       r.insertAdjacentHTML('beforeend', this.controles);
+      r.insertAdjacentHTML('beforeend', '<p class="creditos">Caballo: «Caballo» de <a href="https://sketchfab.com/vmmaniac" target="_blank" rel="noopener">Roberto Domínguez</a> (<a href="https://sketchfab.com/3d-models/caballo-aa979384c5c04f1281df5e4ab006f17d" target="_blank" rel="noopener">Sketchfab</a>), licencia <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, convertido y simplificado</p>');
       return;
     }
 

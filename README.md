@@ -106,6 +106,14 @@ habitado, los vítores al liberarlo o defenderlo y las hogueras de noche; la esq
 rebote en la coraza, el endurecimiento de la Hembra y el rugido de los cambiantes. `src/audio/sonido.ts` es el motor (Web Audio: volumen por distancia y lado) y
 `src/audio/sonidosJuego.ts` decide qué suena y cuándo. **N** (o ♪ en el celular) lo silencia.
 
+## Créditos
+
+- **Caballo**: «Caballo» de [Roberto Domínguez](https://sketchfab.com/vmmaniac)
+  ([Sketchfab](https://sketchfab.com/3d-models/caballo-aa979384c5c04f1281df5e4ab006f17d)), licencia
+  [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/). Cambios: materiales convertidos a metal-rugosidad,
+  texturas a WebP de 1024 px y malla simplificada (de ~35 000 a ~20 000 triángulos).
+- **Sonidos**: generados con ElevenLabs.
+
 ## Instalar en el celular y actualizaciones
 
 El juego es una **app web instalable** (PWA), como *Entre Hojas*:
@@ -184,6 +192,8 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   marcan). Con titanes dentro se pierde obra y, si nadie los defiende, la gente huye o muere y el pueblo cae.
 - **Cambiantes avistados**: desde el segundo día, a media mañana, a veces aparece el Acorazado o la Hembra en la llanura.
 - **Caballo** (C): para cruzar la llanura rápido (trote 9 m/s, galope 20 m/s). Huye de los titanes cuando está suelto.
+  Es un modelo 3D (`public/modelos/caballo.glb`, ~1 MB): el modelo es estático, así que las patas se doblan en el
+  shader por zonas (`src/player/modeloCaballo.ts`); si no carga, se ve uno hecho de primitivas.
 - **Campamento** (K): donde quieras, en un claro fuera de Trost. Cada soldado va a su poste o a su carpa y la monta
   en unos segundos; tú clavas postes con el martillo. Entre cada dos postes clavados se tiende el alambre. Un titán
   que se mete en él se **enreda** (va a un cuarto de su velocidad), las latas suenan y lo va rompiendo poco a poco.
@@ -291,7 +301,6 @@ Hecho:
   caballo, cambiantes (Acorazado y Hembra), esquiva, bengala cegadora, pasada baja y fijar parte, partida guardada.
 
 Pendiente:
-- Caballo con modelo 3D de verdad (ahora es de primitivas).
 - Decidir la solidez de los titanes contra las casas.
 - Modelos 3D de verdad (los cuerpos son primitivas): se podrían sustituir por modelos GLB con licencia libre (habría que
   añadir la carga con GLTFLoader y adaptar las articulaciones).
