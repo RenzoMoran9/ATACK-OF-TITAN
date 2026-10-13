@@ -35,6 +35,8 @@ function escapar(t: string): string {
 export class Pantallas {
   private readonly raiz: HTMLDivElement;
   pausado = false;
+  /** En el celular: abre el modo de mover botones (se le pasa qué hacer al terminar). */
+  editarBotones: ((alTerminar: () => void) => void) | null = null;
 
   /**
    * `pedirCaptura` intenta capturar el ratón (devuelve si lo consiguió);
@@ -150,6 +152,15 @@ export class Pantallas {
       fila.className = 'botones';
       fila.append(this.boton('Continuar', () => void this.jugar(), 'principal'), this.boton('Reiniciar capítulo', () => c.reintentar()), this.boton('Menú de capítulos', () => c.irAlMenu()));
       r.appendChild(fila);
+      const editar = this.editarBotones;
+      if (editar) {
+        fila.appendChild(
+          this.boton('✥ Mover botones', () => {
+            r.hidden = true;
+            editar(() => this.mostrar());
+          }),
+        );
+      }
       const g = this.graficos;
       if (g) {
         const b = this.boton(g.texto(), () => {

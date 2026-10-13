@@ -205,6 +205,7 @@ async function iniciar(): Promise<void> {
           }),
       })
     : null;
+  if (controlesTactiles && pantallas) pantallas.editarBotones = (alTerminar) => controlesTactiles.editar(alTerminar);
 
   // Bajo las copas de los bosques la niebla se cierra y la luz baja (src/world/ambiente.ts)
   const ambiente = new AmbienteBosque(escena, cielo.sol, cielo.hemi, mundo.bosques);
@@ -402,7 +403,7 @@ async function iniciar(): Promise<void> {
     ctx.suministros.dibujar(tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
     hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
-    if (controlesTactiles) controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false);
+    if (controlesTactiles) controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false) || controlesTactiles.editando;
     derechaCamara.setFromMatrixColumn(camara.matrixWorld, 0);
     consejos.actualizar(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura && !!campana?.jugando);
     calidad?.medir(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura);

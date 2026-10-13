@@ -74,6 +74,8 @@ Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en
 | **◀ GANCHO** / **GANCHO ▶** | Q / E: el izquierdo junto al joystick (pulgar izquierdo), el derecho junto a GANCHOS (pulgar derecho) |
 | Fila de arriba | Cuchillas (R), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), pantalla completa, pausa |
 
+**Mover los botones:** en la pausa, **✥ Mover botones**: arrastra cada botón (y la fila de arriba) donde te quede cómodo, cambia su tamaño con − / + y pulsa **Listo**. Se guarda en el celular; **Restablecer** vuelve a la disposición original.
+
 Al tocar **Empezar** el juego pasa a pantalla completa. El HUD se reparte arriba para dejar libres los pulgares.
 
 ### Gráficos en el celular

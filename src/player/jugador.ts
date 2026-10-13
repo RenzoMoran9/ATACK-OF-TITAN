@@ -29,6 +29,7 @@ export interface Mirada {
 
 const MITAD_ALTURA_CENTRO = 0.85; // del suelo al centro de la cápsula
 const ARRIBA = new THREE.Vector3(0, 1, 0);
+const ABAJO_J = new THREE.Vector3(0, -1, 0);
 /** Altura máxima que da el salto con gas (manteniendo Espacio sin dirección), en metros. */
 export const ALTURA_SALTO_GAS = 10;
 
@@ -250,7 +251,8 @@ export class Jugador implements JugadorAPI {
 
   /** Coloca al jugador con los pies en `pies`. */
   teletransportar(pies: THREE.Vector3, rumbo?: number): void {
-    this.pos.copy(pies).y += MITAD_ALTURA_CENTRO;
+    // un pelín por encima: si la cápsula empieza metida en el suelo, el controlador no la frena
+    this.pos.copy(pies).y += MITAD_ALTURA_CENTRO + 0.05;
     this.posPrevia.copy(this.pos);
     this.posRender.copy(this.pos);
     this.vel.set(0, 0, 0);
@@ -509,6 +511,7 @@ export class Jugador implements JugadorAPI {
     this.pos.x += mov.x;
     this.pos.y += mov.y;
     this.pos.z += mov.z;
+    this.desenterrar();
     this.cuerpo.setNextKinematicTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z });
 
     // Red de seguridad si se sale del mundo
@@ -563,6 +566,25 @@ export class Jugador implements JugadorAPI {
     // quieto pegado a la superficie, sin gravedad
     const objetivo = p.punto.clone().addScaledVector(n, 0.8).add(new THREE.Vector3(0, -0.2, 0));
     this.vel.copy(objetivo).sub(this.pos).divideScalar(Math.max(dt, 1e-3)).clampLength(0, 12);
+  }
+
+  /**
+   * El controlador de Rapier ignora el suelo si la cápsula ya está algo metida en él (tras
+   * aparecer o un aterrizaje muy fuerte) y entonces el jugador se hunde poco a poco. Cada paso
+   * se mide el suelo justo debajo y, si los pies han quedado por debajo, se le saca encima.
+   */
+  private desenterrar(): void {
+    if (this.agarradoPor || this.pegado || this.vel.y > 2) return;
+    const origen = this.tmp.copy(this.pos);
+    origen.y += 0.5;
+    const hit = this.fisica.lanzarRayo(origen, ABAJO_J, 0.5 + MITAD_ALTURA_CENTRO + 0.6, this.collider);
+    if (!hit || hit.normal.y < 0.5) return;
+    const pies = this.pos.y - MITAD_ALTURA_CENTRO;
+    if (pies < hit.punto.y - 0.005) {
+      this.pos.y = hit.punto.y + MITAD_ALTURA_CENTRO + 0.01;
+      if (this.vel.y < 0) this.vel.y = 0;
+      this.enSuelo = true;
+    }
   }
 
   private emitirChorro(dir: THREE.Vector3, rapidez: number): void {

@@ -1035,3 +1035,59 @@ body.tactil .hud-objetivo {
   border-color: rgba(243, 239, 230, 0.35);
   background: transparent;
 }
+
+/* ── Mover los botones táctiles (pausa → Mover botones) ── */
+.tactil-editor {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: min(560px, 90vw);
+  padding: 10px 12px;
+  font-size: 13px;
+  text-align: center;
+  color: #f3efe6;
+  background: rgba(10, 14, 20, 0.88);
+  border: 1px solid rgba(242, 194, 48, 0.7);
+}
+.tactil-editor[hidden] {
+  display: none;
+}
+.tactil-editor .ayuda {
+  flex-basis: 100%;
+}
+.tactil-editor .grupo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tactil-editor .ed-btn {
+  font: inherit;
+  min-width: 40px;
+  min-height: 36px;
+  padding: 4px 12px;
+  color: #f3efe6;
+  background: rgba(30, 36, 44, 0.9);
+  border: 1px solid rgba(243, 239, 230, 0.4);
+  touch-action: none;
+}
+.tactil-editor .ed-btn.listo {
+  border-color: #b3121b;
+  background: rgba(120, 20, 22, 0.9);
+}
+.tactil-capa.editando .tactil-zona {
+  background: rgba(10, 14, 20, 0.35);
+}
+.tactil-capa.editando [data-mover] {
+  outline: 1px dashed rgba(243, 239, 230, 0.5);
+  outline-offset: 3px;
+}
+.tactil-capa.editando .elegido {
+  outline: 2px solid #f2c230;
+}
