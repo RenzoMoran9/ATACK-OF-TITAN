@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { Cuchillas } from '../combat/cuchillas';
+import { empujeFuera, RADIO_PERSONA } from '../core/colision';
 import { config } from '../core/config';
 import type { ContextoJuego } from '../core/contexto';
 import type { Entrada } from '../core/entrada';
@@ -282,6 +283,27 @@ export class Jugador implements JugadorAPI {
 
   private salidaModelo = (lado: Lado): THREE.Vector3 => this.modelo.salidaCable(lado === 'izq' ? 1 : -1, new THREE.Vector3());
 
+  /**
+   * Las personas (civiles y soldados) son sólidas: a tu altura no te dejan atravesarlas. Devuelve
+   * el empuje horizontal que hay que sumar al movimiento y quita la velocidad que iba hacia ellas.
+   */
+  private apartarDePersonas(): { dx: number; dz: number } {
+    if (!this.ctx) return { dx: 0, dz: 0 };
+    const altura = config.jugador.altura;
+    // el propio jugador también está en la población (como humano): no puede apartarse de sí mismo
+    const cerca = this.ctx.poblacion.humanosCerca(this.pos, 2, (h) => h !== this && !h.agarradoPor && Math.abs(h.posicion.y - this.pos.y) < altura);
+    const e = empujeFuera(this.pos.x, this.pos.z, config.jugador.radio, cerca.map((h) => ({ x: h.posicion.x, z: h.posicion.z, radio: RADIO_PERSONA })));
+    const n = Math.hypot(e.dx, e.dz);
+    if (n > 1e-6) {
+      const vn = (this.vel.x * e.dx + this.vel.z * e.dz) / n;
+      if (vn < 0) {
+        this.vel.x -= (vn * e.dx) / n;
+        this.vel.z -= (vn * e.dz) / n;
+      }
+    }
+    return e;
+  }
+
   paso(dt: number, entrada: Entrada, mirada: Mirada): void {
     const j = config.jugador;
     this.posPrevia.copy(this.pos);
@@ -453,10 +475,12 @@ export class Jugador implements JugadorAPI {
     const rapidez = this.vel.length();
     if (rapidez > j.velocidadMaxima) this.vel.multiplyScalar(j.velocidadMaxima / rapidez);
 
+    // Las personas a tu altura te apartan antes de moverte (el controlador sigue frenando ante muros)
+    const apartado = this.apartarDePersonas();
     // Integración + restricción de los cables sobre la posición prevista
     const prevista = this.pos.clone().addScaledVector(this.vel, dt);
     this.odm.restringir(prevista, this.vel);
-    const deseado = prevista.sub(this.pos);
+    const deseado = prevista.sub(this.pos).add(this.tmp.set(apartado.dx, 0, apartado.dz));
 
     const estabaEnSuelo = this.enSuelo;
     const vyAntes = this.vel.y;

@@ -15,6 +15,7 @@ import {
   alturaSalto,
   AVISO_SALTO,
   avisoAgarre,
+  distanciaCuerpos,
   duracionSalto,
   enCono,
   galope,
@@ -378,6 +379,7 @@ export class Titan implements TitanAPI {
       this.lod = 0;
       this.pensar(dtIA);
       this.moverse(dtIA);
+      this.separarDeTitanes();
     }
     this.mantenerAgarre(dt);
     this.animar(dt, this.velocidad);
@@ -819,7 +821,7 @@ export class Titan implements TitanAPI {
       if (otro === this) continue;
       const lejos = this.tmp2.copy(this.posicion).sub(otro.posicion).setY(0);
       const d = lejos.length();
-      const minimo = 0.17 * (H + otro.altura) + 0.5;
+      const minimo = distanciaCuerpos(H, otro.altura);
       if (d > 1e-3 && d < minimo) dir.addScaledVector(lejos.divideScalar(d), (minimo - d) / minimo);
     }
     const rumboObj = Math.atan2(dir.x, dir.z) + this.desvio;
@@ -838,6 +840,33 @@ export class Titan implements TitanAPI {
       this.ruta = null; // atascado: recalcular
     }
     this.posicion.y = 0;
+  }
+
+  /**
+   * Dos titanes no se atraviesan, estén quietos o andando: si los cuerpos se solapan, cada uno
+   * se aparta la mitad (el otro hace lo mismo en su turno). No empuja a través de los muros.
+   */
+  private separarDeTitanes(): void {
+    const H = this.altura;
+    const nav = this.ctx.nav;
+    for (const otro of this.ctx.poblacion.titanesCerca(this.posicion, 0.23 * (H + 15) + 0.3)) {
+      if (otro === this) continue;
+      const dx = this.posicion.x - otro.posicion.x;
+      const dz = this.posicion.z - otro.posicion.z;
+      const d = Math.hypot(dx, dz);
+      const minimo = distanciaCuerpos(H, otro.altura);
+      if (d >= minimo) continue;
+      // encima el uno del otro: cada cual sale hacia donde mira
+      const ux = d > 1e-3 ? dx / d : Math.sin(this.rumbo);
+      const uz = d > 1e-3 ? dz / d : Math.cos(this.rumbo);
+      const m = (minimo - d) * 0.5;
+      const nx = this.posicion.x + ux * m;
+      const nz = this.posicion.z + uz * m;
+      if (nav.libre(nx, nz, this.radioNav * 0.7)) {
+        this.posicion.x = nx;
+        this.posicion.z = nz;
+      }
+    }
   }
 
   private encarar(meta: THREE.Vector3, dt: number): void {

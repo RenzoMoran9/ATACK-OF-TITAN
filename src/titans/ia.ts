@@ -84,6 +84,12 @@ export const alturaSalto = (H: number): number => 0.4 * H;
 export const radioMordisco = (H: number): number => 0.15 * H + 1.5;
 
 /**
+ * Distancia mínima entre los centros de dos titanes: su cuerpo ocupa ~0,23 m por metro de
+ * altura (medido: dos de 15 m se tocan a ~6,8 m). Con un margen de 0,3 m no se solapan.
+ */
+export const distanciaCuerpos = (a: number, b: number): number => 0.23 * (a + b) + 0.3;
+
+/**
  * Zancada del galope: lo que avanza el cuerpo con una pata apoyada (fracción `apoyo` del
  * ciclo). Con poca velocidad el ciclo se alarga hasta 1,2 s; la zancada no pasa de 0,5·H.
  * Devuelve la zancada (m) y los ciclos por segundo.
