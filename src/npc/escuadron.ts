@@ -1,5 +1,6 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { Cuchillas } from '../combat/cuchillas';
 import type { ContextoJuego } from '../core/contexto';
 import type { Fisica } from '../core/fisica';
 import type { AspectoSoldado, DestinoOrden, EscuadronAPI, Humano, InfoSoldado, MiembroEscuadron, OrdenEscuadron, RolSoldado, TitanAPI, ZonaTitan } from '../core/tipos';
@@ -71,6 +72,8 @@ const RADIO_HUIDA = 60;
 const DISTANCIA_MONTAR = 5;
 /** A cuánto del refugio tiene que llegar quien huye para dar la huida por terminada. */
 const LLEGADA_REFUGIO = 12;
+/** Pares de cuchillas de repuesto que reparte el médico a quien se queda sin ninguno. */
+const PARES_MEDICO = 2;
 
 /** Superficie bajo `p` (calle, tejado, rama, muralla), atravesando al jugador y a los titanes. */
 export function puntoAlSuelo(fisica: Fisica, p: THREE.Vector3, max = 400): THREE.Vector3 {
@@ -232,12 +235,12 @@ export class Escuadron implements EscuadronAPI {
   /** Quién podría darte gas ahora mismo (para el HUD): el intendente primero, venga de donde venga. */
   donanteGas(): Soldado | null {
     const j = this.ctx.jugador;
-    const intendente = this.soldados.find((s) => s.rol === 'intendente' && s.vivo && !s.agarradoPor && s.gas > 60);
+    const intendente = this.soldados.find((s) => s.rol === 'intendente' && s.vivo && !s.agarradoPor && s.gas > s.gasMax * 0.15);
     if (intendente && intendente.posicion.distanceTo(j.posicion) < 700) return intendente;
     let mejor: Soldado | null = null;
     let dMejor = 180;
     for (const s of this.soldados) {
-      if (!s.vivo || s.agarradoPor || s.gas < 30) continue;
+      if (!s.vivo || s.agarradoPor || s.gas < s.gasMax * 0.25) continue;
       const d = s.posicion.distanceTo(j.posicion);
       if (d < dMejor) {
         dMejor = d;
@@ -270,7 +273,7 @@ export class Escuadron implements EscuadronAPI {
       else if (receptor && s.posicion.distanceTo(receptor.posicion) < 5.5) {
         const companero = receptor instanceof Soldado ? receptor : null;
         const falta = companero ? companero.gasMax - companero.gas : j.gas.capacidad - j.gas.nivel;
-        const dado = s.darGas(Math.min(falta, s.rol === 'intendente' ? 150 : 50));
+        const dado = s.darGas(Math.min(falta, s.rol === 'intendente' ? 300 : 100));
         if (companero) companero.gas = Math.min(companero.gasMax, companero.gas + dado);
         else j.gas.nivel = Math.min(j.gas.capacidad, j.gas.nivel + dado);
         s.ultimaFrase = -99;
@@ -337,7 +340,7 @@ export class Escuadron implements EscuadronAPI {
 
     // El intendente reparte gas sin que se lo pidan: a ti primero, luego al que vaya más justo
     for (const s of libres) {
-      if (s.rol !== 'intendente' || asignados.has(s) || s.gas < 60 || s.orden.dada) continue;
+      if (s.rol !== 'intendente' || asignados.has(s) || s.gas < s.gasMax * 0.15 || s.orden.dada) continue;
       const quien = this.necesitaGas(s);
       if (!quien) continue;
       if (!(s.mision.tipo === 'darGas' && s.mision.humano === quien)) {
@@ -532,21 +535,24 @@ export class Escuadron implements EscuadronAPI {
     return this.soldados.find((s) => s.rol === 'medico' && s.vivo && !s.agarradoPor && !s.herido) ?? null;
   }
 
-  /** El médico va a por ti cuando estás por debajo del 60 %; te cura en cuanto llega. */
+  /** El médico va a por ti (sin orden tuya) cuando estás por debajo del 60 % o sin cuchillas de repuesto. */
   private medicos(libres: Soldado[], asignados: Set<Soldado>): void {
     const j = this.ctx.jugador;
-    if (!j.vivo || j.agarradoPor || j.salud >= j.saludMax * 0.6) return;
+    if (!j.vivo || j.agarradoPor) return;
+    const herido = j.salud < j.saludMax * 0.6;
+    if (!herido && j.paresRepuesto > 0) return;
     for (const s of libres) {
       if (s.rol !== 'medico' || asignados.has(s) || s.orden.dada) continue;
-      if (s.mision.tipo !== 'curar') s.decir('¡Aguanta, voy a curarte!');
+      if (s.mision.tipo !== 'curar') s.decir(herido ? '¡Aguanta, voy a curarte!' : '¡Te llevo cuchillas!');
       s.mision = { tipo: 'curar', humano: j };
       asignados.add(s);
     }
   }
 
   /**
-   * Médicos: curan a los heridos y al jugador que tienen cerca. Un herido sin médico al lado
-   * que descansa junto al jugador se recupera despacio.
+   * Médicos: curan a los heridos y al jugador que tienen cerca, y reparten un par de cuchillas a
+   * quien se haya quedado sin repuesto. Un herido sin médico al lado que descansa junto al
+   * jugador se recupera despacio.
    */
   private curar(dt: number): void {
     const j = this.ctx.jugador;
@@ -557,6 +563,18 @@ export class Escuadron implements EscuadronAPI {
       else if (s.posicion.distanceTo(j.posicion) < RADIO_CURA + 3) s.curar(CURACION_SIN_MEDICO * dt);
     }
     if (j.vivo && !j.agarradoPor && j.salud < j.saludMax && medicos.some((m) => m.posicion.distanceTo(j.posicion) < RADIO_CURA)) j.curar(CURACION_JUGADOR * dt);
+    // cuchillas: quien se queda sin repuesto recibe un par del médico que tenga cerca
+    for (const m of medicos) {
+      if (j.vivo && !j.agarradoPor && j.paresRepuesto <= 0 && m.posicion.distanceTo(j.posicion) < RADIO_CURA) {
+        j.recogerEquipo(0, PARES_MEDICO);
+        this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${m.nombre}: ¡cuchillas de repuesto!`, segundos: 2 });
+      }
+      for (const s of this.soldados) {
+        if (s === m || !s.vivo || s.cuchillas.repuesto > 0 || m.posicion.distanceTo(s.posicion) >= RADIO_CURA) continue;
+        s.cuchillas.repuesto = Math.min(Cuchillas.MAX_REPUESTO, PARES_MEDICO);
+        s.decir('¡Toma, cuchillas de repuesto!');
+      }
+    }
   }
 
   /** Cebo delante de la cara, apoyo a los tendones y rematadores a la nuca. */

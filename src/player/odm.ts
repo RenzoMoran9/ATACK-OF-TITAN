@@ -88,6 +88,10 @@ export class EquipoODM {
   impulsando = false;
   recogiendo = false;
   gasInfinito = false;
+  /** Ataque directo: los dos ganchos se disparan hacia la mira en el próximo paso (como clic derecho). */
+  dispararAhora = false;
+  /** Ataque directo: los ganchos siguen clavados aunque no pulses el botón (lo suelta el combate). */
+  sostener = false;
 
   constructor(escena: THREE.Scene, private readonly fisica: Fisica, private readonly excluir: () => RAPIER.Collider) {
     const mat = new THREE.LineBasicMaterial({ color: '#eef3f7', transparent: true, opacity: 0.95 });
@@ -198,8 +202,9 @@ export class EquipoODM {
     this.recogiendo = false;
     // Clic derecho: los dos ganchos a la vez hacia la mira; Q / E: cada uno por separado
     const teclas: Record<Lado, string> = { izq: 'KeyQ', der: 'KeyE' };
-    const ambosPulsado = c.entrada.consumir('Mouse2');
-    const ambosMantenido = c.entrada.mantenida('Mouse2');
+    const ambosPulsado = c.entrada.consumir('Mouse2') || this.dispararAhora;
+    this.dispararAhora = false;
+    const ambosMantenido = c.entrada.mantenida('Mouse2') || this.sostener;
 
     this.ganchos.forEach((g, i) => {
       const tecla = teclas[g.lado];
@@ -336,6 +341,8 @@ export class EquipoODM {
   }
 
   liberarTodo(): void {
+    this.sostener = false;
+    this.dispararAhora = false;
     for (const g of this.ganchos) {
       g.estado = 'listo';
       g.objetoAncla = null;

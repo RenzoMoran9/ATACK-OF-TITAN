@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Cuchillas } from '../combat/cuchillas';
+import { asaltoFallido, cortaAhora, empiezaAsalto, empujeDeCorte } from '../combat/asalto';
 import { calcularDanio, desgaste, umbralZona, zonaAlAlcance } from '../combat/corte';
 import {
   ALCANCE_BENGALA,
@@ -30,6 +31,9 @@ import type { EfectoCorte, Humano, PuntoDebil, TitanAPI, ZonaTitan } from '../co
  * - B: bengala a 50 m/s hacia la mira; si estalla a 4 m o menos de la cara, ciega 3 s.
  * - X: fija una parte del titán más cercano (nuca → ojos → brazos → corvas → tendones → nada);
  *   el tajo y los ganchos van a ella aunque la mira esté en otro sitio.
+ * - Ataque directo: con una parte fijada lejos, el tajo (clic izquierdo o F, un toque) engancha
+ *   los ganchos a ese punto, los mantiene clavados sin tener el botón pulsado y corta solo al
+ *   llegar a unos 3 m (src/combat/asalto.ts).
  */
 
 export const MAX_BENGALAS = 4;
@@ -75,6 +79,12 @@ export interface CuerpoCombatiente {
   /** ¿Algún gancho anclado en carne de titán y recogiendo? */
   ancladoATitanRecogiendo(): boolean;
   consumirGas(cantidad: number): boolean;
+  /** Ataque directo: dispara los dos ganchos hacia la mira (ya apuntada a la parte fijada). */
+  dispararGanchos(): void;
+  /** Ataque directo: mantiene los ganchos clavados sin botón (o los deja de mantener). */
+  sostenerGanchos(si: boolean): void;
+  /** ¿Algún gancho está volando o clavado? */
+  ganchosEnUso(): boolean;
 }
 
 const TEXTOS: Partial<Record<EfectoCorte, string>> = {
@@ -106,6 +116,8 @@ export class CombateJugador {
   /** Parte del titán fijada con X (null = nada). */
   parteFijada: { titan: TitanAPI; zona: ZonaTitan } | null = null;
   private readonly tmp = new THREE.Vector3();
+  /** Ataque directo en curso: tiempo desde que empezó y si ya ha cortado. */
+  private asalto: { t: number; cortado: boolean } | null = null;
 
   constructor(private readonly ctx: ContextoJuego, private readonly c: CuerpoCombatiente) {
     ctx.eventos.on('esquiva', (e) => {
@@ -119,6 +131,12 @@ export class CombateJugador {
   cancelar(): void {
     this.preparando = false;
     this.tajo = null;
+    this.terminarAsalto();
+  }
+
+  /** ¿Hay un ataque directo en curso? */
+  get asaltoActivo(): boolean {
+    return this.asalto !== null;
   }
 
   rellenarBengalas(): void {
@@ -161,6 +179,7 @@ export class CombateJugador {
     if (entrada.consumir('KeyB')) this.dispararBengala(mirada);
     if (entrada.consumir('KeyX')) this.fijarParte(mirada);
     if (this.c.agarradoPor) {
+      this.terminarAsalto();
       this.manejarAgarre(dt, entrada);
       return;
     }
@@ -176,9 +195,16 @@ export class CombateJugador {
       }
     }
 
-    // Tajo: clic izquierdo (o F)
-    const pulsado = entrada.consumir('Mouse0') || entrada.consumir('KeyF');
+    // Tajo: clic izquierdo (o F). Con una parte fijada lejos, un toque es un ataque directo
+    let pulsado = entrada.consumir('Mouse0') || entrada.consumir('KeyF');
     const mantenido = entrada.mantenida('Mouse0') || entrada.mantenida('KeyF');
+    const fijado = this.puntoFijado;
+    if (this.asalto) pulsado = false; // mientras ataca, otro toque no prepara un tajo
+    else if (pulsado && !this.tajo && fijado && empiezaAsalto(fijado.centro.distanceTo(this.c.pos), this.cuchillas.puedeCortar)) {
+      this.iniciarAsalto();
+      pulsado = false;
+    }
+    if (this.asalto) this.seguirAsalto(dt, mirada);
     const pasada = pulsado && !this.tajo && this.cuchillas.puedeCortar ? zonaPasadaBaja(this.c.pos, this.ctx.poblacion.titanesCerca(this.c.pos, 30)) : null;
     if (pasada) {
       this.preparando = false;
@@ -210,7 +236,49 @@ export class CombateJugador {
     }
   }
 
-  private iniciarTajo(giro: boolean, carga: number, mirada: THREE.Vector3): void {
+  /** Ataque directo: los ganchos van al punto (la mira ya apunta allí) y se quedan clavados hasta el corte. */
+  private iniciarAsalto(): void {
+    this.preparando = false;
+    this.asalto = { t: 0, cortado: false };
+    this.c.dispararGanchos();
+    this.c.sostenerGanchos(true);
+    this.mensaje('¡Al punto!', 1);
+  }
+
+  /** Mientras dura el ataque: corta solo al llegar; si el punto cae, el gancho no engancha o se acaba el tiempo, se suelta todo. */
+  private seguirAsalto(dt: number, mirada: THREE.Vector3): void {
+    const a = this.asalto!;
+    a.t += dt;
+    if (a.cortado) {
+      // el corte ya sale: al terminar, se sueltan los ganchos
+      if (!this.tajo) this.terminarAsalto();
+      return;
+    }
+    const p = this.puntoFijado;
+    if (!p || this.c.agarradoPor) {
+      this.terminarAsalto();
+      return;
+    }
+    if (cortaAhora(p.centro.distanceTo(this.c.pos), this.cuchillas.puedeCortar)) {
+      a.cortado = true;
+      this.iniciarTajo(false, 1, mirada, true); // el impulso asistido lleva al punto
+      return;
+    }
+    const enUso = this.c.ganchosEnUso();
+    if (asaltoFallido(a.t, enUso)) {
+      if (!enUso) this.mensaje('No llego al punto', 1.2);
+      this.terminarAsalto();
+    }
+  }
+
+  private terminarAsalto(): void {
+    if (!this.asalto) return;
+    this.asalto = null;
+    this.c.sostenerGanchos(false);
+  }
+
+  /** `directo`: el corte del ataque directo, que sale a la velocidad mínima hacia el punto (asalto.ts). */
+  private iniciarTajo(giro: boolean, carga: number, mirada: THREE.Vector3, directo = false): void {
     this.tajo = { t: 0, dur: giro ? DURACION_GIRO : DURACION_TAJO, giro, carga, golpes: 0, golpeados: new Set() };
     // Impulso asistido hacia el punto débil más prometedor que tengas delante (prioriza la nuca)
     const objetivo = this.mejorPuntoCercano(8, mirada);
@@ -220,7 +288,8 @@ export class CombateJugador {
       const d = dir.length();
       if (d > 0.5 && this.c.consumirGas(1)) {
         dir.divideScalar(d);
-        const empuje = Math.min(9, 3 + d);
+        const empujeBase = Math.min(9, 3 + d);
+        const empuje = directo ? empujeDeCorte(empujeBase, this.c.vel.dot(dir)) : empujeBase;
         this.c.vel.addScaledVector(dir, empuje);
       }
     }

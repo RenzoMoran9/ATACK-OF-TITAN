@@ -457,6 +457,7 @@ async function iniciar(): Promise<void> {
         obra ? { icono: '⚒', texto: 'MARTILLO', tecla: 'KeyG' } : jugador.montado ? { icono: '♞', texto: 'BAJAR', tecla: 'KeyC' } : alLado ? { icono: '♞', texto: 'MONTAR', tecla: 'KeyC' } : null,
       );
       controlesTactiles.acelerar(jugador.montado);
+      controlesTactiles.marcado(!!jugador.combate?.puntoFijado);
     }
     derechaCamara.setFromMatrixColumn(camara.matrixWorld, 0);
     calidad?.medir(dt, !(pantallas?.bloqueaJuego ?? false) && !modoCaptura);

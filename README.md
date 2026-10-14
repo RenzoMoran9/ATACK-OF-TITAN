@@ -41,7 +41,8 @@ npm run dev                       # http://localhost:5173
 | **WASD** | Mover en el suelo. En el aire sin cables ni gas: dirige el salto hacia donde pulsas sin perder impulso, y la tecla contraria frena (para caer justo sobre una rama) |
 | **R** | Cambiar de par de cuchillas (4 de repuesto) |
 | **B** | **Bengala** roja hacia la mira (50 m/s). Si estalla a 4 m o menos de la cara de un titán, lo ciega 3 s. 4 bengalas; se reponen en los depósitos |
-| **X** | **Fijar parte** del titán que tienes delante: nuca → ojos → brazos → corvas → tendones → nada. El tajo asistido y los ganchos (clic derecho) van a ella aunque la mira esté en otro sitio |
+| **X** | **Fijar parte** del titán que tienes delante: nuca → ojos → brazos → corvas → tendones → nada. Los ganchos (clic derecho) van a ella aunque la mira esté en otro sitio. Con la parte fijada, el **tajo se ilumina** (en el celular) |
+| **Ataque directo** (TAJO con una parte fijada, lejos) | Un toque en **TAJO** engancha los ganchos al punto marcado, los **sostiene sin tener el botón pulsado** y corta solo al llegar a ~3 m. Si no hay dónde clavarse, avisa «No llego al punto» |
 | **C** | **Caballo**: al lado, montar; montado, bajar; lejos, silbar (viene al galope). Montado: WASD lo dirige, Shift galope, Espacio salta de la silla, y si clavas un gancho sales volando de ella |
 | **V** | **Acelerar a caballo** (montado, mantenido): un galope más rápido que gasta el aliento (la barra ALIENTO); vuelve despacio al soltar |
 | **K** | **Armar un campamento** donde estés (en un claro): cerco de alambre con latas y seis carpas alrededor de una hoguera. El escuadrón se reparte las obras y tú ayudas con el martillo |
@@ -167,8 +168,8 @@ pone delante de la cara del titán para distraerlo, **el apoyo** le corta tendon
 va a la nuca cuando el titán no le mira. Rescatan a quien esté en la mano de un titán, esquivan agarres según su habilidad
 (Mikasa y Levi mucho mejor que Armin), pueden morir (y dejan su equipo en el suelo) y te pasan gas si se lo pides.
 
-**Moblit, el intendente**, va en todos los escuadrones con una mochila de bombonas (400 de gas; los demás llevan 120 y tú
-150). No pelea: cuando a ti te queda menos del 35 % o a un compañero menos del 30 %, vuela hasta él y le pasa gas. Con
+**Moblit, el intendente**, va en todos los escuadrones con una mochila de bombonas (800 de gas; los demás llevan 240 y tú
+300). No pelea por su cuenta: cuando a ti te queda menos del 35 % o a un compañero menos del 30 %, vuela hasta él y le pasa gas. Con
 **G** se lo pides a él primero, esté donde esté.
 
 **Obediencia.** Mientras no les des ninguna orden, el escuadrón actúa por su cuenta: rescata a quien tenga un titán en la
@@ -183,8 +184,10 @@ el 85 %. Sin orden tuya, cuando tres o más titanes se acercan, el escuadrón ta
 (retirada) lo manda a tu espalda con el mismo galope.
 
 **Hanji, el médico**, va siempre a caballo y no pelea por su cuenta. Cura a los heridos que tiene cerca y, sin orden tuya,
-cuando tu vida baja del 60 % viene a por ti a galope para curarte. Si le mandas atacar, baja del caballo y pelea. Un herido que descansa junto a ti, sin médico al lado, se recupera despacio. Su vida aparece en
-el panel del escuadrón (VIDA), en rojo por debajo del 40 %.
+cuando tu vida baja del 60 % o te quedas sin cuchillas de repuesto, viene a por ti a galope. Cura a los que tiene a menos de 7 m
+y les da un par de cuchillas a quien se haya quedado sin repuesto. Si le mandas atacar, baja del caballo y pelea. Un herido
+que descansa junto a ti, sin médico al lado, se recupera despacio. Su vida aparece en el panel del escuadrón (VIDA), en rojo
+por debajo del 40 %.
 
 Si cae entero, en un refugio (Trost, un puesto de avanzada, el campamento o un pueblo en paz) se te unen
 **refuerzos de la Legión**. Si das una orden y no

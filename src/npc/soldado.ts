@@ -171,7 +171,7 @@ export class Soldado implements Humano {
     /** Partículas compartidas del escuadrón para las bocanadas de gas. */
     private readonly chorros: Particulas | null = null,
   ) {
-    this.gasMax = rol === 'intendente' ? 400 : 120;
+    this.gasMax = rol === 'intendente' ? 800 : 240;
     this.gas = this.gasMax;
     this.modelo = new ModeloJugador(aspecto);
     // como el jugador: los pies se apoyan en el terreno real, no en un suelo plano imaginario

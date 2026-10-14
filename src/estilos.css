@@ -769,6 +769,10 @@ body {
 .tactil-acciones .acelerar small {
   font-size: 9px;
 }
+/* TAJO iluminado con una parte marcada (X): es el botón que ataca ese punto */
+.tactil-acciones .tajo.marcado {
+  box-shadow: 0 0 0 3px rgba(255, 200, 90, 0.9), 0 0 18px rgba(255, 200, 90, 0.7);
+}
 .tactil-acciones .chico {
   width: 58px;
   height: 58px;

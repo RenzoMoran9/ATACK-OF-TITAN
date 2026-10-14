@@ -27,14 +27,14 @@
     "frenoEmergencia": 0.2
   },
   "gas": {
-    "capacidad": 150,
+    "capacidad": 300,
     "costeDisparo": 0.333,
     "costeRecogidaPorSegundo": 0.833,
     "costeImpulsoPorSegundo": 3,
     "costeFreno": 1,
     "costeFrenoPorSegundo": 3.667,
     "costeSaltoPared": 1.333,
-    "recargaPorSegundo": 35,
+    "recargaPorSegundo": 70,
     "radioRecarga": 6
   },
   "camara": {

@@ -198,6 +198,11 @@ export class ControlesTactiles {
     this.raiz.querySelector<HTMLButtonElement>('.tactil-acciones .acelerar')!.hidden = !(montado || this.editando);
   }
 
+  /** Con una parte marcada (X), el TAJO se ilumina: es el botón que ataca ese punto. */
+  marcado(si: boolean): void {
+    this.raiz.querySelector('.tactil-acciones .tajo')?.classList.toggle('marcado', si);
+  }
+
   private get botonCaballo(): HTMLButtonElement {
     return this.raiz.querySelector<HTMLButtonElement>('.tactil-acciones .caballo')!;
   }

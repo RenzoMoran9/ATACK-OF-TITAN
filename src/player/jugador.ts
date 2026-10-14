@@ -259,6 +259,13 @@ export class Jugador implements JugadorAPI {
       ancladoATitanRecogiendo: () =>
         this.odm.recogiendo && this.odm.anclados.some((g) => g.etiquetaAncla === 'titan' || g.etiquetaAncla === 'nuca'),
       consumirGas: (c) => this.odm.gasInfinito || this.gas.consumir(c),
+      dispararGanchos: () => {
+        this.odm.dispararAhora = true;
+      },
+      sostenerGanchos: (si) => {
+        this.odm.sostener = si;
+      },
+      ganchosEnUso: () => this.odm.ganchos.some((g) => g.estado === 'volando' || g.estado === 'anclado'),
     });
   }
 
