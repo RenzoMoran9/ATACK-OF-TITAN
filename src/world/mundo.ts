@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import type { Config } from '../core/config';
-import type { Hora } from '../core/depuracion';
 import type { Fisica } from '../core/fisica';
 import { crearRng } from '../core/rng';
 import { Navegacion } from '../core/navegacion';
@@ -9,7 +8,7 @@ import { Antorchas } from './antorchas';
 import { Bosque } from './bosque';
 import { construirCiudad, type DatosCiudad } from './ciudad';
 import { escalarUV } from './geometria';
-import { construirLugares, type Lugar, type Plano } from './lugares';
+import { construirLugares, type DatosPueblo, type Lugar, type Plano } from './lugares';
 import { crearMateriales, type Materiales } from './materiales';
 import { construirMontes } from './montes';
 import { construirMuralla, puntoAnillo, type DatosMuralla } from './muralla';
@@ -53,6 +52,8 @@ export interface Mundo {
   bosques: Bosque[];
   /** Lugares con nombre para explorar: bosques, aldeas, castillo, puente, puestos, campamento. */
   lugares: Lugar[];
+  /** Pueblos abandonados que se pueden repoblar y reconstruir. */
+  pueblos: DatosPueblo[];
   /** Río, caminos y huellas de edificios (para el mapa). */
   plano: Plano;
   /** Pinos y frondosos instanciados (bosques densos y arboledas de la llanura). */
@@ -147,6 +148,7 @@ export function construirMundo(escena: THREE.Scene, fisica: Fisica, cfg: Config)
     bosque,
     bosques,
     lugares,
+    pueblos: sitios.pueblos,
     plano: sitios.plano,
     vegetacion,
     totalArboles,
@@ -165,9 +167,9 @@ export function actualizarMundo(mundo: Mundo, dt: number, camara: THREE.Vector3,
   mundo.agua.offset.y -= dt * 0.035;
 }
 
-/** Luz de los bosques (haces y bruma) según la hora. */
-export function ajustarHoraMundo(mundo: Mundo, hora: Hora, dirSol: THREE.Vector3): void {
-  for (const b of mundo.bosques) b.ajustarHora(hora, dirSol);
+/** Luz de los bosques para la hora (`noche` y `calidez` de 0 a 1, ver src/core/cicloDia.ts). */
+export function ajustarHoraMundo(mundo: Mundo, noche: number, calidez: number, dirSol: THREE.Vector3): void {
+  for (const b of mundo.bosques) b.ajustarLuz(noche, calidez, dirSol);
 }
 
 /** El depósito más cercano a `p` (distancia horizontal). */

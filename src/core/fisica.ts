@@ -37,6 +37,7 @@ export class Fisica {
   /** Colisionadores que se mueven con un objeto 3D (los ganchos anclados lo siguen). */
   readonly objetos = new Map<number, THREE.Object3D>();
   private readonly rayo = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
+  private grabando: RAPIER.Collider[] | null = null;
 
   private constructor(readonly mundo: RAPIER.World) {}
 
@@ -48,7 +49,22 @@ export class Fisica {
   registrar(desc: RAPIER.ColliderDesc, etiqueta: Etiqueta, cuerpo?: RAPIER.RigidBody): RAPIER.Collider {
     const c = this.mundo.createCollider(desc, cuerpo);
     this.etiquetas.set(c.handle, etiqueta);
+    this.grabando?.push(c);
     return c;
+  }
+
+  /** Ejecuta `fn` y devuelve los colisionadores que ha creado (para encenderlos y apagarlos luego). */
+  grabar(fn: () => void): RAPIER.Collider[] {
+    const previos = this.grabando;
+    const lista: RAPIER.Collider[] = [];
+    this.grabando = lista;
+    try {
+      fn();
+    } finally {
+      this.grabando = previos;
+    }
+    previos?.push(...lista);
+    return lista;
   }
 
   /** Asocia un colisionador a un objeto 3D: un gancho anclado en él se moverá con el objeto. */
@@ -104,6 +120,22 @@ export class Fisica {
   casco(puntos: number[], etiqueta: Etiqueta): RAPIER.Collider | null {
     const desc = RAPIER.ColliderDesc.convexHull(new Float32Array(puntos));
     return desc ? this.registrar(desc, etiqueta) : null;
+  }
+
+  /**
+   * Tronco cónico que empieza en (x, y0, z) y sube `alto`, con la misma silueta que una malla
+   * CylinderGeometry de `lados` caras girada `giro` alrededor de Y. Es convexo: para un tronco
+   * con raíces, usar un colisionador por parte.
+   */
+  troncoConico(x: number, z: number, y0: number, alto: number, radioBase: number, radioTope: number, lados: number, giro: number, etiqueta: Etiqueta): RAPIER.Collider | null {
+    const puntos: number[] = [];
+    for (const [y, r] of [[y0, radioBase], [y0 + alto, radioTope]]) {
+      for (let i = 0; i < lados; i++) {
+        const t = giro + (i / lados) * Math.PI * 2;
+        puntos.push(x + r * Math.sin(t), y, z + r * Math.cos(t));
+      }
+    }
+    return this.casco(puntos, etiqueta);
   }
 
   lanzarRayo(origen: THREE.Vector3, dir: THREE.Vector3, max: number, excluir?: RAPIER.Collider): ImpactoRayo | null {

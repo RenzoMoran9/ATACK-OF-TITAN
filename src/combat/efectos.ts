@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Particulas } from '../player/particulas';
+import { texturaParticula } from '../world/texturas';
 
 /**
  * Efectos de combate compartidos: vapor blanco denso (regeneración y muerte de titanes),
@@ -11,6 +12,7 @@ export class Efectos {
   private readonly humoP: Map<string, Particulas> = new Map();
   private readonly fuentes: { pos: THREE.Vector3; restante: number; ritmo: number; tam: number; acum: number; seguir?: () => THREE.Vector3 | null }[] = [];
   private readonly tmp = new THREE.Vector3();
+  private readonly destellos: { s: THREE.Sprite; t: number; dur: number; tam: number }[] = [];
   /** Aviso para el sonido: se ha disparado una bengala. */
   alBengala: ((pos: THREE.Vector3) => void) | null = null;
 
@@ -47,17 +49,50 @@ export class Efectos {
   /** Columna vertical de humo de bengala (rojo, negro, verde, morado, azul, amarillo). */
   bengala(pos: THREE.Vector3, color: string): void {
     this.alBengala?.(pos);
-    let p = this.humoP.get(color);
-    if (!p) {
-      p = new Particulas(this.escena, 400, color, 2.6, { gravedad: -2.5, alfaMax: 0.7, amortiguacion: 0.4 });
-      this.humoP.set(color, p);
-    }
+    const p = this.humo(color);
     for (let i = 0; i < 40; i++) {
       p.emitir(new THREE.Vector3(pos.x, pos.y + i * 1.5, pos.z), new THREE.Vector3(0, 6 + Math.random() * 4, 0), 8 + Math.random() * 4, 2.5, 0.6);
     }
   }
 
+  /** Estela de humo de un proyectil (la bengala en vuelo). */
+  estela(pos: THREE.Vector3, color: string): void {
+    const p = this.humo(color);
+    this.tmp.set((Math.random() - 0.5) * 0.6, 0.4 + Math.random() * 0.6, (Math.random() - 0.5) * 0.6);
+    p.emitir(pos, this.tmp, 1.6 + Math.random(), 0.7, 0.3);
+  }
+
+  /** Fogonazo de luz breve (sin luz real: un sprite aditivo que crece y se apaga). */
+  destello(pos: THREE.Vector3, color: string, tam = 8, dur = 0.7): void {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaParticula(), color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    s.position.copy(pos);
+    s.scale.setScalar(tam * 0.4);
+    this.escena.add(s);
+    this.destellos.push({ s, t: 0, dur, tam });
+  }
+
+  private humo(color: string): Particulas {
+    let p = this.humoP.get(color);
+    if (!p) {
+      p = new Particulas(this.escena, 400, color, 2.6, { gravedad: -2.5, alfaMax: 0.7, amortiguacion: 0.4 });
+      this.humoP.set(color, p);
+    }
+    return p;
+  }
+
   actualizar(dt: number): void {
+    for (let i = this.destellos.length - 1; i >= 0; i--) {
+      const d = this.destellos[i];
+      d.t += dt;
+      const k = d.t / d.dur;
+      d.s.scale.setScalar(d.tam * (0.4 + 0.8 * Math.min(1, k * 3)));
+      d.s.material.opacity = Math.max(0, 1 - k);
+      if (k >= 1) {
+        this.escena.remove(d.s);
+        d.s.material.dispose();
+        this.destellos.splice(i, 1);
+      }
+    }
     for (let i = this.fuentes.length - 1; i >= 0; i--) {
       const f = this.fuentes[i];
       if (f.seguir) {

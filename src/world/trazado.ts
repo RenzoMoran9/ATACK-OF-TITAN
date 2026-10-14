@@ -8,8 +8,8 @@ import type { PuntoXZ } from './formas';
  *
  *            N (−Z)
  *   Bosque del Norte
- *              ·  TROST  ·            Pinar Negro
- *   Aldea de Pastores   Bosque de los          Aldea del Molino
+ *              ·  TROST  ·   Aldea de Dauper   Pinar Negro
+ *   Aldea de Pastores   Bosque de los          Aldea del Molino   Aldea de Ragako
  *   Bosque Gigante  ·   Árboles Gigantes
  *   del Oeste    Puesto Oeste
  *   ~~~~~~~~~~~~~~~~~~~~~~ río ~~~~ Puente de Piedra ~~~~~~~~~~~~~~~~
@@ -98,6 +98,21 @@ export const CAMINOS_CONTROL: PuntoXZ[][] = [
     { x: -760, z: 1560 },
     { x: -1080, z: 1650 },
   ],
+  // del molino a Ragako, al este
+  [
+    { x: 820, z: 900 },
+    { x: 1060, z: 940 },
+    { x: 1330, z: 905 },
+    { x: 1640, z: 860 },
+  ],
+  // de la puerta sur, rodeando la muralla por el este, hasta Dauper al nordeste
+  [
+    { x: 180, z: 395 },
+    { x: 420, z: 260 },
+    { x: 560, z: 20 },
+    { x: 700, z: -330 },
+    { x: 820, z: -640 },
+  ],
   // pasado el puente: puesto del este
   [
     { x: 110, z: 1350 },
@@ -110,8 +125,10 @@ export const CAMINOS_CONTROL: PuntoXZ[][] = [
 
 /** Lugares con nombre que no son bosques. */
 export const LUGARES = {
-  pastores: { nombre: 'Aldea de Pastores', x: -640, z: 380, radio: 70 },
-  molino: { nombre: 'Aldea del Molino', x: 820, z: 900, radio: 70 },
+  pastores: { nombre: 'Aldea de Pastores', x: -640, z: 380, radio: 90 },
+  molino: { nombre: 'Aldea del Molino', x: 820, z: 900, radio: 90 },
+  ragako: { nombre: 'Aldea de Ragako', x: 1640, z: 860, radio: 90 },
+  dauper: { nombre: 'Aldea de Dauper', x: 820, z: -640, radio: 90 },
   utgard: { nombre: 'Castillo de Utgard', x: -1080, z: 1650, radio: 60 },
   puente: { nombre: 'Puente de Piedra', x: 160, z: 1172, radio: 40 },
   puestoOeste: { nombre: 'Puesto de avanzada del Oeste', x: -760, z: 960, radio: 30 },

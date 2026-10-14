@@ -10,7 +10,8 @@ import type { Materiales } from './materiales';
  * arboledas de la llanura, dibujados con InstancedMesh por trozos de 500 m: cada trozo
  * tiene tres mallas (troncos, copas de pino, copas frondosas), así el frustum culling
  * descarta lo que no se ve y los trozos más allá de la niebla se ocultan. Cada tronco
- * lleva un cilindro de colisión (etiqueta 'arbol') para engancharse.
+ * lleva un colisionador cónico con su misma silueta (etiqueta 'arbol') para engancharse
+ * y para que los personajes choquen con lo que se ve.
  */
 
 export type TipoArbol = 'pino' | 'frondoso';
@@ -109,8 +110,8 @@ export class Vegetacion {
       const lista = porTrozo.get(clave);
       if (lista) lista.push(a);
       else porTrozo.set(clave, [a]);
-      const alto = a.altura * TRONCO[a.tipo];
-      fisica.cilindro({ x: a.x, y: alto / 2, z: a.z }, alto / 2, a.radio * 0.8 + 0.15, 'arbol');
+      // Misma malla que el tronco visible: 7 lados, base a.radio y tope 0,55·a.radio
+      fisica.troncoConico(a.x, a.z, 0, a.altura * TRONCO[a.tipo], a.radio, a.radio * 0.55, 7, a.giro, 'arbol');
     }
 
     const m = new THREE.Matrix4();

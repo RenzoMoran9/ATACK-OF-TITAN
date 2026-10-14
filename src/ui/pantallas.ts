@@ -1,9 +1,12 @@
-import type { Campana, IdCapitulo } from '../missions/campana';
+import type { Campana } from '../missions/campana';
+import { ETIQUETA_MODO, MODOS_GRAFICOS, type ModoGraficos } from '../core/calidad';
+import { textoHora } from '../core/cicloDia';
+import { leerPartida } from '../missions/guardado';
 import { alCambiarInstalable, enModoApp, entrarPantallaCompleta, alternarPantallaCompleta, esIOS, instalarApp, pantallaCompletaDisponible, puedeInstalarse } from './pantallaCompleta';
 
 /**
- * Pantallas a pantalla completa: menú de capítulos, presentación del capítulo, pausa,
- * victoria y derrota. Todo con DOM (sin librerías) y textos en español.
+ * Pantallas a pantalla completa: menú (continuar o empezar una partida del mundo abierto),
+ * presentación, pausa y el resumen. Todo con DOM (sin librerías) y textos en español.
  */
 
 const CONTROLES = `
@@ -14,6 +17,9 @@ const CONTROLES = `
     <li><b>Espacio</b> saltar · mantenido: <b>salto con gas</b> hasta 10 m (con WASD, te lanza hacia delante) · en el aire: frena o planea</li>
     <li><b>Shift</b> (mantener) correr, gasta aguante · Shift o Espacio justo antes de tocar el suelo: rodada</li>
     <li><b>F</b> también da el tajo · <b>R</b> cambiar cuchillas · <b>WASD</b> mover · <b>Ratón/flechas</b> cámara</li>
+    <li>Cuando un titán cierra la mano sobre ti, <b>impulso o gancho nuevo justo a tiempo</b>: lo esquivas · volando bajo junto a un tobillo, el tajo va al <b>tendón</b></li>
+    <li><b>B</b> bengala (en la cara, lo ciega 3 s) · <b>X</b> fijar parte del titán (nuca, ojos, brazos, corvas…) · <b>C</b> caballo: montar / bajar / silbar · <b>V</b> acelerar a caballo (gasta el aliento)</li>
+    <li><b>H</b> descansar hasta el amanecer (de noche, en un refugio)</li>
     <li><b>1</b> seguidme · <b>2</b> atacad · <b>3</b> proteged a los civiles · <b>4</b> retirada · <b>5</b> esperad aquí · <b>6</b> id allí · <b>7</b> atacad a ese titán · <b>8</b> explorad</li>
     <li><b>L</b> linterna · <b>M</b> mapa · <b>G</b> recoger equipo / pedir gas · <b>N</b> sonido sí/no</li>
     <li><b>Tab</b> a quién mandas (todos o uno) · <b>F1/P</b> ajustes · <b>Esc</b> pausa</li>
@@ -25,7 +31,8 @@ const CONTROLES_TACTILES = `
     <li><b>Dedo derecho</b> arrastra para mirar · <b>GANCHOS</b> mantener = recoger cable · <b>TAJO</b> mantener = cargar</li>
     <li><b>SALTO/GAS</b> toque = salto; mantenido = sube con gas hasta 10 m (con joystick, te lanza hacia delante); en el aire frena</li>
     <li><b>◀ GANCHO</b> (pulgar izquierdo) y <b>GANCHO ▶</b> (pulgar derecho): se clavan solos a ese lado; mantén para balancearte y suelta para salir despedido</li>
-    <li>Mientras mantienes un botón de acción, arrástralo para apuntar · arriba: cuchillas, luz, mapa, órdenes, pausa</li>
+    <li>Mientras mantienes un botón de acción, arrástralo para apuntar · arriba: cuchillas, bengala, parte, caballo, descansar, luz, mapa, órdenes, pausa</li>
+    <li>Cuando un titán cierra la mano sobre ti, <b>salto/gas o un gancho justo a tiempo</b>: lo esquivas</li>
   </ul>`;
 
 function escapar(t: string): string {
@@ -35,6 +42,8 @@ function escapar(t: string): string {
 export class Pantallas {
   private readonly raiz: HTMLDivElement;
   pausado = false;
+  /** Guarda la partida ahora (lo pone main.ts); devuelve si se ha podido. */
+  guardar: (() => boolean) | null = null;
   /** En el celular: abre el modo de mover botones (se le pasa qué hacer al terminar). */
   editarBotones: ((alTerminar: () => void) => void) | null = null;
 
@@ -46,8 +55,8 @@ export class Pantallas {
     private readonly campana: Campana,
     private readonly pedirCaptura: () => Promise<boolean>,
     private readonly tactil = false,
-    /** Botón de gráficos en la pausa: texto actual y pasar al siguiente ajuste. */
-    private readonly graficos: { texto: () => string; siguiente: () => void } | null = null,
+    /** Gráficos en la pausa: el modo elegido, cambiarlo y el nivel que se usa ahora (en automático). */
+    private readonly graficos: { modo: () => ModoGraficos; elegir: (m: ModoGraficos) => void; nivelAhora: () => string } | null = null,
   ) {
     this.raiz = document.createElement('div');
     this.raiz.className = 'pantalla';
@@ -86,6 +95,33 @@ export class Pantallas {
     return this.pausado || !this.campana.jugando;
   }
 
+  /** Automático, Alto, Medio o Bajo: el elegido queda marcado. Con Automático, dice qué nivel usa ahora. */
+  private selectorGraficos(g: { modo: () => ModoGraficos; elegir: (m: ModoGraficos) => void; nivelAhora: () => string }): HTMLDivElement {
+    const caja = document.createElement('div');
+    caja.className = 'graficos';
+    const titulo = document.createElement('p');
+    titulo.textContent = 'Gráficos';
+    const fila = document.createElement('div');
+    fila.className = 'botones';
+    const botones = new Map<ModoGraficos, HTMLButtonElement>();
+    const ahora = document.createElement('small');
+    const pintar = () => {
+      for (const [m, b] of botones) b.classList.toggle('activo', g.modo() === m);
+      ahora.textContent = g.modo() === 'auto' ? `Ahora: ${g.nivelAhora()}` : '';
+    };
+    for (const m of MODOS_GRAFICOS) {
+      const b = this.boton(ETIQUETA_MODO[m], () => {
+        g.elegir(m);
+        pintar();
+      });
+      botones.set(m, b);
+      fila.appendChild(b);
+    }
+    caja.append(titulo, fila, ahora);
+    pintar();
+    return caja;
+  }
+
   private boton(texto: string, accion: () => void, clase = ''): HTMLButtonElement {
     const b = document.createElement('button');
     b.textContent = texto;
@@ -106,6 +142,12 @@ export class Pantallas {
     else this.mostrar();
   }
 
+  /** Del menú al juego directamente, sin pantalla de presentación. */
+  private entrar(continuar: boolean): void {
+    this.campana.cargar('mundo', continuar);
+    void this.jugar();
+  }
+
   mostrar(): void {
     const c = this.campana;
     const r = this.raiz;
@@ -115,20 +157,27 @@ export class Pantallas {
 
     if (c.estado === 'menu') {
       r.className = 'pantalla menu';
-      r.innerHTML = `<h1>ATACK OF TITAN</h1><p class="sub">Elige capítulo</p>`;
-      const lista = document.createElement('div');
-      lista.className = 'capitulos';
-      for (const cap of c.capitulos) {
-        const tarjeta = document.createElement('button');
-        tarjeta.className = 'capitulo';
-        const hecho = c.completados.includes(cap.id) ? '<span class="hecho">Completado</span>' : '';
-        tarjeta.innerHTML = `<span class="epoca">${escapar(cap.epoca)}</span><b>${escapar(cap.titulo)}</b>${hecho}`;
-        tarjeta.addEventListener('click', () => c.cargar(cap.id as IdCapitulo));
-        lista.appendChild(tarjeta);
-      }
-      r.appendChild(lista);
+      r.innerHTML = `<h1>ATACK OF TITAN</h1><p class="sub">El territorio perdido · mundo abierto</p>`;
+      const fila = document.createElement('div');
+      fila.className = 'botones';
+      const partida = leerPartida();
+      if (partida) {
+        const enPaz = partida.pueblos.filter((p) => p.liberado && p.progreso >= 1).length;
+        fila.append(this.boton(`Continuar · Día ${partida.dia}, ${textoHora(partida.hora)} · ${enPaz} pueblos en paz`, () => this.entrar(true), 'principal'));
+        const nueva = this.boton('Nueva partida', () => {
+          // dos toques: la partida guardada se pierde
+          if (nueva.dataset.confirmar) this.entrar(false);
+          else {
+            nueva.dataset.confirmar = '1';
+            nueva.textContent = '¿Seguro? Se borra la partida guardada';
+          }
+        });
+        fila.append(nueva);
+      } else fila.append(this.boton('Empezar', () => this.entrar(false), 'principal'));
+      r.appendChild(fila);
       r.appendChild(this.filaApp());
       r.insertAdjacentHTML('beforeend', this.controles);
+      r.insertAdjacentHTML('beforeend', '<p class="creditos">Caballo: «Caballo» de <a href="https://sketchfab.com/vmmaniac" target="_blank" rel="noopener">Roberto Domínguez</a> (<a href="https://sketchfab.com/3d-models/caballo-aa979384c5c04f1281df5e4ab006f17d" target="_blank" rel="noopener">Sketchfab</a>), licencia <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, convertido y simplificado</p>');
       return;
     }
 
@@ -147,10 +196,15 @@ export class Pantallas {
         return;
       }
       r.className = 'pantalla pausa';
-      r.innerHTML = `<h2>Pausa</h2><p class="texto">${escapar(c.objetivoTexto)}</p>`;
+      r.innerHTML = `<h2>Pausa</h2><p class="texto">${escapar(c.objetivoTexto)}</p><p class="texto">${escapar(c.objetivoDetalle)}</p><p class="pista">También se guarda sola cada 30 s. Al continuar, sigues justo donde lo dejaste.</p>`;
       const fila = document.createElement('div');
       fila.className = 'botones';
-      fila.append(this.boton('Continuar', () => void this.jugar(), 'principal'), this.boton('Reiniciar capítulo', () => c.reintentar()), this.boton('Menú de capítulos', () => c.irAlMenu()));
+      const guardar = this.boton('Guardar partida', () => {
+        const ok = this.guardar?.() ?? false;
+        const p = ok ? leerPartida() : null;
+        guardar.textContent = p ? `✓ Guardada · Día ${p.dia}, ${textoHora(p.hora)}` : 'No se pudo guardar';
+      });
+      fila.append(this.boton('Continuar', () => void this.jugar(), 'principal'), guardar, this.boton('Guardar y salir al menú', () => c.irAlMenu()));
       r.appendChild(fila);
       const editar = this.editarBotones;
       if (editar) {
@@ -161,17 +215,7 @@ export class Pantallas {
           }),
         );
       }
-      const g = this.graficos;
-      if (g) {
-        const b = this.boton(g.texto(), () => {
-          g.siguiente();
-          b.textContent = g.texto();
-        });
-        const filaG = document.createElement('div');
-        filaG.className = 'botones';
-        filaG.appendChild(b);
-        r.appendChild(filaG);
-      }
+      if (this.graficos) r.appendChild(this.selectorGraficos(this.graficos));
       r.insertAdjacentHTML('beforeend', this.controles);
       return;
     }

@@ -13,6 +13,8 @@ export const SONIDOS = [
   'tajo', 'corte_carne', 'nuca', 'cuchillas', 'paso_titan', 'galope', 'rugido', 'respiracion',
   'mordisco', 'agarre', 'masticar', 'titan_cae', 'vapor', 'aterrizaje', 'paso', 'recarga',
   'bosque', 'llanura', 'noche', 'brecha', 'bengala', 'campana', 'click', 'golpe',
+  'caballo_galope', 'caballo_trote', 'relincho', 'silbido', 'gritos_aldea', 'campana_alarma', 'martillos',
+  'aldea', 'esquiva', 'endurecer', 'coraza', 'vitores', 'fogata', 'acorazado', 'hembra', 'bengala_disparo',
 ] as const;
 export type NombreSonido = (typeof SONIDOS)[number];
 

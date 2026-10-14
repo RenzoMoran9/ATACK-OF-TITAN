@@ -1,12 +1,16 @@
 import * as THREE from 'three';
 import { calcularDanio, desgaste } from '../combat/corte';
 import { Cuchillas } from '../combat/cuchillas';
+import { empujeFuera, RADIO_PERSONA } from '../core/colision';
+import { config } from '../core/config';
 import type { ContextoJuego } from '../core/contexto';
 import { nuevoId } from '../core/poblacion';
 import type { AspectoSoldado, Humano, OrdenEscuadron, PuntoDebil, RolSoldado, TitanAPI, ZonaTitan } from '../core/tipos';
+import { Caballo } from '../player/caballo';
 import { ModeloJugador } from '../player/modeloJugador';
 import { aplicarRecogida, aplicarRestriccion } from '../player/cuerda';
 import type { Particulas } from '../player/particulas';
+import { DANIO_AGARRE } from './logicaHeridos';
 import { DetectorAtasco, enLod } from './logicaOrdenes';
 
 /**
@@ -22,7 +26,7 @@ import { DetectorAtasco, enLod } from './logicaOrdenes';
  * rayos, sin cables ni nombre y sin animar si no se ve).
  */
 
-export type TipoMision = 'seguir' | 'atacar' | 'rescatar' | 'proteger' | 'retirada' | 'darGas' | 'mantener' | 'patrullar' | 'recargar';
+export type TipoMision = 'seguir' | 'atacar' | 'rescatar' | 'proteger' | 'retirada' | 'darGas' | 'mantener' | 'patrullar' | 'recargar' | 'huir' | 'curar';
 
 export interface Mision {
   tipo: TipoMision;
@@ -35,6 +39,8 @@ export interface Mision {
   humano?: Humano;
   /** Recargar: tiempo de juego a partir del cual se abandona (depósito inalcanzable). */
   hasta?: number;
+  /** Darle gas que has pedido tú (G): se cumple aunque tenga una orden. */
+  pedido?: boolean;
 }
 
 /** La orden que le dio el jugador (la misión concreta la decide el escuadrón cada 0,4 s). */
@@ -50,6 +56,13 @@ export interface OrdenAsignada {
   titan?: TitanAPI;
   /** Orden a la que vuelve cuando muere el titán señalado. */
   previa?: OrdenAsignada;
+  /** Trabajando en el campamento: sin banderín y con su propia actividad en el panel. */
+  trabajo?: boolean;
+  /**
+   * Una orden tuya: se cumple sin excepciones (nada de rescates, depósito, gas ni huida por su
+   * cuenta). Sin ella, el soldado actúa por su cuenta.
+   */
+  dada?: boolean;
 }
 
 interface Ancla {
@@ -105,6 +118,16 @@ export class Soldado implements Humano {
   ultimaFrase = -99;
   /** No intentar recargar antes de este tiempo de juego (tras rendirse con un depósito). */
   vetoRecarga = 0;
+  /** Vida 0–100: la pierde en la mano de un titán; a 0 cae. */
+  salud = 100;
+  readonly saludMax = 100;
+  /** Herido: se retira a curarse hasta el 85 % (lo decide el escuadrón). */
+  herido = false;
+  /** Huyendo del encuentro: misión de escape, a caballo si puede. */
+  huyendo = false;
+  /** Su caballo (todos tienen uno) y si va montado en él. */
+  caballo: Caballo | null = null;
+  montado = false;
 
   private enSuelo = true;
   private rumbo = 0;
@@ -148,7 +171,7 @@ export class Soldado implements Humano {
     /** Partículas compartidas del escuadrón para las bocanadas de gas. */
     private readonly chorros: Particulas | null = null,
   ) {
-    this.gasMax = rol === 'intendente' ? 400 : 120;
+    this.gasMax = rol === 'intendente' ? 800 : 240;
     this.gas = this.gasMax;
     this.modelo = new ModeloJugador(aspecto);
     // como el jugador: los pies se apoyan en el terreno real, no en un suelo plano imaginario
@@ -176,6 +199,7 @@ export class Soldado implements Humano {
   // ─────────────────────────── Humano ───────────────────────────
 
   alSerAgarrado(titan: TitanAPI): void {
+    this.desmontar();
     this.agarradoPor = titan;
     this.soltarAncla();
     this.velocidad.set(0, 0, 0);
@@ -191,10 +215,57 @@ export class Soldado implements Humano {
 
   alSerDevorado(): void {
     this.agarradoPor = null;
+    this.caer();
+  }
+
+  /** Daño (la mano de un titán). A 0 de vida cae. */
+  herir(cantidad: number): void {
+    if (!this.vivo || cantidad <= 0) return;
+    this.salud = Math.max(0, this.salud - cantidad);
+    if (this.salud <= 0) {
+      this.caer();
+      this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${this.nombre} ha caído`, segundos: 3 });
+    }
+  }
+
+  /** Lo cura el médico (sin pasarse de la salud máxima). */
+  curar(cantidad: number): void {
+    if (this.vivo) this.salud = Math.min(this.saludMax, this.salud + cantidad);
+  }
+
+  /** Deja de existir para el escuadrón; su caballo, si iba montado, queda suelto. */
+  private caer(): void {
     this.vivo = false;
+    if (this.montado && this.caballo) {
+      this.caballo.montado = false;
+      this.montado = false;
+    }
     this.modelo.grupo.visible = false;
     this.etiqueta.visible = false;
     for (const c of this.cables) c.visible = false;
+  }
+
+  /** Monta en su caballo (que ya ha venido a su lado). */
+  montar(): void {
+    const c = this.caballo;
+    if (!c || this.montado || !this.vivo || this.agarradoPor) return;
+    this.montado = true;
+    c.montado = true;
+    this.soltarAncla();
+    this.enSuelo = false;
+    this.velocidad.set(0, 0, 0);
+  }
+
+  /** Baja del caballo: queda en el suelo donde está el caballo. */
+  desmontar(): void {
+    const c = this.caballo;
+    if (!c || !this.montado) return;
+    this.montado = false;
+    c.montado = false;
+    this.posicion.set(c.pos.x, c.pos.y + CENTRO, c.pos.z);
+    this.posPrevia.copy(this.posicion);
+    this.enSuelo = true;
+    this.velocidad.set(0, 0, 0);
   }
 
   fijarPosicion(p: THREE.Vector3): void {
@@ -207,9 +278,19 @@ export class Soldado implements Humano {
   paso(dt: number): void {
     this.posPrevia.copy(this.posicion);
     this.velPrevia.copy(this.velocidad);
-    if (!this.vivo || this.agarradoPor) return;
+    if (!this.vivo) return;
+    // en la mano de un titán se le va la vida apretando
+    if (this.agarradoPor) {
+      this.herir(DANIO_AGARRE * dt);
+      return;
+    }
     this.cuchillas.actualizar(dt);
     if (this.cuchillas.rota && this.cuchillas.repuesto > 0 && this.cuchillas.cambiando <= 0) this.cuchillas.empezarCambio();
+    // a caballo: el caballo lo lleva, sin ODM ni cables
+    if (this.montado && this.caballo) {
+      this.pasoMontado(dt);
+      return;
+    }
     this.tEvalLod -= dt;
     if (this.tEvalLod <= 0) {
       this.tEvalLod = 0.5;
@@ -250,6 +331,24 @@ export class Soldado implements Humano {
       this.tBocanada = 0.07;
       this.bocanada(1);
     }
+  }
+
+  /** A caballo: el caballo lleva al jinete hacia su meta; huyendo, galopa y acelera si le queda aliento. */
+  private pasoMontado(dt: number): void {
+    const c = this.caballo!;
+    const meta = this.metaActual();
+    const dx = meta.x - c.pos.x;
+    const dz = meta.z - c.pos.z;
+    const dist = Math.hypot(dx, dz);
+    const huye = this.mision.tipo === 'huir';
+    const dir = dist > 4 ? new THREE.Vector3(dx, 0, dz) : new THREE.Vector3();
+    c.conducir(dt, dir, huye || dist > 25, huye && dist > 20);
+    this.posicion.copy(c.silla());
+    this.velocidad.copy(c.vel);
+    this.rumbo = c.rumbo;
+    this.enSuelo = false;
+    this.impulsando = false;
+    this.objetivoCorte = null;
   }
 
   /** Lejos de todo: cada 0,2 s, en línea recta hacia la meta, sin rayos ni cables. */
@@ -301,6 +400,7 @@ export class Soldado implements Humano {
     }
     this.objetivoCorte = null;
     if (m.tipo === 'darGas' && m.humano) return m.humano.posicion.clone().add(new THREE.Vector3(1.2, 0, 1.2));
+    if (m.tipo === 'curar' && m.humano) return m.humano.posicion.clone().add(new THREE.Vector3(2, 0, 2));
     return m.destino ?? this.posicion;
   }
 
@@ -605,6 +705,22 @@ export class Soldado implements Humano {
     this.tSinAncla = 0;
   }
 
+  /** El jugador es sólido para su escuadrón: a su altura, el soldado no lo atraviesa. */
+  private apartarDeJugador(): void {
+    const j = this.ctx.jugador.posicion;
+    if (Math.abs(this.posicion.y - j.y) >= config.jugador.altura) return;
+    const e = empujeFuera(this.posicion.x, this.posicion.z, RADIO_PERSONA, [{ x: j.x, z: j.z, radio: config.jugador.radio }]);
+    const n = Math.hypot(e.dx, e.dz);
+    if (n < 1e-6) return;
+    this.posicion.x += e.dx;
+    this.posicion.z += e.dz;
+    const vn = (this.velocidad.x * e.dx + this.velocidad.z * e.dz) / n;
+    if (vn < 0) {
+      this.velocidad.x -= (vn * e.dx) / n;
+      this.velocidad.z -= (vn * e.dz) / n;
+    }
+  }
+
   private integrar(dt: number): void {
     const fisica = this.ctx.fisica;
     const tiran = this.tirando();
@@ -626,6 +742,7 @@ export class Soldado implements Humano {
       } else this.posicion.add(desp);
     }
     for (const a of tiran) aplicarRestriccion(this.posicion, this.velocidad, a.punto, a.longitud);
+    this.apartarDeJugador();
 
     // Suelo bajo los pies (calle, tejado, rama)
     const suelo = fisica.lanzarRayo(this.posicion.clone().addScaledVector(ARRIBA, 0.3), new THREE.Vector3(0, -1, 0), CENTRO + 0.6);
@@ -660,6 +777,8 @@ export class Soldado implements Humano {
     this.atasco.reiniciar();
     this.ruta = null;
     this.lod = false;
+    // a caballo, el caballo viene con él
+    if (this.montado && this.caballo) this.caballo.colocar(new THREE.Vector3(centro.x, 0, centro.z), this.caballo.rumbo);
     this.tEvalLod = 0;
   }
 
@@ -679,18 +798,24 @@ export class Soldado implements Humano {
 
   decir(frase: string): void {
     const t = this.ctx.reloj.t;
-    if (t - this.ultimaFrase < 4) return;
+    // pocas frases: que el escuadrón no llene la pantalla de texto
+    if (t - this.ultimaFrase < 15) return;
     this.ultimaFrase = t;
-    this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${this.nombre}: ${frase}`, segundos: 2.2 });
+    this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${this.nombre}: ${frase}`, segundos: 1.8 });
   }
 
   /** Lo que hace ahora, si no es solo cumplir la orden (panel del escuadrón). */
   actividad(): string {
     if (this.agarradoPor) return '¡agarrado!';
+    if (this.herido) return this.montado ? 'herido: a caballo' : 'herido';
     const m = this.mision;
     switch (m.tipo) {
       case 'recargar':
         return 'recargando';
+      case 'huir':
+        return this.montado ? 'huyendo a caballo' : 'huyendo';
+      case 'curar':
+        return m.humano && this.posicion.distanceTo(m.humano.posicion) > 8 ? 'va a curarte' : 'te cura';
       case 'darGas':
         return 'te lleva gas';
       case 'rescatar':
@@ -699,6 +824,7 @@ export class Soldado implements Humano {
         if (m.cebo) return 'de cebo';
         return this.orden.tipo === 'atacar' || this.orden.tipo === 'atacarTitan' ? '' : 'en combate';
       case 'mantener':
+        if (this.orden.trabajo) return m.destino && this.posicion.distanceTo(m.destino) > 4 ? 'va a la obra' : 'montando el campamento';
         if (m.destino && this.posicion.distanceTo(m.destino) > 8) return 'en camino';
         return this.orden.tipo === 'irA' ? 'en posición' : '';
       default:
@@ -749,6 +875,7 @@ export class Soldado implements Humano {
       cambiandoCuchillas: this.cuchillas.cambiando > 0,
       agarrado: this.agarradoPor !== null,
       muerto: !this.vivo,
+      montado: this.montado,
       aterrizaje: this.tAterrizaje,
       impactoAterrizaje: this.impacto,
       dirImpulso: this.dirImpulso,

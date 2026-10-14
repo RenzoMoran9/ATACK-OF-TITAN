@@ -288,13 +288,16 @@ export class PanelEscuadron {
         let orden = ESTADO_ORDEN[info.orden];
         if (info.orden === 'atacarTitan' && info.titan) orden += ` ${Math.round(info.titan.altura)} m`;
         const gas = THREE.MathUtils.clamp(info.gas, 0, 100);
+        const salud = THREE.MathUtils.clamp(info.salud, 0, 100);
         const hojas = info.filo <= 0 ? (info.repuesto > 0 ? 'cambiando' : 'sin hojas') : info.filo < 0.3 ? `melladas ×${info.repuesto}` : `hojas ×${info.repuesto}`;
         const malas = info.filo < 0.3 && info.repuesto === 0;
         const clases = ['soldado', s === sel ? 'sel' : '', s.agarradoPor ? 'agarrado' : ''].join(' ');
         const actividad = info.actividad ? `<span class="act">${info.actividad}</span>` : '';
         return (
           `<div class="${clases}"><div class="l1"><span class="nombre">${s.nombre}</span><span class="orden">${orden}</span><span class="dist">${d} m ${flecha}</span></div>` +
-          `<div class="l2"><small>GAS</small><span class="gas${gas < 25 ? ' bajo' : ''}"><i style="width:${gas.toFixed(0)}%"></i></span><span class="hojas${malas ? ' malas' : ''}">${hojas}</span>${actividad}</div></div>`
+          `<div class="l2"><small>GAS</small><span class="gas${gas < 25 ? ' bajo' : ''}"><i style="width:${gas.toFixed(0)}%"></i></span>` +
+          `<small>VIDA</small><span class="vida${salud < 40 ? ' bajo' : ''}"><i style="width:${salud.toFixed(0)}%"></i></span>` +
+          `<span class="hojas${malas ? ' malas' : ''}">${hojas}</span>${actividad}</div></div>`
         );
       })
       .join('');

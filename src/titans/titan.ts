@@ -5,7 +5,7 @@ import { umbralNuca, umbralZona } from '../combat/corte';
 import type { ContextoJuego } from '../core/contexto';
 import { nuevoId } from '../core/poblacion';
 import { crearRng } from '../core/rng';
-import type { EstadoTitan, Humano, OpcionesTitan, PuntoDebil, ResultadoCorte, TitanAPI, ZonaTitan } from '../core/tipos';
+import type { EspecialTitan, EstadoTitan, Humano, OpcionesTitan, PuntoDebil, ResultadoCorte, TitanAPI, ZonaTitan } from '../core/tipos';
 import {
   alcanceAgarre,
   alcanceCercano,
@@ -15,6 +15,7 @@ import {
   alturaSalto,
   AVISO_SALTO,
   avisoAgarre,
+  distanciaCuerpos,
   duracionSalto,
   enCono,
   galope,
@@ -28,13 +29,24 @@ import {
   velocidadCuadrupedo,
   velocidadPersecucion,
 } from './ia';
-import { COMPLEXIONES, ModeloTitan, poseReposo, variarProporciones, type PoseTitan } from './modelo';
+import { COMPLEXION_CAMBIANTE, COMPLEXIONES, ModeloTitan, poseReposo, variarProporciones, type PoseTitan } from './modelo';
+
+/** Ventana antes del cierre de la mano en la que un impulso o un cambio de ancla esquiva el agarre. */
+export const VENTANA_ESQUIVA = 0.25;
+
+/** Acorazado: solo se le pueden cortar las corvas y los codos (y las manos que sujetan a alguien). */
+const VULNERABLE_ACORAZADO: ZonaTitan[] = ['corvaIzq', 'corvaDer', 'brazoIzq', 'brazoDer', 'manoIzq', 'manoDer', 'mandibula'];
 
 /**
  * Titán puro: modelo articulado, colisionadores cinemáticos por segmento (los ganchos se
  * quedan clavados en la carne aunque se mueva), puntos débiles del anime y una IA simple
  * pero agresiva: ve, huele multitudes, persigue por las calles, agarra, se lleva a la boca
  * y devora. Solo muere si le cortan la nuca; el resto se regenera echando vapor.
+ *
+ * Cambiantes (`especial`): el Acorazado tiene coraza en todo el cuerpo salvo corvas y codos;
+ * al caer de rodillas con una corva cortada se le agrieta la de la nuca. La Hembra endurece
+ * la nuca cuando te ve llegar (no si está ciega o con los dos brazos inútiles) y regenera un
+ * ojo enseguida concentrándose en él.
  */
 
 interface Punto extends PuntoDebil {
@@ -84,6 +96,7 @@ export class Titan implements TitanAPI {
   readonly anormal: boolean;
   /** Anormal que corre a cuatro patas (bosques). */
   readonly cuadrupedo: boolean;
+  readonly especial: EspecialTitan | null;
   readonly posicion: THREE.Vector3;
   rumbo: number;
   estado: EstadoTitan = 'deambular';
@@ -129,6 +142,18 @@ export class Titan implements TitanAPI {
   private readonly regen = new Map<ZonaTitan, number>();
   private tDerribo = 0;
   private tCeguera = 0;
+  /** Ceguera de bengala: no depende de los ojos y no se regenera. */
+  private deslumbrado = false;
+  private tCegado = 0;
+  /** Cambiantes: coraza de la nuca agrietada (Acorazado) o nuca endurecida (Hembra). */
+  private tCorazaRota = 0;
+  private tEndurecida = 0;
+  private tEsperaEndurecer = 0;
+  /** Marcha hacia un pueblo (ataques). */
+  private marcha: THREE.Vector3 | null = null;
+  /** Enredado en el alambre de un campamento. */
+  private tEnredo = 0;
+  private factorEnredo = 1;
   private tTambaleo = 0;
   private readonly brazoInutil: [number, number] = [0, 0];
   private readonly amputado: [boolean, boolean] = [false, false];
@@ -160,24 +185,28 @@ export class Titan implements TitanAPI {
     const rng = crearRng(semilla);
     this.azar = rng.siguiente;
     this.altura = o.altura;
-    this.cuadrupedo = o.cuadrupedo ?? false;
-    this.anormal = (o.anormal ?? false) || this.cuadrupedo;
+    this.especial = o.especial ?? null;
+    this.cuadrupedo = !this.especial && (o.cuadrupedo ?? false);
+    this.anormal = (o.anormal ?? false) || this.cuadrupedo || this.especial !== null;
     this.posicion = o.posicion.clone().setY(0);
     this.rumbo = o.rumbo ?? rng.rango(-Math.PI, Math.PI);
     this.factorRegen = rng.rango(0.7, 1.3) * (this.anormal ? 0.8 : 1);
     this.radioNav = Math.max(0.6, 0.17 * this.altura);
-    this.ignoraSueltos = this.anormal && !this.cuadrupedo && rng.siguiente() < 0.7;
+    this.ignoraSueltos = this.anormal && !this.cuadrupedo && !this.especial && rng.siguiente() < 0.7;
     this.tPercepcion = rng.rango(0, 0.25);
     this.apagadoEn = rng.rango(25, 80);
 
     // los cuadrúpedos, larguiruchos: patas largas y aspecto más inquietante
     const complexion = this.cuadrupedo ? 0 : this.altura <= 5 ? (rng.siguiente() < 0.6 ? 1 : 0) : rng.siguiente() < 0.65 ? 0 : 1;
-    const prop = variarProporciones(COMPLEXIONES[complexion], this.azar);
-    this.modelo = new ModeloTitan(this.altura, prop, {
-      piel: rng.elegir(PIELES),
-      pelo: rng.siguiente() < 0.55 ? rng.elegir(PELOS) : null,
-      cara: rng.siguiente() < 0.5 ? 0 : 1,
-    });
+    const prop = this.especial ? COMPLEXION_CAMBIANTE : variarProporciones(COMPLEXIONES[complexion], this.azar);
+    // el Acorazado, con placas color hueso; la Hembra, con el músculo a la vista y pelo rubio
+    const aspecto =
+      this.especial === 'acorazado'
+        ? { piel: '#cdbf9f', pelo: '#d8c58a', cara: 1 as const }
+        : this.especial === 'hembra'
+          ? { piel: '#d4917c', pelo: '#e6cf7a', cara: 0 as const }
+          : { piel: rng.elegir(PIELES), pelo: rng.siguiente() < 0.55 ? rng.elegir(PELOS) : null, cara: (rng.siguiente() < 0.5 ? 0 : 1) as 0 | 1 };
+    this.modelo = new ModeloTitan(this.altura, prop, aspecto);
     ctx.escena.add(this.modelo.raiz);
     this.colocarRaiz();
     this.modelo.aplicar(this.pose);
@@ -235,14 +264,63 @@ export class Titan implements TitanAPI {
     if (this.estado === 'deambular' || this.estado === 'alerta') this.objetivo = h;
   }
 
+  deslumbrar(segundos: number): void {
+    if (!this.vivo || this.estado === 'apagado') return;
+    this.deslumbrado = true;
+    this.tCeguera = Math.max(this.tCeguera, segundos);
+    if (this.estado !== 'cegado') this.tCegado = 0;
+    this.estado = 'cegado';
+    this.objetivo = null;
+    if (this.agarre && !this.agarre.victima) this.agarre = null;
+  }
+
+  enredar(segundos: number, factor: number): void {
+    this.tEnredo = Math.max(this.tEnredo, segundos);
+    this.factorEnredo = factor;
+  }
+
+  dirigirA(p: THREE.Vector3 | null): void {
+    this.marcha = p ? p.clone().setY(0) : null;
+    this.destino = null;
+  }
+
+  get cegado(): boolean {
+    return this.estado === 'cegado';
+  }
+
+  /** Cierra la mano o salta: lo que hay que esquivar. */
+  get cerrando(): boolean {
+    return this.agarre?.fase === 'golpe' || this.agarre?.fase === 'salto';
+  }
+
+  /** La Hembra puede endurecer la nuca: ve (al menos un ojo) y tiene algún brazo útil. */
+  private puedeEndurecer(): boolean {
+    return this.especial === 'hembra' && this.estado !== 'cegado' && this.estado !== 'apagado' && (this.brazoInutil[0] <= 0 || this.brazoInutil[1] <= 0);
+  }
+
+  /** Esquiva in extremis: la mano se cierra en el aire y el titán se queda descolocado. */
+  private esquivado(obj: Humano, a: Agarre): void {
+    this.ctx.reloj.camaraLenta(0.5, 0.4);
+    this.ctx.eventos.emit({ tipo: 'esquiva', humano: obj, titan: this });
+    this.cambiarFase(a, 'recuperar');
+    this.tTambaleo = 1;
+  }
+
   // ─────────────────────────── Daño ───────────────────────────
 
   recibirCorte(zona: ZonaTitan, danio: number, atacante: Humano | null): ResultadoCorte {
     const p = this.puntos.find((x) => x.zona === zona);
     if (!this.vivo || !p || !p.activo) return { zona, efecto: 'nada', danio };
     if (danio <= 0) return { zona, efecto: 'rebote', danio };
-    const U = umbralNuca(this.altura);
+    const U = umbralNuca(this.altura) * (this.especial === 'acorazado' ? 1.3 : this.especial === 'hembra' ? 1.4 : 1);
     const ef = this.ctx.efectos;
+
+    // Coraza: la hoja rebota (el combate la mella mucho)
+    if (this.especial === 'acorazado' && !VULNERABLE_ACORAZADO.includes(zona) && !(zona === 'nuca' && this.tCorazaRota > 0)) {
+      ef.vapor(p.centro, 2, 0.3 + this.altura * 0.02, 1.5);
+      return { zona, efecto: 'coraza', danio };
+    }
+    if (this.especial === 'hembra' && zona === 'nuca' && this.tEndurecida > 0) return { zona, efecto: 'coraza', danio };
 
     if (zona === 'nuca') {
       this.danioNuca += danio;
@@ -281,12 +359,19 @@ export class Titan implements TitanAPI {
       const corva = cortados.some((z) => z.startsWith('corva'));
       if (corva || cortados.filter((z) => z.startsWith('tendon')).length >= 2) {
         this.derribar(Math.min(...cortados.map((z) => this.regen.get(z) ?? 10)));
+        if (this.especial === 'acorazado') {
+          this.tCorazaRota = this.tDerribo + 1;
+          this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Coraza agrietada!', segundos: 1 });
+        }
         return { zona, efecto: 'derribo', danio };
       }
       return { zona, efecto: 'cojera', danio };
     }
     if (zona === 'ojoIzq' || zona === 'ojoDer') {
       if (!this.punto('ojoIzq').activo && !this.punto('ojoDer').activo) {
+        // la Hembra se concentra en regenerar un solo ojo: ciega muy poco, pero sin endurecer
+        if (this.especial === 'hembra') this.regen.set(zona === 'ojoIzq' ? 'ojoDer' : 'ojoIzq', Math.min(this.regen.get(zona === 'ojoIzq' ? 'ojoDer' : 'ojoIzq') ?? 5, 5));
+        this.tCegado = 0;
         this.tCeguera = Math.max(this.regen.get('ojoIzq') ?? 12, this.regen.get('ojoDer') ?? 12);
         this.estado = 'cegado';
         this.objetivo = null;
@@ -378,6 +463,7 @@ export class Titan implements TitanAPI {
       this.lod = 0;
       this.pensar(dtIA);
       this.moverse(dtIA);
+      this.separarDeTitanes();
     }
     this.mantenerAgarre(dt);
     this.animar(dt, this.velocidad);
@@ -421,17 +507,41 @@ export class Titan implements TitanAPI {
       else this.modelo.crecimientoAntebrazo(i, 1);
     }
     if (this.tTambaleo > 0) this.tTambaleo -= dt;
+    if (this.tCorazaRota > 0) this.tCorazaRota -= dt;
+    if (this.tEnredo > 0) this.tEnredo -= dt;
+    if (this.tEndurecida > 0) this.tEndurecida -= dt;
+    if (this.tEsperaEndurecer > 0) this.tEsperaEndurecer -= dt;
+    if (this.estado === 'cegado') this.tCegado += dt;
+    this.vigilarNuca();
     if (this.distraccion) {
       this.distraccion.t -= dt;
       if (this.distraccion.t <= 0 || !this.distraccion.h.vivo) this.distraccion = null;
     }
   }
 
+  /** Hembra: si el jugador se lanza hacia su nuca, la endurece (1,3 s; luego tarda 5 s en poder repetir). */
+  private vigilarNuca(): void {
+    if (!this.puedeEndurecer() || this.tEsperaEndurecer > 0 || this.tEndurecida > 0) return;
+    const j = this.ctx.jugador;
+    if (!j.vivo || j.agarradoPor) return;
+    const nuca = this.punto('nuca').centro;
+    const hacia = this.tmp2.copy(nuca).sub(j.posicion);
+    const d = hacia.length();
+    if (d > 9 || d < 0.1) return;
+    const acercandose = j.velocidad.dot(hacia) / d;
+    if (acercandose < 8) return;
+    this.tEndurecida = 1.3;
+    this.tEsperaEndurecer = 5;
+    this.ctx.efectos.vapor(nuca, 6, 0.6, 1);
+    this.ctx.eventos.emit({ tipo: 'endurece', titan: this });
+    this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Nuca endurecida!', segundos: 1 });
+  }
+
   // ─────────────────────────── IA ───────────────────────────
 
   private pensar(dt: number): void {
     // Noche: se van apagando
-    if (this.ctx.esDeNoche()) this.tNoche += dt;
+    if (this.ctx.esDeNoche() && !this.especial) this.tNoche += dt;
     else this.tNoche = Math.max(0, this.tNoche - dt * 4);
     if (this.estado === 'apagado') {
       if (this.tNoche < this.apagadoEn * 0.5) this.estado = 'deambular';
@@ -453,7 +563,12 @@ export class Titan implements TitanAPI {
     }
     if (this.estado === 'cegado') {
       this.tCeguera -= dt;
-      if (this.tCeguera <= 0 || this.punto('ojoIzq').activo || this.punto('ojoDer').activo) this.estado = 'deambular';
+      const ve = this.punto('ojoIzq').activo || this.punto('ojoDer').activo;
+      if (this.tCeguera <= 0 || (ve && !this.deslumbrado)) {
+        this.deslumbrado = false;
+        this.estado = ve ? 'deambular' : 'cegado';
+        if (!ve) this.tCeguera = Math.max(this.regen.get('ojoIzq') ?? 0, this.regen.get('ojoDer') ?? 0, 0.5);
+      }
       return;
     }
     if (this.agarre) return; // la secuencia de agarre manda
@@ -508,6 +623,8 @@ export class Titan implements TitanAPI {
       let pr = prioridad(d, vecinos, { anormal: this.anormal, cebo: this.distraccion?.h === h });
       // el cuadrúpedo caza soldados (y al jugador) antes que a civiles
       if (this.cuadrupedo) pr *= h.tipo === 'civil' ? 0.5 : 2;
+      // los cambiantes van a por el jugador
+      if (this.especial && h.tipo === 'jugador') pr *= 3;
       if (pr > mejorP) {
         mejorP = pr;
         mejor = h;
@@ -615,6 +732,10 @@ export class Titan implements TitanAPI {
         // el mordisco vale en cualquier momento del arco (presas en ramas o en el aire)
         const boca = this.modelo.posBoca(this.tmp);
         const alcanza = !!obj && obj.vivo && !obj.agarradoPor && boca.distanceTo(obj.posicion) < radioMordisco(H);
+        if (alcanza && obj.esquivaReciente?.(VENTANA_ESQUIVA)) {
+          this.esquivado(obj, a);
+          return true;
+        }
         if (k < 1 && !alcanza) return true;
         if (k >= 1) {
           this.alturaSaltoActual = 0;
@@ -670,7 +791,9 @@ export class Titan implements TitanAPI {
         if (a.t >= 0.35) {
           const mano = this.modelo.posMano(a.brazo, this.tmp);
           const captura = 0.06 * H + 0.9;
-          if (obj && obj.vivo && !obj.agarradoPor && mano.distanceTo(obj.posicion) < captura) {
+          if (obj && obj.vivo && !obj.agarradoPor && mano.distanceTo(obj.posicion) < captura && obj.esquivaReciente?.(VENTANA_ESQUIVA)) {
+            this.esquivado(obj, a);
+          } else if (obj && obj.vivo && !obj.agarradoPor && mano.distanceTo(obj.posicion) < captura) {
             a.victima = obj;
             obj.alSerAgarrado(this, a.brazo === 0 ? 'brazoIzq' : 'brazoDer');
             this.punto(a.brazo === 0 ? 'manoIzq' : 'manoDer').activo = true;
@@ -760,7 +883,7 @@ export class Titan implements TitanAPI {
     if (!quieto) {
       if (this.estado === 'perseguir' && this.objetivo) {
         meta = this.objetivo.posicion.clone().setY(0);
-        velObjetivo = this.cuadrupedo ? velocidadCuadrupedo(H) : velocidadPersecucion(H);
+        velObjetivo = this.cuadrupedo ? velocidadCuadrupedo(H) : velocidadPersecucion(H) * (this.especial === 'hembra' ? 1.35 : this.especial === 'acorazado' ? 1.2 : 1);
         // ya lo tiene delante: frena y se encara en vez de pisarlo (el cuadrúpedo salta)
         const dh = meta.distanceTo(this.posicion);
         if (dh < 0.3 * H + 1 && !this.cuadrupedo) velObjetivo *= THREE.MathUtils.clamp((dh - 0.15 * H) / (0.15 * H + 1), 0, 1);
@@ -782,6 +905,7 @@ export class Titan implements TitanAPI {
       }
     }
 
+    if (this.tEnredo > 0) velObjetivo *= this.factorEnredo;
     // cojera con un tendón cortado
     if (ZONAS_TENDON.some((z) => z.startsWith('tendon') && !this.punto(z).activo)) velObjetivo *= 0.45;
     // anormales: esprints y giros bruscos (el cuadrúpedo ya va a tope)
@@ -819,7 +943,7 @@ export class Titan implements TitanAPI {
       if (otro === this) continue;
       const lejos = this.tmp2.copy(this.posicion).sub(otro.posicion).setY(0);
       const d = lejos.length();
-      const minimo = 0.17 * (H + otro.altura) + 0.5;
+      const minimo = distanciaCuerpos(H, otro.altura);
       if (d > 1e-3 && d < minimo) dir.addScaledVector(lejos.divideScalar(d), (minimo - d) / minimo);
     }
     const rumboObj = Math.atan2(dir.x, dir.z) + this.desvio;
@@ -838,6 +962,33 @@ export class Titan implements TitanAPI {
       this.ruta = null; // atascado: recalcular
     }
     this.posicion.y = 0;
+  }
+
+  /**
+   * Dos titanes no se atraviesan, estén quietos o andando: si los cuerpos se solapan, cada uno
+   * se aparta la mitad (el otro hace lo mismo en su turno). No empuja a través de los muros.
+   */
+  private separarDeTitanes(): void {
+    const H = this.altura;
+    const nav = this.ctx.nav;
+    for (const otro of this.ctx.poblacion.titanesCerca(this.posicion, 0.23 * (H + 15) + 0.3)) {
+      if (otro === this) continue;
+      const dx = this.posicion.x - otro.posicion.x;
+      const dz = this.posicion.z - otro.posicion.z;
+      const d = Math.hypot(dx, dz);
+      const minimo = distanciaCuerpos(H, otro.altura);
+      if (d >= minimo) continue;
+      // encima el uno del otro: cada cual sale hacia donde mira
+      const ux = d > 1e-3 ? dx / d : Math.sin(this.rumbo);
+      const uz = d > 1e-3 ? dz / d : Math.cos(this.rumbo);
+      const m = (minimo - d) * 0.5;
+      const nx = this.posicion.x + ux * m;
+      const nz = this.posicion.z + uz * m;
+      if (nav.libre(nx, nz, this.radioNav * 0.7)) {
+        this.posicion.x = nx;
+        this.posicion.z = nz;
+      }
+    }
   }
 
   private encarar(meta: THREE.Vector3, dt: number): void {
@@ -860,6 +1011,18 @@ export class Titan implements TitanAPI {
 
   private elegirDestino(): void {
     this.tDestino = 8 + this.azar() * 12;
+    // en marcha hacia un pueblo: va derecho hasta él y luego ronda por dentro
+    if (this.marcha) {
+      const d = this.marcha.distanceTo(this.posicion);
+      if (d > 25) {
+        this.destino = this.ctx.nav.puntoLibreCercano(this.marcha.x, this.marcha.z, this.radioNav) ?? this.marcha.clone();
+        this.tDestino = 5;
+        return;
+      }
+      const ang = this.azar() * Math.PI * 2;
+      this.destino = this.ctx.nav.puntoLibreCercano(this.marcha.x + Math.cos(ang) * 30, this.marcha.z + Math.sin(ang) * 30, this.radioNav) ?? this.marcha.clone();
+      return;
+    }
     // las multitudes atraen desde 150 m (a los anormales, más)
     const multitud = this.multitudCercana(this.anormal ? 220 : 150);
     if (multitud) {
@@ -1064,8 +1227,7 @@ export class Titan implements TitanAPI {
 
     // Ciego: se tapa la cara 1 s y luego da manotazos a ciegas
     if (this.estado === 'cegado') {
-      const transcurrido = 12 * this.factorRegen - this.tCeguera;
-      if (transcurrido < 1) {
+      if (this.tCegado < 1) {
         const cara = this.modelo.cabeza.getWorldPosition(new THREE.Vector3());
         const frente = new THREE.Vector3(Math.sin(this.rumbo), 0, Math.cos(this.rumbo)).multiplyScalar(L.rc * 1.1);
         const lado = new THREE.Vector3(Math.cos(this.rumbo), 0, -Math.sin(this.rumbo)).multiplyScalar(L.rc * 0.4);
