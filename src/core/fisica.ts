@@ -106,6 +106,22 @@ export class Fisica {
     return desc ? this.registrar(desc, etiqueta) : null;
   }
 
+  /**
+   * Tronco cónico que empieza en (x, y0, z) y sube `alto`, con la misma silueta que una malla
+   * CylinderGeometry de `lados` caras girada `giro` alrededor de Y. Es convexo: para un tronco
+   * con raíces, usar un colisionador por parte.
+   */
+  troncoConico(x: number, z: number, y0: number, alto: number, radioBase: number, radioTope: number, lados: number, giro: number, etiqueta: Etiqueta): RAPIER.Collider | null {
+    const puntos: number[] = [];
+    for (const [y, r] of [[y0, radioBase], [y0 + alto, radioTope]]) {
+      for (let i = 0; i < lados; i++) {
+        const t = giro + (i / lados) * Math.PI * 2;
+        puntos.push(x + r * Math.sin(t), y, z + r * Math.cos(t));
+      }
+    }
+    return this.casco(puntos, etiqueta);
+  }
+
   lanzarRayo(origen: THREE.Vector3, dir: THREE.Vector3, max: number, excluir?: RAPIER.Collider): ImpactoRayo | null {
     this.rayo.origin = { x: origen.x, y: origen.y, z: origen.z };
     this.rayo.dir = { x: dir.x, y: dir.y, z: dir.z };
