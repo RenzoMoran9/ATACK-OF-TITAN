@@ -289,12 +289,14 @@ export class Bosque {
 
     const tronco = new THREE.CylinderGeometry(r1, r0, altoTronco, 16, 8);
     escalarUV(tronco, (2 * Math.PI * r0) / 4, altoTronco / 8);
-    corteza.añadir(tronco, matriz(x, altoTronco / 2, z, rng.rango(0, 6)), tinte);
+    const giroTronco = rng.rango(0, 6);
+    corteza.añadir(tronco, matriz(x, altoTronco / 2, z, giroTronco), tinte);
     const raices = new THREE.CylinderGeometry(r0, r0 * 1.75, 7, 16, 1);
     escalarUV(raices, (2 * Math.PI * r0) / 4, 7 / 8);
     corteza.añadir(raices, matriz(x, 3.5, z), tinte.clone().multiplyScalar(0.85));
-    fisica.cilindro({ x, y: altoTronco / 2, z }, altoTronco / 2, (r0 + r1) / 2 + 0.6, 'arbol');
-    fisica.cilindro({ x, y: 3.5, z }, 3.5, r0 * 1.35, 'arbol');
+    // Colisionadores con la silueta de la malla: tronco y raíces por separado (la unión no es convexa)
+    fisica.troncoConico(x, z, 0, altoTronco, r0, r1, 16, giroTronco, 'arbol');
+    fisica.troncoConico(x, z, 0, 7, r0 * 1.75, r0, 16, 0, 'arbol');
 
     const ramas: Arbol['ramas'] = [];
     const nRamas = rng.entero(4, 6);
