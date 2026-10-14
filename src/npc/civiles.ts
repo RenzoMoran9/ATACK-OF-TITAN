@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { type Cilindro } from '../core/colision';
 import { config } from '../core/config';
 import type { ContextoJuego } from '../core/contexto';
 import type { Navegacion } from '../core/navegacion';
@@ -9,6 +10,9 @@ import { Civil, type EntornoCivil } from './civil';
 import { EstimadorAlfa } from './interpolacion';
 import { CIVILES, ColaPuerta, crearAspectoCivil } from './logicaCivil';
 import { ModeloCiviles, poseNeutra } from './modeloCivil';
+
+/** Del centro del cuerpo de un civil a los pies (como `Humano.posicion`). */
+const CENTRO_CIVIL = 0.85;
 
 /**
  * Gestor de los aldeanos: los genera, les da navegación (rutas A* repartidas entre pasos y un
@@ -184,6 +188,22 @@ export class GestorCiviles implements CivilesAPI, EntornoCivil {
   }
 
   // ───────────── EntornoCivil ─────────────
+
+  private readonly cilindroJugador: Cilindro = { x: 0, z: 0, radio: config.jugador.radio };
+  private readonly listaJugador: Cilindro[] = [this.cilindroJugador];
+  private readonly sinSolidos: Cilindro[] = [];
+
+  /**
+   * El jugador es sólido para los civiles cuando su cuerpo está a la altura de ellos (en la calle);
+   * sobre un tejado no les estorba. Las listas se reutilizan: se pide una por civil y paso.
+   */
+  get solidos(): readonly Cilindro[] {
+    const j = this.ctx.jugador.posicion;
+    if (j.y >= CENTRO_CIVIL + config.jugador.altura) return this.sinSolidos;
+    this.cilindroJugador.x = j.x;
+    this.cilindroJugador.z = j.z;
+    return this.listaJugador;
+  }
 
   pasoHuida(c: Civil): THREE.Vector3 | null {
     const campo = this.campo;

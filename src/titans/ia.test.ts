@@ -1,6 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { alcanceSalto, alcanceVista, enCono, galope, girarHacia, giroCuadrupedo, giroMaximo, prioridad, velocidadAndar, velocidadCuadrupedo, velocidadPersecucion } from './ia';
+import { alcanceSalto, alcanceVista, distanciaCuerpos, enCono, galope, girarHacia, giroCuadrupedo, giroMaximo, prioridad, velocidadAndar, velocidadCuadrupedo, velocidadPersecucion } from './ia';
+
+describe('separación entre titanes', () => {
+  // medido con cuerpos reales (Rapier): dos titanes iguales se tocan a 2,3 / 4,6 / 6,8 m
+  it('la distancia mínima de la IA supera el contacto medido de los cuerpos', () => {
+    expect(distanciaCuerpos(5, 5)).toBeGreaterThan(2.3);
+    expect(distanciaCuerpos(10, 10)).toBeGreaterThan(4.6);
+    expect(distanciaCuerpos(15, 15)).toBeGreaterThan(6.8);
+  });
+});
 
 describe('números de los titanes', () => {
   it('velocidades de la investigación', () => {

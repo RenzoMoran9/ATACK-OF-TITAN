@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { calcularDanio, desgaste } from '../combat/corte';
 import { Cuchillas } from '../combat/cuchillas';
+import { empujeFuera, RADIO_PERSONA } from '../core/colision';
+import { config } from '../core/config';
 import type { ContextoJuego } from '../core/contexto';
 import { nuevoId } from '../core/poblacion';
 import type { AspectoSoldado, Humano, OrdenEscuadron, PuntoDebil, RolSoldado, TitanAPI, ZonaTitan } from '../core/tipos';
@@ -703,6 +705,22 @@ export class Soldado implements Humano {
     this.tSinAncla = 0;
   }
 
+  /** El jugador es sólido para su escuadrón: a su altura, el soldado no lo atraviesa. */
+  private apartarDeJugador(): void {
+    const j = this.ctx.jugador.posicion;
+    if (Math.abs(this.posicion.y - j.y) >= config.jugador.altura) return;
+    const e = empujeFuera(this.posicion.x, this.posicion.z, RADIO_PERSONA, [{ x: j.x, z: j.z, radio: config.jugador.radio }]);
+    const n = Math.hypot(e.dx, e.dz);
+    if (n < 1e-6) return;
+    this.posicion.x += e.dx;
+    this.posicion.z += e.dz;
+    const vn = (this.velocidad.x * e.dx + this.velocidad.z * e.dz) / n;
+    if (vn < 0) {
+      this.velocidad.x -= (vn * e.dx) / n;
+      this.velocidad.z -= (vn * e.dz) / n;
+    }
+  }
+
   private integrar(dt: number): void {
     const fisica = this.ctx.fisica;
     const tiran = this.tirando();
@@ -724,6 +742,7 @@ export class Soldado implements Humano {
       } else this.posicion.add(desp);
     }
     for (const a of tiran) aplicarRestriccion(this.posicion, this.velocidad, a.punto, a.longitud);
+    this.apartarDeJugador();
 
     // Suelo bajo los pies (calle, tejado, rama)
     const suelo = fisica.lanzarRayo(this.posicion.clone().addScaledVector(ARRIBA, 0.3), new THREE.Vector3(0, -1, 0), CENTRO + 0.6);
