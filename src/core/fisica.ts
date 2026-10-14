@@ -37,6 +37,7 @@ export class Fisica {
   /** Colisionadores que se mueven con un objeto 3D (los ganchos anclados lo siguen). */
   readonly objetos = new Map<number, THREE.Object3D>();
   private readonly rayo = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
+  private grabando: RAPIER.Collider[] | null = null;
 
   private constructor(readonly mundo: RAPIER.World) {}
 
@@ -48,7 +49,22 @@ export class Fisica {
   registrar(desc: RAPIER.ColliderDesc, etiqueta: Etiqueta, cuerpo?: RAPIER.RigidBody): RAPIER.Collider {
     const c = this.mundo.createCollider(desc, cuerpo);
     this.etiquetas.set(c.handle, etiqueta);
+    this.grabando?.push(c);
     return c;
+  }
+
+  /** Ejecuta `fn` y devuelve los colisionadores que ha creado (para encenderlos y apagarlos luego). */
+  grabar(fn: () => void): RAPIER.Collider[] {
+    const previos = this.grabando;
+    const lista: RAPIER.Collider[] = [];
+    this.grabando = lista;
+    try {
+      fn();
+    } finally {
+      this.grabando = previos;
+    }
+    previos?.push(...lista);
+    return lista;
   }
 
   /** Asocia un colisionador a un objeto 3D: un gancho anclado en él se moverá con el objeto. */

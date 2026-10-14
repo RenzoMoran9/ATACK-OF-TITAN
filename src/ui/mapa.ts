@@ -1,4 +1,5 @@
 import type { ContextoJuego } from '../core/contexto';
+import type { GestorPueblos } from '../missions/pueblos';
 import { contorno } from '../world/formas';
 import { REGION } from '../world/region';
 
@@ -20,6 +21,8 @@ export class Mapa {
   private fijo: HTMLCanvasElement | null = null;
   private readonly x0 = REGION.x0 - MARGEN;
   private readonly z0 = REGION.z0 - MARGEN;
+  /** Pueblos del mundo abierto (estado de cada uno). */
+  pueblos: (() => GestorPueblos | null) | null = null;
   private readonly escala = LADO / Math.max(REGION.x1 - REGION.x0 + 2 * MARGEN, REGION.z1 - REGION.z0 + 2 * MARGEN);
 
   constructor(contenedor: HTMLElement) {
@@ -32,7 +35,9 @@ export class Mapa {
     this.g = this.lienzo.getContext('2d');
     const pie = document.createElement('div');
     pie.className = 'pie';
-    pie.innerHTML = '<b>M</b> cerrar · <span class="l-jugador">▲</span> tú · <span class="l-soldado">●</span> escuadrón · <span class="l-titan">●</span> titanes · <span class="l-cuadrupedo">▲</span> a cuatro patas · <span class="l-deposito">■</span> recarga';
+    pie.innerHTML =
+      '<b>M</b> cerrar · <span class="l-jugador">▲</span> tú · <span class="l-soldado">●</span> escuadrón · <span class="l-caballo">●</span> caballo · <span class="l-titan">●</span> titanes · <span class="l-cuadrupedo">▲</span> a cuatro patas · <span class="l-deposito">■</span> recarga<br>' +
+      'Pueblos: <span class="l-tomado">◆</span> tomado · <span class="l-obras">◆</span> reconstruyendo · <span class="l-paz">◆</span> en paz';
     this.raiz.append(this.lienzo, pie);
     contenedor.appendChild(this.raiz);
   }
@@ -133,15 +138,34 @@ export class Mapa {
     g.drawImage(this.fijo, 0, 0);
     g.textAlign = 'center';
     // Lugares
+    const pueblos = this.pueblos?.()?.lista ?? [];
+    const parpadeo = Math.floor(performance.now() / 300) % 2 === 0;
     for (const l of ctx.mundo.lugares) {
       if (l.tipo === 'bosque') continue;
       const x = this.px(l.pos.x);
       const y = this.pz(l.pos.z);
+      const pueblo = pueblos.find((p) => p.datos.id === l.id);
+      g.font = '11px Georgia, serif';
+      if (pueblo) {
+        // rombo con el color del estado del pueblo; parpadea si suena su campana
+        const f = pueblo.logica.fase;
+        g.fillStyle = pueblo.enAlarma && parpadeo ? '#ffffff' : f === 'enPaz' ? '#9ee07a' : f === 'tomado' ? '#e0453a' : '#f2c94c';
+        g.beginPath();
+        g.moveTo(x, y - 6);
+        g.lineTo(x + 6, y);
+        g.lineTo(x, y + 6);
+        g.lineTo(x - 6, y);
+        g.closePath();
+        g.fill();
+        g.fillStyle = '#f4ecd8';
+        const estado = pueblo.enAlarma ? '¡atacado!' : f === 'enPaz' ? 'en paz' : f === 'tomado' ? `${pueblo.logica.ocupantes} titanes` : `${Math.floor(pueblo.logica.habitantes)} vecinos · obra ${Math.round(pueblo.logica.progreso * 100)} %`;
+        g.fillText(l.descubierto ? `${l.nombre} (${estado})` : '?', x, y - 9);
+        continue;
+      }
       g.fillStyle = l.descubierto ? '#f4ecd8' : 'rgba(244, 236, 216, 0.45)';
       g.beginPath();
       g.arc(x, y, 3.5, 0, Math.PI * 2);
       g.fill();
-      g.font = '11px Georgia, serif';
       g.fillText(l.descubierto ? l.nombre : '?', x, y - 7);
     }
     // Depósitos de recarga
@@ -160,6 +184,26 @@ export class Mapa {
         g.lineTo(x - 4.5, y + 4);
         g.closePath();
       } else g.arc(x, y, 2 + t.altura * 0.18, 0, Math.PI * 2);
+      g.fill();
+    }
+    // Cambiantes avistados (aunque estén lejos)
+    for (const t of ctx.poblacion.titanes) {
+      if (!t.vivo || !t.especial) continue;
+      g.fillStyle = '#f2c94c';
+      g.strokeStyle = '#5a1a10';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(this.px(t.posicion.x), this.pz(t.posicion.z), 6, 0, Math.PI * 2);
+      g.fill();
+      g.stroke();
+      g.fillText(t.especial === 'acorazado' ? 'Acorazado' : 'Hembra', this.px(t.posicion.x), this.pz(t.posicion.z) - 9);
+    }
+    // Tu caballo
+    const caballo = (ctx.jugador as { caballo?: { pos: { x: number; z: number }; montado: boolean; grupo: { visible: boolean } } | null }).caballo;
+    if (caballo && !caballo.montado && caballo.grupo.visible) {
+      g.fillStyle = '#c48a52';
+      g.beginPath();
+      g.arc(this.px(caballo.pos.x), this.pz(caballo.pos.z), 3.5, 0, Math.PI * 2);
       g.fill();
     }
     // Escuadrón y sus puntos de orden

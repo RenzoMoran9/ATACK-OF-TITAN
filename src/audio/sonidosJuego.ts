@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { ContextoJuego } from '../core/contexto';
 import type { TitanAPI } from '../core/tipos';
+import type { Campamento } from '../missions/campamento';
+import type { GestorPueblos } from '../missions/pueblos';
 import type { Jugador } from '../player/jugador';
 import type { Sonido } from './sonido';
 
@@ -12,6 +14,11 @@ import type { Sonido } from './sonido';
  *
  * Mira el estado del jugador y de los titanes cada fotograma (flancos: un gancho que pasa a
  * «volando», un tajo que empieza…) y escucha los eventos del juego (cortes, muertes, agarres).
+ *
+ * En el mundo abierto, además: el caballo (trote, galope, relincho y tu silbido), los pueblos
+ * (ambiente con gente, martillos de la reconstrucción, la campana de alarma y los gritos de
+ * los vecinos cuando llegan titanes, vítores al defenderlos, hogueras de noche), la esquiva,
+ * la bengala, y la coraza y el endurecimiento de los cambiantes.
  */
 export class SonidosJuego {
   private readonly ganchos: string[] = ['listo', 'listo'];
@@ -24,7 +31,11 @@ export class SonidosJuego {
   private saludPrevia = 100;
   private readonly titanes = new Map<number, { pisadas: number; estado: string; avisando: boolean; ultimoRugido: number }>();
   private t = 0;
+  private bengalasPrevias = -1;
   private readonly arriba = new THREE.Vector3(0, 1, 0);
+  /** Pueblos del mundo abierto (los pone main.ts cuando hay partida). */
+  pueblos: (() => GestorPueblos | null) | null = null;
+  campamento: (() => Campamento | null) | null = null;
 
   constructor(
     private readonly s: Sonido,
@@ -36,6 +47,10 @@ export class SonidosJuego {
       const pos = e.titan.posicion.clone().setY(e.titan.posicion.y + e.titan.altura * 0.75);
       const mio = e.por === jugador;
       const letal = e.resultado.efecto === 'muerte';
+      if (e.resultado.efecto === 'coraza') {
+        this.s.tocar('coraza', mio ? { volumen: 1 } : { pos, alcance: 18, volumen: 0.8 });
+        return;
+      }
       this.s.tocar(letal ? 'nuca' : 'corte_carne', mio ? { volumen: letal ? 1.1 : 0.9 } : { pos, alcance: 18, volumen: 0.8 });
     });
     ev.on('titanMuerto', (e) => {
@@ -67,6 +82,80 @@ export class SonidosJuego {
       if (e.quien === jugador) this.s.tocar('recarga', { volumen: 0.8 });
     });
     ctx.efectos.alBengala = (pos) => this.s.tocar('bengala', { pos, alcance: 25, volumen: 0.8 });
+    ev.on('esquiva', (e) => {
+      if (e.humano === jugador) this.s.tocar('esquiva', { volumen: 1 });
+    });
+    ev.on('endurece', (e) => this.s.tocar('endurecer', { pos: this.cabeza(e.titan), alcance: 25, volumen: 1 }));
+    ev.on('caballo', (e) => {
+      if (e.accion === 'llamar') {
+        this.s.tocar('silbido', { volumen: 0.8 });
+        const c = jugador.caballo;
+        if (c) this.s.tocar('relincho', { pos: c.pos.clone().setY(2), alcance: 40, volumen: 0.9, retraso: 0.7 });
+      } else if (e.accion === 'montar') this.s.tocar('relincho', { pos: e.pos.clone().setY(2), alcance: 10, volumen: 0.6, variacion: 0.1 });
+    });
+    ev.on('alarmaPueblo', (e) => {
+      // se oye de lejos (campana de alarma), y aunque estés muy lejos llega un eco
+      const d = this.s.distancia(e.pos);
+      this.s.tocar('campana_alarma', d < 900 ? { pos: e.pos, alcance: 140, volumen: 1.1 } : { volumen: 0.3 });
+    });
+    // martillazos al montar el campamento y latas del alambre cuando un titán lo toca
+    ev.on('martillazo', (e) => this.s.tocar('golpe', { pos: e.pos, alcance: 8, volumen: e.golpe === 'fallo' ? 0.4 : e.golpe === 'perfecto' ? 1.1 : 0.8, tono: e.golpe === 'perfecto' ? 0.8 : 1 }));
+    ev.on('alambre', (e) => this.s.tocar('coraza', { pos: e.pos, alcance: 40, volumen: 0.9, tono: 1.6, variacion: 0.15 }));
+    for (const tipo of ['puebloDefendido', 'puebloLiberado', 'puebloEnPaz'] as const) {
+      ev.on(tipo, (e) => this.s.tocar('vitores', { pos: e.pos.clone().setY(2), alcance: 90, volumen: 1, retraso: 0.8 }));
+    }
+  }
+
+  /** Volumen de una fuente lejana con la misma caída que `tocar`. */
+  private atenuar(p: THREE.Vector3, alcance: number): number {
+    const d = this.s.distancia(p);
+    return alcance / (alcance + Math.max(0, d - alcance));
+  }
+
+  private mundoAbierto(noche: boolean): void {
+    const s = this.s;
+    const c = this.jugador.caballo;
+    let galope = 0;
+    let trote = 0;
+    let cadencia = 1;
+    if (c && c.grupo.visible && c.velocidad > 0.4) {
+      // los cascos suenan al ritmo de la marcha: trote (y paso, más flojo) o galope
+      const m = c.marchaActual;
+      const cerca = c.montado ? 1 : this.atenuar(c.pos, 15);
+      galope = m.galope * cerca;
+      trote = (1 - m.galope) * THREE.MathUtils.lerp(0.45, 1, m.trote) * cerca;
+      cadencia = m.frecuencia;
+    }
+    s.bucle('caballo_galope', 0.7 * galope, THREE.MathUtils.clamp(cadencia / 2.3, 0.7, 1.4));
+    s.bucle('caballo_trote', 0.5 * trote, THREE.MathUtils.clamp(cadencia / 1.7, 0.6, 1.4));
+
+    let gente = 0;
+    let obras = 0;
+    let gritos = 0;
+    let fuego = 0;
+    const pueblos = this.pueblos?.()?.lista ?? [];
+    for (const p of pueblos) {
+      const k = this.atenuar(p.centro, 45);
+      if (p.enAlarma) gritos = Math.max(gritos, k);
+      else if (p.logica.habitantes >= 1) {
+        if (noche) fuego = Math.max(fuego, k);
+        else gente = Math.max(gente, k * Math.min(1, p.logica.habitantes / 12));
+        if (p.datos.vista && p.logica.enObras(!noche, p.amenaza)) obras = Math.max(obras, k);
+      }
+    }
+    // tu campamento: martillos mientras se monta y hoguera cuando está listo
+    const camp = this.campamento?.();
+    if (camp) {
+      const k = this.atenuar(camp.centro, 25);
+      if (camp.listo) fuego = Math.max(fuego, k);
+      else obras = Math.max(obras, k);
+    }
+    // el campamento de la Legión siempre tiene su hoguera
+    for (const l of this.ctx.mundo.lugares) if (l.tipo === 'campamento' && noche) fuego = Math.max(fuego, this.atenuar(l.pos, 30));
+    s.bucle('aldea', 0.45 * gente);
+    s.bucle('martillos', 0.4 * obras);
+    s.bucle('gritos_aldea', 0.8 * gritos);
+    s.bucle('fogata', 0.35 * fuego);
   }
 
   private cabeza(t: TitanAPI): THREE.Vector3 {
@@ -99,6 +188,9 @@ export class SonidosJuego {
     s.bucle('llanura', noche ? 0 : 0.28 * (1 - bosque));
     s.bucle('noche', noche ? 0.3 * (1 - bosque) : 0);
 
+    // ── Mundo abierto: caballo y pueblos ──
+    this.mundoAbierto(noche);
+
     // ── Equipo de maniobras ──
     j.odm.ganchos.forEach((g, i) => {
       const antes = this.ganchos[i];
@@ -125,6 +217,9 @@ export class SonidosJuego {
     const tajo = !!j.combate?.tajo;
     if (tajo && !this.tajoPrevio) s.tocar('tajo', { volumen: j.combate?.tajo?.giro ? 1.1 : 0.8, tono: j.combate?.tajo?.giro ? 0.85 : 1 });
     this.tajoPrevio = tajo;
+    const bengalas = j.combate?.bengalas ?? 0;
+    if (this.bengalasPrevias >= 0 && bengalas < this.bengalasPrevias) s.tocar('bengala_disparo', { volumen: 0.9 });
+    this.bengalasPrevias = bengalas;
     const cambia = (j.combate?.cuchillas.cambiando ?? 0) > 0;
     if (cambia && !this.cambiaba) s.tocar('cuchillas', { volumen: 0.7 });
     this.cambiaba = cambia;
@@ -174,7 +269,8 @@ export class SonidosJuego {
       // rugido al empezar a perseguir (no siempre, y no muy seguido)
       if (t.estado === 'perseguir' && r.estado !== 'perseguir' && r.estado !== 'agarrar' && this.t - r.ultimoRugido > 12 && Math.random() < 0.65) {
         r.ultimoRugido = this.t;
-        s.tocar('rugido', { pos: this.cabeza(t), alcance: 15 + t.altura * 3, volumen: 0.6 + t.altura / 30, tono: this.tonoTitan(t), variacion: 0.1 });
+        if (t.especial) s.tocar(t.especial, { pos: this.cabeza(t), alcance: 60, volumen: 1.2, variacion: 0.05 });
+        else s.tocar('rugido', { pos: this.cabeza(t), alcance: 15 + t.altura * 3, volumen: 0.6 + t.altura / 30, tono: this.tonoTitan(t), variacion: 0.1 });
       }
       r.estado = t.estado;
       const avisa = !!t.avisando;

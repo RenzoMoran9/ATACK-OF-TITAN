@@ -1,9 +1,21 @@
 import * as THREE from 'three';
 import { Cuchillas } from '../combat/cuchillas';
 import { calcularDanio, desgaste, umbralZona, zonaAlAlcance } from '../combat/corte';
+import {
+  ALCANCE_BENGALA,
+  CEGUERA_BENGALA,
+  DURACION_PASADA,
+  ESPOLETA,
+  NOMBRE_PARTE,
+  VELOCIDAD_BENGALA,
+  cegadosPorBengala,
+  distanciaCara,
+  siguienteParte,
+  zonaPasadaBaja,
+} from '../combat/tacticas';
 import type { ContextoJuego } from '../core/contexto';
 import type { Entrada } from '../core/entrada';
-import type { EfectoCorte, Humano, PuntoDebil, TitanAPI } from '../core/tipos';
+import type { EfectoCorte, Humano, PuntoDebil, TitanAPI, ZonaTitan } from '../core/tipos';
 
 /**
  * Combate del jugador como en el anime:
@@ -13,7 +25,20 @@ import type { EfectoCorte, Humano, PuntoDebil, TitanAPI } from '../core/tipos';
  * - Giro de Levi: clic izquierdo (o F) mientras recoges cable anclado a un titán a más de 25 m/s (tras 3 nucas).
  * - R: cambiar de par de cuchillas (0,6 s).
  * - Agarrado: haz clic (o F) muchas veces para cortarle los dedos antes de que te lleve a la boca.
+ * - Pasada baja: volando por debajo de 0,2·H y a menos de 3 m de un tendón o una corva, el
+ *   tajo sale corto (0,15 s, sin carga) directo a esa zona.
+ * - B: bengala a 50 m/s hacia la mira; si estalla a 4 m o menos de la cara, ciega 3 s.
+ * - X: fija una parte del titán más cercano (nuca → ojos → brazos → corvas → tendones → nada);
+ *   el tajo y los ganchos van a ella aunque la mira esté en otro sitio.
  */
+
+export const MAX_BENGALAS = 4;
+
+interface Proyectil {
+  pos: THREE.Vector3;
+  vel: THREE.Vector3;
+  recorrido: number;
+}
 
 const ALCANCE_TAJO = 1.6;
 const ALCANCE_GIRO = 2.4;
@@ -22,6 +47,8 @@ const DURACION_GIRO = 0.8;
 const MUERTES_PARA_GIRO = 3;
 
 interface Tajo {
+  /** Pasada baja: zona que corta directamente. */
+  forzado?: { titan: TitanAPI; punto: PuntoDebil };
   t: number;
   dur: number;
   giro: boolean;
@@ -52,13 +79,14 @@ export interface CuerpoCombatiente {
 
 const TEXTOS: Partial<Record<EfectoCorte, string>> = {
   muerte: '¡Nuca!',
-  herida: 'Corte poco profundo: necesitas más velocidad',
+  herida: 'Poco profundo',
   cojera: 'Tendón cortado',
   derribo: '¡Derribado!',
   ceguera: 'Lo has cegado',
   brazo: 'Brazo inutilizado',
   liberacion: '¡Liberado!',
-  rebote: 'Demasiado lento: la cuchilla rebota',
+  rebote: 'Muy lento: rebota',
+  coraza: '¡Coraza!',
 };
 
 export class CombateJugador {
@@ -72,9 +100,47 @@ export class CombateJugador {
   qte: QTE | null = null;
   /** Para la cámara: sube con los golpes y decae sola. */
   sacudida = 0;
+  /** Bengalas que quedan (se reponen en los depósitos). */
+  bengalas = MAX_BENGALAS;
+  private readonly proyectiles: Proyectil[] = [];
+  /** Parte del titán fijada con X (null = nada). */
+  parteFijada: { titan: TitanAPI; zona: ZonaTitan } | null = null;
   private readonly tmp = new THREE.Vector3();
 
-  constructor(private readonly ctx: ContextoJuego, private readonly c: CuerpoCombatiente) {}
+  constructor(private readonly ctx: ContextoJuego, private readonly c: CuerpoCombatiente) {
+    ctx.eventos.on('esquiva', (e) => {
+      if (e.humano !== c.humano) return;
+      this.sacudida = Math.max(this.sacudida, 0.6);
+      this.mensaje('¡Esquivado!', 1.4);
+    });
+  }
+
+  /** Deja de preparar o de cortar (al montar a caballo). */
+  cancelar(): void {
+    this.preparando = false;
+    this.tajo = null;
+  }
+
+  rellenarBengalas(): void {
+    this.bengalas = MAX_BENGALAS;
+  }
+
+  /** Punto débil fijado (si sigue activo y el titán vivo), o null. */
+  get puntoFijado(): PuntoDebil | null {
+    const f = this.parteFijada;
+    if (!f) return null;
+    if (!f.titan.vivo || f.titan.posicion.distanceTo(this.c.pos) > 120) {
+      this.parteFijada = null;
+      return null;
+    }
+    const p = f.titan.puntosDebiles.find((x) => x.zona === f.zona);
+    return p && p.activo ? p : null;
+  }
+
+  /** ¿Una pasada baja disponible ahora mismo? (para el aviso del HUD) */
+  get pasadaBajaLista(): boolean {
+    return !this.tajo && !this.c.agarradoPor && this.cuchillas.puedeCortar && this.c.vel.length() > 8 && zonaPasadaBaja(this.c.pos, this.ctx.poblacion.titanesCerca(this.c.pos, 30)) !== null;
+  }
 
   get giroDesbloqueado(): boolean {
     return this.muertesNuca >= MUERTES_PARA_GIRO;
@@ -91,28 +157,37 @@ export class CombateJugador {
 
   paso(dt: number, entrada: Entrada, mirada: THREE.Vector3): void {
     this.sacudida = Math.max(0, this.sacudida - dt * 2.5);
+    this.moverProyectiles(dt);
+    if (entrada.consumir('KeyB')) this.dispararBengala(mirada);
+    if (entrada.consumir('KeyX')) this.fijarParte(mirada);
     if (this.c.agarradoPor) {
       this.manejarAgarre(dt, entrada);
       return;
     }
     this.qte = null;
 
-    if (this.cuchillas.actualizar(dt)) this.mensaje(`Cuchillas nuevas (${this.cuchillas.repuesto} de repuesto)`, 1.2);
+    this.cuchillas.actualizar(dt);
     if (entrada.consumir('KeyR')) {
       if (this.cuchillas.empezarCambio()) {
         this.preparando = false;
         this.tajo = null;
       } else if (this.cuchillas.repuesto <= 0) {
-        this.mensaje('Sin cuchillas de repuesto: ve al depósito de suministros');
+        this.mensaje('Sin repuesto', 1.2);
       }
     }
 
     // Tajo: clic izquierdo (o F)
     const pulsado = entrada.consumir('Mouse0') || entrada.consumir('KeyF');
     const mantenido = entrada.mantenida('Mouse0') || entrada.mantenida('KeyF');
-    if (pulsado && !this.tajo) {
+    const pasada = pulsado && !this.tajo && this.cuchillas.puedeCortar ? zonaPasadaBaja(this.c.pos, this.ctx.poblacion.titanesCerca(this.c.pos, 30)) : null;
+    if (pasada) {
+      this.preparando = false;
+      this.tajo = { t: 0, dur: DURACION_PASADA, giro: false, carga: 0, golpes: 1, golpeados: new Set([`${pasada.titan.id}:${pasada.punto.zona}`]), forzado: pasada };
+      this.objetivoTajo = pasada.punto.centro.clone();
+      this.golpear(pasada.titan, pasada.punto, this.tajo);
+    } else if (pulsado && !this.tajo) {
       if (!this.cuchillas.puedeCortar) {
-        this.mensaje(this.cuchillas.cambiando > 0 ? 'Cambiando de cuchillas…' : 'Cuchillas rotas: cámbialas con R', 1.2);
+        if (this.cuchillas.cambiando <= 0) this.mensaje('Cuchillas rotas (R)', 1);
       } else if (this.giroDesbloqueado && this.c.ancladoATitanRecogiendo() && this.c.vel.length() > 25 && this.c.consumirGas(6)) {
         this.iniciarTajo(true, 1, mirada);
       } else {
@@ -130,7 +205,7 @@ export class CombateJugador {
 
     if (this.tajo) {
       this.tajo.t += dt;
-      this.resolverGolpes();
+      if (!this.tajo.forzado) this.resolverGolpes();
       if (this.tajo.t >= this.tajo.dur) this.tajo = null;
     }
   }
@@ -152,6 +227,9 @@ export class CombateJugador {
   }
 
   private mejorPuntoCercano(radio: number, mirada: THREE.Vector3): PuntoDebil | null {
+    // la parte fijada manda (con algo más de alcance)
+    const fijado = this.puntoFijado;
+    if (fijado && fijado.centro.distanceTo(this.c.pos) < radio * 1.5) return fijado;
     let mejor: PuntoDebil | null = null;
     let mejorP = -Infinity;
     for (const t of this.ctx.poblacion.titanesCerca(this.c.pos, radio + 20)) {
@@ -196,20 +274,98 @@ export class CombateJugador {
     const r = calcularDanio({ velocidadRelativa: this.c.vel, eje: zona.eje, filo: this.cuchillas.filo, bonificacion });
     const res = titan.recibirCorte(zona.zona, r.danio, this.c.humano);
     this.ctx.eventos.emit({ tipo: 'corte', titan, resultado: res, por: this.c.humano });
-    const rota = this.cuchillas.desgastar(desgaste(r) * (tajo.giro ? 1.5 : 1));
-    if (!r.rebota && res.efecto !== 'nada') this.ctx.efectos.sangre(zona.centro, this.c.vel.clone().normalize(), res.efecto === 'muerte' ? 30 : 16);
+    const rota = this.cuchillas.desgastar(desgaste(r) * (tajo.giro ? 1.5 : 1) + (res.efecto === 'coraza' ? 0.18 : 0));
+    if (res.efecto === 'coraza') this.ctx.efectos.destello(zona.centro.clone(), '#dff4ff', 2.5, 0.3);
+    else if (!r.rebota && res.efecto !== 'nada') this.ctx.efectos.sangre(zona.centro, this.c.vel.clone().normalize(), res.efecto === 'muerte' ? 30 : 16);
     if (res.efecto === 'muerte') {
       this.muertesNuca++;
       this.ctx.reloj.camaraLenta(0.25, 0.3);
       this.sacudida = 1;
       this.mensaje(tajo.giro ? '¡Giro mortal!' : '¡Nuca!', 1.4);
-      if (this.muertesNuca === MUERTES_PARA_GIRO) this.mensaje('Has aprendido el giro de Levi: F mientras recoges cable anclado a un titán a toda velocidad', 4);
+      if (this.muertesNuca === MUERTES_PARA_GIRO) this.mensaje('Giro de Levi aprendido', 2.5);
     } else {
       this.sacudida = Math.max(this.sacudida, 0.35);
       const texto = TEXTOS[res.efecto];
       if (texto) this.mensaje(texto, 1.4);
     }
-    if (rota) this.mensaje('¡Cuchilla rota! Cambia de par con R', 2);
+    if (rota) this.mensaje('¡Cuchilla rota! (R)', 1.2);
+  }
+
+  /** B: bengala roja hacia la mira (desde la mano). */
+  private dispararBengala(mirada: THREE.Vector3): void {
+    if (this.c.agarradoPor) return;
+    if (this.bengalas <= 0) {
+      this.mensaje('Sin bengalas', 1);
+      return;
+    }
+    this.bengalas--;
+    const pos = this.c.pos.clone().add(new THREE.Vector3(0, 0.5, 0)).addScaledVector(mirada, 0.8);
+    // si hay una parte fijada en la cabeza, apunta a la cara
+    const f = this.parteFijada;
+    const dir = f && f.titan.vivo && (f.zona === 'ojoIzq' || f.zona === 'ojoDer') ? f.titan.cabeza().sub(pos).normalize() : mirada.clone().normalize();
+    this.proyectiles.push({ pos, vel: dir.multiplyScalar(VELOCIDAD_BENGALA), recorrido: 0 });
+    this.ctx.efectos.destello(pos, '#ff6a3a', 1.5, 0.2);
+  }
+
+  private moverProyectiles(dt: number): void {
+    for (let i = this.proyectiles.length - 1; i >= 0; i--) {
+      const b = this.proyectiles[i];
+      const paso = b.vel.length() * dt;
+      const dir = this.tmp.copy(b.vel).normalize();
+      const hit = this.ctx.fisica.lanzarRayo(b.pos, dir, paso + 0.2);
+      b.vel.y -= 4 * dt; // las bengalas caen poco
+      let estalla = false;
+      if (hit && hit.etiqueta !== 'jugador') {
+        b.pos.copy(hit.punto);
+        estalla = true;
+      } else {
+        b.pos.addScaledVector(dir, paso);
+        b.recorrido += paso;
+        if (b.recorrido > ALCANCE_BENGALA) estalla = true;
+        // espoleta de proximidad: pasa rozando una cara
+        for (const t of this.ctx.poblacion.titanesCerca(b.pos, 40)) if (t.vivo && distanciaCara(b.pos, t) < ESPOLETA) estalla = true;
+      }
+      this.ctx.efectos.estela(b.pos, '#d12a1f');
+      if (!estalla) continue;
+      this.proyectiles.splice(i, 1);
+      this.explotar(b.pos);
+    }
+  }
+
+  private explotar(p: THREE.Vector3): void {
+    this.ctx.efectos.destello(p.clone(), '#ff4a2a', 14, 0.9);
+    this.ctx.efectos.vapor(p, 6, 1.2, 2);
+    const cegados = cegadosPorBengala(p, this.ctx.poblacion.titanesCerca(p, 40));
+    for (const t of cegados) t.deslumbrar?.(CEGUERA_BENGALA);
+    if (cegados.length > 0) this.mensaje(cegados.length > 1 ? `¡${cegados.length} cegados!` : '¡Cegado!', 1);
+  }
+
+  /** X: nuca → ojos → brazos → corvas → tendones → nada, del titán más cercano delante de ti. */
+  private fijarParte(mirada: THREE.Vector3): void {
+    const actual = this.parteFijada;
+    let titan = actual?.titan ?? null;
+    if (!titan || !titan.vivo) {
+      let mejor = -Infinity;
+      titan = null;
+      for (const t of this.ctx.poblacion.titanesCerca(this.c.pos, 90)) {
+        if (!t.vivo) continue;
+        const hacia = this.tmp.copy(t.posicion).setY(t.altura * 0.6).sub(this.c.pos);
+        const d = hacia.length();
+        const alineado = hacia.dot(mirada) / Math.max(d, 1e-3);
+        const puntos = alineado * 2 - d / 45;
+        if (alineado > 0.2 && puntos > mejor) {
+          mejor = puntos;
+          titan = t;
+        }
+      }
+    }
+    if (!titan) {
+      this.parteFijada = null;
+      return;
+    }
+    const zona = siguienteParte(titan, actual && actual.titan === titan ? actual.zona : null);
+    this.parteFijada = zona ? { titan, zona } : null;
+    if (zona) this.mensaje(NOMBRE_PARTE[zona] ?? zona, 0.8);
   }
 
   /** Atrapado en la mano de un titán: cada F es un corte a los dedos. */
@@ -222,7 +378,6 @@ export class CombateJugador {
       this.tajo = null;
       this.sacudida = 1;
       this.ctx.efectos.bengala(this.c.pos.clone(), '#7b3fe4'); // bengala morada: emergencia
-      this.mensaje('¡Te ha atrapado! Tajo (clic o F) muchas veces para cortarle los dedos', 2.5);
     }
     const q = this.qte;
     q.restante = Math.max(0, q.restante - dt);

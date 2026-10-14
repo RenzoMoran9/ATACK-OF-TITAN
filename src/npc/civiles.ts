@@ -3,7 +3,7 @@ import { config } from '../core/config';
 import type { ContextoJuego } from '../core/contexto';
 import type { Navegacion } from '../core/navegacion';
 import { crearRng, type Rng } from '../core/rng';
-import type { CivilesAPI } from '../core/tipos';
+import type { CivilesAPI, Humano } from '../core/tipos';
 import { CampoHuida, type Peligro } from './campoHuida';
 import { Civil, type EntornoCivil } from './civil';
 import { EstimadorAlfa } from './interpolacion';
@@ -102,6 +102,36 @@ export class GestorCiviles implements CivilesAPI, EntornoCivil {
     if (creados < n) console.warn(`[civiles] solo se han podido generar ${creados} de ${n}`);
   }
 
+  /**
+   * Aldeanos de un pueblo: `n` vecinos que pasean por él (radio `radio` alrededor de `centro`)
+   * y huyen de los titanes sin ir a Trost. Devuelve los creados.
+   */
+  generarAldeanos(n: number, centro: THREE.Vector3, radio: number): Civil[] {
+    const res: Civil[] = [];
+    for (let k = 0; k < n; k++) {
+      const p = this.puntoAleatorio(centro, radio, Infinity);
+      if (!p) break;
+      const c = this.crearCivil(p, this.rng.rango(-Math.PI, Math.PI));
+      if (!c) break;
+      c.hogar = { x: centro.x, z: centro.z, radio };
+      res.push(c);
+    }
+    return res;
+  }
+
+  /** Quita civiles concretos del mundo sin contarlos como salvados ni muertos (se van a casa). */
+  retirar(lista: readonly Humano[]): void {
+    for (const h of lista) {
+      const c = h as Civil;
+      const i = this.lista.indexOf(c);
+      if (i < 0 || c.agarradoPor) continue;
+      this.ctx.poblacion.quitarHumano(c);
+      this.modelo.liberar(c.slot);
+      this.libres.push(c.slot);
+      this.lista.splice(i, 1);
+    }
+  }
+
   evacuar(si: boolean): void {
     this.evacuando = si;
     if (si) {
@@ -171,6 +201,17 @@ export class GestorCiviles implements CivilesAPI, EntornoCivil {
   }
 
   destinoPaseo(c: Civil): THREE.Vector3 | null {
+    const h = c.hogar;
+    if (h) {
+      for (let k = 0; k < 8; k++) {
+        const a = this.rng.rango(-Math.PI, Math.PI);
+        const d = Math.sqrt(this.rng.siguiente()) * h.radio;
+        const x = h.x + Math.sin(a) * d;
+        const z = h.z + Math.cos(a) * d;
+        if (this.nav.libre(x, z, 0.8)) return new THREE.Vector3(x, 0, z);
+      }
+      return null;
+    }
     const R = this.ctx.mundo.muralla.radioInterior - 24;
     const dentro = Math.hypot(c.pies.x, c.pies.z) < R + 20;
     for (let k = 0; k < 8; k++) {

@@ -8,7 +8,8 @@ import type { Fisica } from '../core/fisica';
 import { nuevoId } from '../core/poblacion';
 import type { JugadorAPI, TitanAPI } from '../core/tipos';
 import { Aguante } from './aguante';
-import { CombateJugador } from './combate';
+import type { Caballo } from './caballo';
+import { CombateJugador, MAX_BENGALAS } from './combate';
 import { DepositoGas } from './gas';
 import { ModeloJugador } from './modeloJugador';
 import { EquipoODM, type Lado } from './odm';
@@ -60,6 +61,7 @@ export class Jugador implements JugadorAPI {
   /** Brazo del titán que lo sujeta (cortarlo lo libera). */
   brazoAgarre: 'brazoIzq' | 'brazoDer' = 'brazoDer';
   alSerAgarrado(titan: TitanAPI, brazo: 'brazoIzq' | 'brazoDer'): void {
+    this.soltarCaballo();
     this.agarradoPor = titan;
     this.brazoAgarre = brazo;
     this.odm.liberarTodo();
@@ -79,6 +81,10 @@ export class Jugador implements JugadorAPI {
     this.agarradoPor = null;
     this.morir();
   }
+  /** Impulso de gas o cambio de ancla en los últimos `ventana` s, con gas en los cilindros. */
+  esquivaReciente(ventana: number): boolean {
+    return this.tiempo - this.ultimaManiobra <= ventana && (this.odm.gasInfinito || this.gas.nivel > 0);
+  }
   fijarPosicion(p: THREE.Vector3): void {
     this.pos.copy(p);
     this.vel.set(0, 0, 0);
@@ -87,6 +93,7 @@ export class Jugador implements JugadorAPI {
   reabastecer(): void {
     this.gas.recargar(this.gas.capacidad);
     this.combate?.cuchillas.rellenar();
+    this.combate?.rellenarBengalas();
     this.aguante.rellenar();
   }
   recogerEquipo(gas: number, pares: number): void {
@@ -106,6 +113,82 @@ export class Jugador implements JugadorAPI {
 
   /** Combate (tajos, cuchillas, QTE). Se crea al conectar el contexto. */
   combate: CombateJugador | null = null;
+  /** Tu caballo (lo pone el mundo abierto) y si vas montado. */
+  caballo: Caballo | null = null;
+  montado = false;
+
+  private soltarCaballo(): void {
+    if (!this.montado) return;
+    this.montado = false;
+    if (this.caballo) this.caballo.montado = false;
+  }
+
+  /** C: montar si está al lado, bajar si vas montado o silbarle si está lejos. */
+  private usarCaballo(): void {
+    const c = this.caballo;
+    if (!c) return;
+    if (this.montado) {
+      this.bajarDelCaballo(false);
+      return;
+    }
+    const d = Math.hypot(c.pos.x - this.pos.x, c.pos.z - this.pos.z);
+    if (d < 3.5 && this.pos.y < 4) {
+      this.montado = true;
+      c.montado = true;
+      this.odm.liberarTodo();
+      this.pegado = null;
+      this.odm.pegado = false;
+      this.combate?.cancelar();
+      this.ctx?.eventos.emit({ tipo: 'caballo', accion: 'montar', pos: c.pos.clone() });
+    } else {
+      c.llamar(this.pos, this.rumbo);
+      this.ctx?.eventos.emit({ tipo: 'caballo', accion: 'llamar', pos: this.pos.clone() });
+    }
+  }
+
+  /** Baja del caballo: a un lado, o saltando de la silla con su inercia. */
+  private bajarDelCaballo(salto: boolean): void {
+    const c = this.caballo;
+    if (!c || !this.montado) return;
+    const vel = c.vel.clone();
+    this.soltarCaballo();
+    if (salto) {
+      this.vel.copy(vel).setY(8);
+      this.enSuelo = false;
+      this.tUltimoSuelo = -9;
+    } else {
+      const izq = new THREE.Vector3(Math.cos(c.rumbo), 0, -Math.sin(c.rumbo));
+      const pies = c.pos.clone().addScaledVector(izq, 1.4);
+      const libre = this.ctx?.nav.puntoLibreCercano(pies.x, pies.z, 0.5) ?? pies;
+      this.teletransportar(new THREE.Vector3(libre.x, 0, libre.z));
+      this.vel.copy(vel).multiplyScalar(0.3);
+    }
+    this.ctx?.eventos.emit({ tipo: 'caballo', accion: 'bajar', pos: c.pos.clone() });
+  }
+
+  /** Montado: el caballo manda; se puede cortar, tirar bengalas y clavar un gancho (te saca de la silla). */
+  private pasoMontado(dt: number, entrada: Entrada, mirada: Mirada, deseo: THREE.Vector3): void {
+    const c = this.caballo!;
+    const galope = entrada.mantenida('ShiftLeft') || entrada.mantenida('ShiftRight');
+    if (entrada.consumir('Space')) {
+      this.bajarDelCaballo(true);
+      return;
+    }
+    c.conducir(dt, deseo, galope);
+    c.silla(this.pos);
+    this.vel.copy(c.vel);
+    this.rumbo = c.rumbo;
+    this.enSuelo = false;
+    this.odm.actualizar(dt, { pos: this.pos, vel: this.vel, gas: this.gas, entrada, dirImpulso: mirada.dir, impulso: false }, this.salida, mirada.dir);
+    this.combate?.paso(dt, entrada, mirada.dir);
+    this.cuerpo.setNextKinematicTranslation({ x: this.pos.x, y: this.pos.y, z: this.pos.z });
+    // un gancho clavado te arranca de la silla, con la velocidad del galope
+    if (this.odm.anclados.length > 0) {
+      this.soltarCaballo();
+      this.vel.y = Math.max(this.vel.y, 3);
+      this.ultimaManiobra = this.tiempo;
+    }
+  }
   private ctx: ContextoJuego | null = null;
   /** Segundos desde el último daño (la vida se regenera fuera de combate). */
   private sinDanio = 99;
@@ -136,6 +219,10 @@ export class Jugador implements JugadorAPI {
   private impactoAterrizaje = 0;
   private rodando = 0;
   private enDeposito = 0;
+  /** Última maniobra evasiva (impulso, freno, salto con gas o ancla nueva), en segundos de juego. */
+  private ultimaManiobra = -9;
+  private anclasPrevias = 0;
+  private impulsoPrevio = false;
 
   conectar(ctx: ContextoJuego): void {
     this.ctx = ctx;
@@ -196,9 +283,11 @@ export class Jugador implements JugadorAPI {
     const antes = this.enDeposito;
     this.enDeposito += dt;
     const c = this.combate?.cuchillas;
-    if (antes < 2 && this.enDeposito >= 2 && c && (c.repuesto < 4 || c.filo < 1)) {
+    const faltanBengalas = (this.combate?.bengalas ?? MAX_BENGALAS) < MAX_BENGALAS;
+    if (antes < 2 && this.enDeposito >= 2 && c && (c.repuesto < 4 || c.filo < 1 || faltanBengalas)) {
       c.rellenar();
-      this.ctx?.eventos.emit({ tipo: 'mensaje', texto: 'Cuchillas repuestas', segundos: 1.5 });
+      this.combate?.rellenarBengalas();
+      this.ctx?.eventos.emit({ tipo: 'mensaje', texto: 'Equipo repuesto', segundos: 1 });
       this.ctx?.eventos.emit({ tipo: 'recarga', quien: this });
     }
   }
@@ -252,6 +341,7 @@ export class Jugador implements JugadorAPI {
   /** Coloca al jugador con los pies en `pies`. */
   teletransportar(pies: THREE.Vector3, rumbo?: number): void {
     // un pelín por encima: si la cápsula empieza metida en el suelo, el controlador no la frena
+    this.soltarCaballo();
     this.pos.copy(pies).y += MITAD_ALTURA_CENTRO + 0.05;
     this.posPrevia.copy(this.pos);
     this.posRender.copy(this.pos);
@@ -305,6 +395,11 @@ export class Jugador implements JugadorAPI {
       return;
     }
     if (!this.vivo) return;
+    if (entrada.consumir('KeyC') && !this.agarradoPor) this.usarCaballo();
+    if (this.montado && this.caballo) {
+      this.pasoMontado(dt, entrada, mirada, deseo);
+      return;
+    }
     // Agarrado por un titán: él nos mueve; nosotros solo podemos cortar (QTE)
     if (this.agarradoPor) {
       this.combate?.paso(dt, entrada, mirada.dir);
@@ -342,6 +437,14 @@ export class Jugador implements JugadorAPI {
     this.dirMirada.copy(mirada.dir);
     this.odm.actualizar(dt, { pos: this.pos, vel: this.vel, gas: this.gas, entrada, dirImpulso, impulso }, this.salida, mirada.dir);
     const tirando = this.odm.recogiendo || this.odm.impulsando;
+    // Maniobras que esquivan un agarre: empezar un impulso o clavar un gancho nuevo
+    let anclas = 0;
+    this.odm.ganchos.forEach((g, i) => {
+      if (g.estado === 'anclado') anclas |= 1 << i;
+    });
+    if ((this.odm.impulsando && !this.impulsoPrevio) || (anclas & ~this.anclasPrevias) !== 0) this.ultimaManiobra = this.tiempo;
+    this.anclasPrevias = anclas;
+    this.impulsoPrevio = this.odm.impulsando;
 
     // Shift: correr a pie (gasta aguante); en el aire prepara la rodada
     const shiftPulsado = entrada.consumir('ShiftLeft') || entrada.consumir('ShiftRight');
@@ -406,11 +509,13 @@ export class Jugador implements JugadorAPI {
     // Salto con gas: manteniendo Espacio tras saltar (sin dirección), el gas sigue empujando
     // hacia arriba hasta ALTURA_SALTO_GAS sobre el despegue (para escapar de los que corren
     // a cuatro patas o caer sobre un titán desde arriba); al llegar, planea con el freno.
+    const elevandoAntes = this.elevando;
     this.elevando = false;
     if (this.subiendoGas && espacio && sinDireccion && !this.enSuelo && this.tiempo - this.tSalto > 0.06) {
       const altura = this.pos.y - this.ySalto;
       const f = altura >= ALTURA_SALTO_GAS ? 0 : this.odm.gasInfinito ? 1 : this.gas.consumirContinuo(config.gas.costeImpulsoPorSegundo, dt);
       if (f > 0) {
+        if (!elevandoAntes) this.ultimaManiobra = this.tiempo;
         this.elevando = true;
         // sube rápido y afloja al acercarse al tope, sin pasarse
         const objetivoVy = Math.min(15, 1.5 + (ALTURA_SALTO_GAS - altura) * 2.4);
@@ -430,6 +535,7 @@ export class Jugador implements JugadorAPI {
       const puedePagar = this.odm.gasInfinito || !empiezaFreno || this.gas.consumir(config.gas.costeFreno);
       const f = !puedePagar ? 0 : this.odm.gasInfinito ? 1 : this.gas.consumirContinuo(config.gas.costeFrenoPorSegundo, dt);
       if (f > 0) {
+        if (empiezaFreno) this.ultimaManiobra = this.tiempo;
         this.frenando = true;
         if (empiezaFreno && this.vel.y < 0) this.vel.y *= config.odm.frenoEmergencia;
         const kh = Math.exp(-3.5 * f * dt);
@@ -540,7 +646,6 @@ export class Jugador implements JugadorAPI {
         if (this.pegado || g.estado !== 'anclado' || !g.normalAncla || Math.abs(g.normalAncla.y) > 0.55) return;
         if (this.pos.distanceTo(g.ancla) > 2.6) return;
         this.pegado = { punto: g.ancla.clone(), normal: g.normalAncla.clone().setY(0).normalize(), gancho: i };
-        this.ctx?.eventos.emit({ tipo: 'mensaje', texto: 'En la pared: suelta el gancho para saltar · salto para impulsarte', segundos: 2.2 });
       });
       if (!this.pegado) {
         this.odm.pegado = false;
@@ -617,6 +722,7 @@ export class Jugador implements JugadorAPI {
       cambiandoCuchillas: (this.combate?.cuchillas.cambiando ?? 0) > 0,
       rodando: this.rodando > 0,
       agarrado: this.agarradoPor !== null,
+      montado: this.montado,
       muerto: !this.vivo,
       // agachado sobre la pared: la misma flexión que al aterrizar
       aterrizaje: this.pegado ? 0.05 : this.tAterrizaje,

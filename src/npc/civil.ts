@@ -83,6 +83,8 @@ export class Civil implements Humano {
   distTitan = Infinity;
   /** Brazo del titán que lo sujeta. */
   brazoAgarre: 'brazoIzq' | 'brazoDer' | null = null;
+  /** Aldeano de un pueblo: pasea por él y, si huye, se aleja del titán sin ir a la puerta de Trost. */
+  hogar: { x: number; z: number; radio: number } | null = null;
 
   private readonly vAndar: number;
   private readonly vCorrer: number;
@@ -341,6 +343,15 @@ export class Civil implements Humano {
       this.ruta = null;
       this.temporizador = e.rng.rango(1, 4);
       this.cambiar('quieto');
+      return;
+    }
+    // Aldeano: corre lejos del titán (hacia fuera de su pueblo si hace falta) y se calma luego
+    if (this.hogar) {
+      const v = this.herido ? Math.min(2.2, this.vCorrer * 0.55) : this.vCorrer;
+      if (titanVisto && this.titanCerca) {
+        tmp.copy(this.pies).sub(this.titanCerca.posicion).setY(0).normalize().multiplyScalar(12).add(this.pies);
+        this.moverHacia(dt, e, tmp, v, true);
+      } else this.frenar(dt, 3);
       return;
     }
     // ¿Ha llegado a la puerta?

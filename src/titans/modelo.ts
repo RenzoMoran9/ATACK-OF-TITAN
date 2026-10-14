@@ -48,6 +48,18 @@ export const COMPLEXIONES: Proporciones[] = [
   },
 ];
 
+/**
+ * Cambiantes (Acorazado, Hembra): proporciones humanas, piernas largas y cabeza pequeña,
+ * nada que ver con los puros deformes.
+ */
+export const COMPLEXION_CAMBIANTE: Proporciones = {
+  cadera: 0.5, muslo: 0.245, radioPierna: 0.05, anchoCadera: 0.06,
+  perfil: [[0, 0.46], [0.07, 0.47], [0.085, 0.52], [0.08, 0.58], [0.095, 0.66], [0.115, 0.74], [0.12, 0.79], [0.1, 0.82], [0.05, 0.84], [0, 0.842]],
+  profundidad: 0.6,
+  hombroY: 0.81, hombroX: 0.13, cuelloAlto: 0.04,
+  radioCabeza: 0.068, brazo: 0.42, radioBrazo: 0.03,
+};
+
 /** Varía una complexión con la semilla (±8 %) para que no haya dos iguales. */
 export function variarProporciones(base: Proporciones, azar: () => number): Proporciones {
   const v = (x: number, f = 0.08) => x * (1 + (azar() - 0.5) * 2 * f);
