@@ -87,12 +87,13 @@ Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en
 
 Al tocar **Empezar** el juego pasa a pantalla completa. El HUD se reparte arriba para dejar libres los pulgares.
 
-### Gráficos en el celular
+### Gráficos
 
-La calidad se adapta sola (`src/core/calidad.ts`): en el celular empieza en **Media** (sombras pequeñas, menos distancia
-de dibujado, sin antialias, pocas antorchas con luz) y, si no llega a ~45 imágenes por segundo, baja la resolución
-interna y luego pasa a **Fluida** (sin sombras, niebla más cerca). En la pausa, el botón **Gráficos** permite elegir
-Auto, Alta, Media o Fluida. Cada soldado se dibuja con ~25 piezas fundidas (antes 63) y los titanes con ~20.
+En la pausa, **Gráficos** te deja elegir **Automático**, **Alto**, **Medio** o **Bajo**; se guarda en el dispositivo. Sin
+elegir, empieza en **Alto** en el ordenador y en **Medio** en el celular (sombras pequeñas, menos distancia de dibujado,
+sin antialias, pocas antorchas con luz). Un nivel fijo no cambia por su cuenta. **Automático** adapta la calidad
+(`src/core/calidad.ts`): si no llega a ~45 imágenes por segundo, baja primero la resolución interna y después el nivel
+(**Bajo**: sin sombras, niebla más cerca). Cada soldado se dibuja con ~25 piezas fundidas (antes 63) y los titanes con ~20.
 
 ## Sonido
 

@@ -30,7 +30,7 @@ import { ajustarNoche } from './world/materiales';
 import { actualizarMundo, ajustarHoraMundo, construirMundo, depositoMasCercano } from './world/mundo';
 import { AmbienteBosque } from './world/ambiente';
 import { Linterna } from './player/linterna';
-import { Calidad, PERFILES } from './core/calidad';
+import { Calidad, PERFILES, guardarModo, modoGuardado } from './core/calidad';
 import { Sonido } from './audio/sonido';
 import { SonidosJuego } from './audio/sonidosJuego';
 import { ControlesTactiles, esDispositivoTactil } from './ui/tactil';
@@ -187,14 +187,12 @@ async function iniciar(): Promise<void> {
     campana = new Campana(ctx, [new CapMundo()]);
     escuadron.depositoDisponible = () => campana?.depositoDisponible() ?? true;
     pantallas = new Pantallas(campana, () => entrada.capturar(), tactil, {
-      texto: () => (calidad ? `Gráficos: ${calidad.auto ? 'Auto · ' : ''}${calidad.perfil.etiqueta}` : 'Gráficos'),
-      siguiente: () => {
+      modo: () => calidad?.modo ?? 'auto',
+      nivelAhora: () => calidad?.perfil.etiqueta ?? '',
+      elegir: (m) => {
         if (!calidad) return;
-        // Auto → Alta → Media → Fluida → Auto
-        if (calidad.auto) calidad.fijar('alta');
-        else if (calidad.nivel === 'alta') calidad.fijar('media');
-        else if (calidad.nivel === 'media') calidad.fijar('baja');
-        else calidad.fijar(tactil ? 'media' : 'alta', true);
+        calidad.fijar(m);
+        guardarModo(m);
       },
     });
   }
@@ -286,8 +284,9 @@ async function iniciar(): Promise<void> {
   ciclo.congelado = modoCaptura;
   aplicarCielo(true);
 
-  // Calidad adaptable: en el celular empieza en «media» y baja sola si no va fluido
-  calidad = new Calidad(tactil ? 'media' : 'alta', window.devicePixelRatio || 1, (perfil, resolucion, nivelCambiado) => {
+  // Calidad gráfica: Automático o un nivel fijo, lo elige el jugador en la pausa. Sin elección,
+  // nivel fijo: Alto en el ordenador y Medio en el celular (src/core/calidad.ts)
+  calidad = new Calidad(modoGuardado() ?? (tactil ? 'media' : 'alta'), tactil ? 'media' : 'alta', window.devicePixelRatio || 1, (perfil, resolucion, nivelCambiado) => {
     renderer.setPixelRatio(resolucion);
     if (!nivelCambiado) return;
     const sombras = perfil.sombras && config.render.sombras;

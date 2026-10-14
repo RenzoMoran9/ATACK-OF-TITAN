@@ -1,11 +1,24 @@
 /**
- * Calidad gráfica adaptable. En el celular empieza en «media» y, si el juego no llega a ~45
- * imágenes por segundo, baja primero la resolución interna y después el nivel (sin sombras,
- * menos distancia de dibujado). Si sobra potencia, sube la resolución hasta el tope del nivel.
- * Nunca sube de nivel por su cuenta (evita que oscile); el jugador puede elegirlo en la pausa.
+ * Calidad gráfica. La elige el jugador en la pausa: Automático, o un nivel fijo (Alto, Medio o
+ * Bajo). Con un nivel fijo no cambia nada por su cuenta. En Automático la calidad se adapta: si
+ * el juego no llega a ~45 imágenes por segundo, baja primero la resolución interna y después el
+ * nivel (sin sombras, menos distancia de dibujado); si sobra potencia, sube la resolución hasta
+ * el tope del nivel. Nunca sube de nivel por su cuenta (evita que oscile).
  */
 
 export type NivelCalidad = 'alta' | 'media' | 'baja';
+
+/** Lo que elige el jugador: el ajuste automático o un nivel fijo. */
+export type ModoGraficos = 'auto' | NivelCalidad;
+
+export const MODOS_GRAFICOS: readonly ModoGraficos[] = ['auto', 'alta', 'media', 'baja'];
+
+export const ETIQUETA_MODO: Readonly<Record<ModoGraficos, string>> = {
+  auto: 'Automático',
+  alta: 'Alto',
+  media: 'Medio',
+  baja: 'Bajo',
+};
 
 export interface PerfilCalidad {
   etiqueta: string;
@@ -21,12 +34,33 @@ export interface PerfilCalidad {
 }
 
 export const PERFILES: Record<NivelCalidad, PerfilCalidad> = {
-  alta: { etiqueta: 'Alta', resolucionMax: 1.5, resolucionMin: 1, sombras: true, tamanoSombra: 2048, distancia: 1, antorchasConLuz: 8 },
-  media: { etiqueta: 'Media', resolucionMax: 1.1, resolucionMin: 0.7, sombras: true, tamanoSombra: 1024, distancia: 0.6, antorchasConLuz: 4 },
-  baja: { etiqueta: 'Fluida', resolucionMax: 0.85, resolucionMin: 0.5, sombras: false, tamanoSombra: 512, distancia: 0.42, antorchasConLuz: 2 },
+  alta: { etiqueta: 'Alto', resolucionMax: 1.5, resolucionMin: 1, sombras: true, tamanoSombra: 2048, distancia: 1, antorchasConLuz: 8 },
+  media: { etiqueta: 'Medio', resolucionMax: 1.1, resolucionMin: 0.7, sombras: true, tamanoSombra: 1024, distancia: 0.6, antorchasConLuz: 4 },
+  baja: { etiqueta: 'Bajo', resolucionMax: 0.85, resolucionMin: 0.5, sombras: false, tamanoSombra: 512, distancia: 0.42, antorchasConLuz: 2 },
 };
 
 export const ORDEN_NIVELES: NivelCalidad[] = ['alta', 'media', 'baja'];
+
+const CLAVE_MODO = 'atack-of-titan-graficos';
+
+/** El modo que el jugador eligió en este dispositivo (null si nunca lo ha elegido). */
+export function modoGuardado(): ModoGraficos | null {
+  try {
+    const v = localStorage.getItem(CLAVE_MODO);
+    return MODOS_GRAFICOS.find((m) => m === v) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Guarda el modo elegido. Sin almacenamiento (navegador privado), dura lo que la sesión. */
+export function guardarModo(modo: ModoGraficos): void {
+  try {
+    localStorage.setItem(CLAVE_MODO, modo);
+  } catch {
+    // sin almacenamiento: la elección solo vale para esta sesión
+  }
+}
 
 /** Decide el siguiente ajuste a partir de las imágenes por segundo medidas (puro, para tests). */
 export function ajustarResolucion(
@@ -43,31 +77,39 @@ export function ajustarResolucion(
 }
 
 export class Calidad {
+  /** Lo que eligió el jugador. */
+  modo: ModoGraficos;
+  /** Nivel que se usa ahora (en automático, el que ha elegido el ajuste). */
   nivel: NivelCalidad;
-  /** Ajuste automático activo (si el jugador elige un nivel a mano, solo se mueve la resolución). */
-  auto = true;
   resolucion: number;
   private tiempo = 0;
   private fotogramas = 0;
   private enfriamiento = 2; // segundos sin medir tras un cambio (la carga de shaders falsea la medida)
 
   constructor(
-    inicial: NivelCalidad,
+    modo: ModoGraficos,
+    /** Nivel con el que arranca el modo automático. */
+    nivelInicial: NivelCalidad,
     private readonly dpr: number,
     private readonly aplicar: (perfil: PerfilCalidad, resolucion: number, nivelCambiado: boolean) => void,
   ) {
-    this.nivel = inicial;
-    this.resolucion = Math.min(PERFILES[inicial].resolucionMax, dpr);
-    this.aplicar(PERFILES[inicial], this.resolucion, true);
+    this.modo = modo;
+    this.nivel = modo === 'auto' ? nivelInicial : modo;
+    this.resolucion = Math.min(PERFILES[this.nivel].resolucionMax, dpr);
+    this.aplicar(PERFILES[this.nivel], this.resolucion, true);
   }
 
   get perfil(): PerfilCalidad {
     return PERFILES[this.nivel];
   }
 
-  /** El jugador elige un nivel (desde la pausa). */
-  fijar(nivel: NivelCalidad, auto = false): void {
-    this.auto = auto;
+  /** El jugador elige automático o un nivel. Un nivel fijo no se mueve por su cuenta. */
+  fijar(modo: ModoGraficos): void {
+    this.modo = modo;
+    this.ponerNivel(modo === 'auto' ? this.nivel : modo);
+  }
+
+  private ponerNivel(nivel: NivelCalidad): void {
     const cambia = nivel !== this.nivel;
     this.nivel = nivel;
     this.resolucion = Math.min(PERFILES[nivel].resolucionMax, this.dpr);
@@ -75,9 +117,10 @@ export class Calidad {
     this.aplicar(PERFILES[nivel], this.resolucion, cambia);
   }
 
-  /** Llamar cada fotograma con el tiempo real transcurrido (s). */
+  /** Llamar cada fotograma con el tiempo real transcurrido (s). Solo hace algo en automático. */
   medir(dtReal: number, activo: boolean): void {
-    if (!activo || dtReal > 0.5) return; // en menús o tras una pausa larga no se mide
+    // en menús, con un nivel fijo o tras una pausa larga no se mide
+    if (this.modo !== 'auto' || !activo || dtReal > 0.5) return;
     if (this.enfriamiento > 0) {
       this.enfriamiento -= dtReal;
       return;
@@ -90,10 +133,10 @@ export class Calidad {
     this.fotogramas = 0;
     const perfil = this.perfil;
     const r = ajustarResolucion(fps, this.resolucion, { ...perfil, resolucionMax: Math.min(perfil.resolucionMax, this.dpr) });
-    if (r.bajarNivel && this.auto) {
+    if (r.bajarNivel) {
       const i = ORDEN_NIVELES.indexOf(this.nivel);
       if (i < ORDEN_NIVELES.length - 1) {
-        this.fijar(ORDEN_NIVELES[i + 1], true);
+        this.ponerNivel(ORDEN_NIVELES[i + 1]);
         return;
       }
     }

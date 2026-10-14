@@ -1,4 +1,5 @@
 import type { Campana } from '../missions/campana';
+import { ETIQUETA_MODO, MODOS_GRAFICOS, type ModoGraficos } from '../core/calidad';
 import { textoHora } from '../core/cicloDia';
 import { leerPartida } from '../missions/guardado';
 import { alCambiarInstalable, enModoApp, entrarPantallaCompleta, alternarPantallaCompleta, esIOS, instalarApp, pantallaCompletaDisponible, puedeInstalarse } from './pantallaCompleta';
@@ -54,8 +55,8 @@ export class Pantallas {
     private readonly campana: Campana,
     private readonly pedirCaptura: () => Promise<boolean>,
     private readonly tactil = false,
-    /** Botón de gráficos en la pausa: texto actual y pasar al siguiente ajuste. */
-    private readonly graficos: { texto: () => string; siguiente: () => void } | null = null,
+    /** Gráficos en la pausa: el modo elegido, cambiarlo y el nivel que se usa ahora (en automático). */
+    private readonly graficos: { modo: () => ModoGraficos; elegir: (m: ModoGraficos) => void; nivelAhora: () => string } | null = null,
   ) {
     this.raiz = document.createElement('div');
     this.raiz.className = 'pantalla';
@@ -92,6 +93,33 @@ export class Pantallas {
 
   get bloqueaJuego(): boolean {
     return this.pausado || !this.campana.jugando;
+  }
+
+  /** Automático, Alto, Medio o Bajo: el elegido queda marcado. Con Automático, dice qué nivel usa ahora. */
+  private selectorGraficos(g: { modo: () => ModoGraficos; elegir: (m: ModoGraficos) => void; nivelAhora: () => string }): HTMLDivElement {
+    const caja = document.createElement('div');
+    caja.className = 'graficos';
+    const titulo = document.createElement('p');
+    titulo.textContent = 'Gráficos';
+    const fila = document.createElement('div');
+    fila.className = 'botones';
+    const botones = new Map<ModoGraficos, HTMLButtonElement>();
+    const ahora = document.createElement('small');
+    const pintar = () => {
+      for (const [m, b] of botones) b.classList.toggle('activo', g.modo() === m);
+      ahora.textContent = g.modo() === 'auto' ? `Ahora: ${g.nivelAhora()}` : '';
+    };
+    for (const m of MODOS_GRAFICOS) {
+      const b = this.boton(ETIQUETA_MODO[m], () => {
+        g.elegir(m);
+        pintar();
+      });
+      botones.set(m, b);
+      fila.appendChild(b);
+    }
+    caja.append(titulo, fila, ahora);
+    pintar();
+    return caja;
   }
 
   private boton(texto: string, accion: () => void, clase = ''): HTMLButtonElement {
@@ -187,17 +215,7 @@ export class Pantallas {
           }),
         );
       }
-      const g = this.graficos;
-      if (g) {
-        const b = this.boton(g.texto(), () => {
-          g.siguiente();
-          b.textContent = g.texto();
-        });
-        const filaG = document.createElement('div');
-        filaG.className = 'botones';
-        filaG.appendChild(b);
-        r.appendChild(filaG);
-      }
+      if (this.graficos) r.appendChild(this.selectorGraficos(this.graficos));
       r.insertAdjacentHTML('beforeend', this.controles);
       return;
     }

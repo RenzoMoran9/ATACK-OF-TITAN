@@ -621,6 +621,27 @@ body {
 .pantalla .botones.app:empty {
   display: none;
 }
+/* Gráficos en la pausa: Automático, Alto, Medio o Bajo (el elegido, en verde) */
+.pantalla .graficos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.pantalla .graficos p {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 1px;
+  opacity: 0.8;
+}
+.pantalla .graficos small {
+  font-size: 11px;
+  opacity: 0.7;
+}
+.pantalla .graficos button.activo {
+  border-color: #8fe0a0;
+  background: rgba(30, 90, 50, 0.85);
+}
 .pantalla .pista {
   flex-basis: 100%;
   margin: 0;
