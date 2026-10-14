@@ -170,13 +170,19 @@ va a la nuca cuando el titán no le mira. Rescatan a quien esté en la mano de u
 150). No pelea: cuando a ti te queda menos del 35 % o a un compañero menos del 30 %, vuela hasta él y le pasa gas. Con
 **G** se lo pides a él primero, esté donde esté.
 
-**Heridos y caballos.** Cada soldado tiene su caballo. Un titán que lo agarra le quita vida (si lo rescatan, llega herido).
-Por debajo del 40 % se retira a caballo y te avisa; si hay un médico, va hacia él. No vuelve a la línea hasta el 85 %.
-Cuando tres o más titanes se acercan, el escuadrón también sale del encuentro a caballo, y la orden 4 (retirada) lo manda
-atrás con el mismo galope.
+**Obediencia.** Mientras no les des ninguna orden, el escuadrón actúa por su cuenta: rescata a quien tenga un titán en la
+mano, va al depósito cuando se queda sin gas, reparte gas y huye si está herido o rodeado. En cuanto das una orden (1–8),
+la cumplen sin excepciones: nada de depósito, rescates, huidas ni gas por su cuenta. Hay dos excepciones: rescatan si les
+mandas atacar (y te sacan a ti si te siguen), y el gas que pides con **G** se lo dan aunque tengan una orden. Un herido con
+orden sigue cumpliéndola: te avisa y lo ves en rojo en el panel; si quieres que se retire, dale la orden 4.
 
-**Hanji, el médico**, va siempre a caballo y no pelea. Cura a los heridos que tiene cerca y, cuando tu vida baja del 60 %,
-viene a por ti a galope para curarte. Un herido que descansa junto a ti, sin médico al lado, se recupera despacio. Su vida aparece en
+**Heridos y caballos.** Cada soldado tiene su caballo. Un titán que lo agarra le quita vida (si lo rescatan, llega herido).
+Sin orden tuya, por debajo del 40 % se retira a caballo y te avisa; si hay un médico, va hacia él. No vuelve a la línea hasta
+el 85 %. Sin orden tuya, cuando tres o más titanes se acercan, el escuadrón también sale del encuentro a caballo. La orden 4
+(retirada) lo manda a tu espalda con el mismo galope.
+
+**Hanji, el médico**, va siempre a caballo y no pelea por su cuenta. Cura a los heridos que tiene cerca y, sin orden tuya,
+cuando tu vida baja del 60 % viene a por ti a galope para curarte. Si le mandas atacar, baja del caballo y pelea. Un herido que descansa junto a ti, sin médico al lado, se recupera despacio. Su vida aparece en
 el panel del escuadrón (VIDA), en rojo por debajo del 40 %.
 
 Si cae entero, en un refugio (Trost, un puesto de avanzada, el campamento o un pueblo en paz) se te unen

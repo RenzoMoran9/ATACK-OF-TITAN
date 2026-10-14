@@ -37,6 +37,8 @@ export interface Mision {
   humano?: Humano;
   /** Recargar: tiempo de juego a partir del cual se abandona (depósito inalcanzable). */
   hasta?: number;
+  /** Darle gas que has pedido tú (G): se cumple aunque tenga una orden. */
+  pedido?: boolean;
 }
 
 /** La orden que le dio el jugador (la misión concreta la decide el escuadrón cada 0,4 s). */
@@ -54,6 +56,11 @@ export interface OrdenAsignada {
   previa?: OrdenAsignada;
   /** Trabajando en el campamento: sin banderín y con su propia actividad en el panel. */
   trabajo?: boolean;
+  /**
+   * Una orden tuya: se cumple sin excepciones (nada de rescates, depósito, gas ni huida por su
+   * cuenta). Sin ella, el soldado actúa por su cuenta.
+   */
+  dada?: boolean;
 }
 
 interface Ancla {

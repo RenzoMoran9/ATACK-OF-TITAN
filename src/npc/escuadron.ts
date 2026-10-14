@@ -7,7 +7,7 @@ import { Silueta } from '../missions/silueta';
 import { Caballo } from '../player/caballo';
 import { Particulas } from '../player/particulas';
 import { CURACION_JUGADOR, CURACION_SIN_MEDICO, CURACION_SOLDADO, RADIO_CURA, RADIO_PELIGRO, encuentroPeligroso, estaHerido } from './logicaHeridos';
-import { COLOR_AVISO, COLOR_BENGALA, fraseConfirmacion, necesitaRecarga, puesto, puntoPatrulla, siguienteSeleccion, textoAviso } from './logicaOrdenes';
+import { COLOR_AVISO, COLOR_BENGALA, fraseConfirmacion, necesitaRecarga, puedeRescatar, puesto, puntoPatrulla, siguienteSeleccion, textoAviso } from './logicaOrdenes';
 import { Soldado, type OrdenAsignada } from './soldado';
 
 /**
@@ -148,9 +148,10 @@ export class Escuadron implements EscuadronAPI {
     const conPunto = o === 'esperar' || o === 'irA' || o === 'explorar';
     const punto = conPunto ? (destino.punto?.clone() ?? puntoAlSuelo(ctx.fisica, j.posicion)) : undefined;
     grupo.forEach((s, i) => {
-      const nueva: OrdenAsignada = { tipo: o, punto, titan };
+      const nueva: OrdenAsignada = { tipo: o, punto, titan, dada: true };
       if (punto && o !== 'explorar') nueva.puesto = this.puestoJunto(punto, i, grupo.length);
       if (o === 'atacarTitan') nueva.previa = s.orden.tipo === 'atacarTitan' ? s.orden.previa : s.orden;
+      this.anularReflejo(s);
       s.orden = nueva;
     });
     this.tCoordinar = 0;
@@ -161,16 +162,24 @@ export class Escuadron implements EscuadronAPI {
     habla.decir(fraseConfirmacion(o, !this.seleccion && grupo.length > 1, Math.random, titan?.altura));
   }
 
+  /** Una orden nueva cancela lo que hacía por su cuenta (depósito, rescate, gas, huida, curación). */
+  private anularReflejo(s: Soldado): void {
+    const m = s.mision;
+    if (m.tipo === 'recargar' || m.tipo === 'rescatar' || m.tipo === 'huir' || m.tipo === 'curar' || (m.tipo === 'darGas' && !m.pedido)) s.mision = { tipo: 'seguir' };
+    s.huyendo = false;
+  }
+
   trabajarEn(h: Humano, punto: THREE.Vector3 | null, descanso?: THREE.Vector3): void {
     const s = this.soldados.find((x) => x === h);
     if (!s || !s.vivo) return;
+    this.anularReflejo(s);
     if (punto) {
       // a pie de obra, a la altura del cuerpo
       const p = punto.clone().setY(0);
-      s.orden = { tipo: 'irA', punto: p, puesto: p.clone().setY(0.9), trabajo: true };
+      s.orden = { tipo: 'irA', punto: p, puesto: p.clone().setY(0.9), trabajo: true, dada: true };
     } else if (descanso) {
       const p = descanso.clone().setY(0);
-      s.orden = { tipo: 'esperar', punto: p, puesto: this.puestoJunto(p, this.soldados.indexOf(s), this.soldados.length) };
+      s.orden = { tipo: 'esperar', punto: p, puesto: this.puestoJunto(p, this.soldados.indexOf(s), this.soldados.length), dada: true };
     } else s.orden = { tipo: 'seguir' };
     this.tCoordinar = 0;
   }
@@ -215,7 +224,7 @@ export class Escuadron implements EscuadronAPI {
   pedirGas(): Humano | null {
     const d = this.donanteGas();
     if (!d) return null;
-    d.mision = { tipo: 'darGas', humano: this.ctx.jugador };
+    d.mision = { tipo: 'darGas', humano: this.ctx.jugador, pedido: true };
     d.decir('¡Aguanta, voy a pasarte gas!');
     return d;
   }
@@ -328,7 +337,7 @@ export class Escuadron implements EscuadronAPI {
 
     // El intendente reparte gas sin que se lo pidan: a ti primero, luego al que vaya más justo
     for (const s of libres) {
-      if (s.rol !== 'intendente' || asignados.has(s) || s.gas < 60) continue;
+      if (s.rol !== 'intendente' || asignados.has(s) || s.gas < 60 || s.orden.dada) continue;
       const quien = this.necesitaGas(s);
       if (!quien) continue;
       if (!(s.mision.tipo === 'darGas' && s.mision.humano === quien)) {
@@ -349,7 +358,7 @@ export class Escuadron implements EscuadronAPI {
       if (!h.vivo || !titan || !titan.vivo) continue;
       const zona = titan.puntosDebiles.find((p) => p.activo && MANOS.includes(p.zona))?.zona;
       if (!zona) continue;
-      const s = this.masCercano(libres, asignados, h.posicion, (x) => x.cuchillas.puedeCortar && x.orden.tipo !== 'retirada' && x.rol !== 'medico');
+      const s = this.masCercano(libres, asignados, h.posicion, (x) => x.cuchillas.puedeCortar && x.orden.tipo !== 'retirada' && x.rol !== 'medico' && puedeRescatar(x.orden.tipo, !!x.orden.dada, h === j));
       if (!s || s.posicion.distanceTo(h.posicion) > 180) continue;
       if (!(s.mision.tipo === 'rescatar' && s.mision.titan === titan && s.mision.zona === zona)) s.mision = { tipo: 'rescatar', titan, zona, humano: h };
       if (h === j) s.decir('¡Aguanta, voy a por ti!');
@@ -358,7 +367,7 @@ export class Escuadron implements EscuadronAPI {
 
     // 2. Reabastecerse: poco gas o sin cuchillas, y sin combate cerca
     for (const s of libres) {
-      if (asignados.has(s) || s.orden.tipo === 'retirada' || s.rol === 'medico') continue;
+      if (asignados.has(s) || s.orden.tipo === 'retirada' || s.rol === 'medico' || s.orden.dada) continue;
       if (this.combateCerca(s.posicion)) {
         if (s.mision.tipo === 'recargar') s.mision = { tipo: 'seguir' };
         continue;
@@ -435,6 +444,13 @@ export class Escuadron implements EscuadronAPI {
       }
     }
 
+    // a caballo solo para moverse: quien va a pelear baja; el médico vuelve a montar cuando no pelea
+    for (const s of libres) {
+      const combate = s.mision.tipo === 'atacar' || s.mision.tipo === 'rescatar';
+      if (combate && s.montado) s.desmontar();
+      else if (!combate && !s.montado && s.rol === 'medico') this.subirAlCaballo(s);
+    }
+
     // 5. Vigías
     this.avisar(libres);
     // caballos de quien va a pie: si se han quedado lejos, vienen a por su jinete
@@ -464,15 +480,24 @@ export class Escuadron implements EscuadronAPI {
       } else if (estabaHerido && !s.herido) {
         ctx.eventos.emit({ tipo: 'mensaje', texto: `${s.nombre} curado: vuelve a la línea`, segundos: 2.5 });
       }
+      // con una orden tuya no huye por su cuenta: la retirada (4) lo manda a tu espalda, a caballo si está lejos
+      if (s.orden.dada) {
+        s.huyendo = false;
+        const espalda = this.traseraJugador();
+        if (s.orden.tipo === 'retirada' && Math.hypot(espalda.x - s.posicion.x, espalda.z - s.posicion.z) > LLEGADA_REFUGIO + 3) {
+          asignados.add(s);
+          s.mision = { tipo: 'huir', destino: espalda };
+          this.subirAlCaballo(s);
+        } else if (s.montado && s.rol !== 'medico') s.desmontar();
+        continue;
+      }
+      const refugio = this.refugioPara(s, medico);
+      const dist = Math.hypot(refugio.x - s.posicion.x, refugio.z - s.posicion.z);
       const peligrosos = ctx.poblacion.titanesCerca(s.posicion, RADIO_PELIGRO).filter(esAmenaza).length;
       const amenazado = ctx.poblacion.titanesCerca(s.posicion, RADIO_HUIDA).some(esAmenaza);
       if (!s.huyendo && encuentroPeligroso(peligrosos)) s.huyendo = true;
-      const refugio = this.refugioPara(s, medico);
-      const dist = Math.hypot(refugio.x - s.posicion.x, refugio.z - s.posicion.z);
       if (s.huyendo && !s.herido && !amenazado && dist < LLEGADA_REFUGIO) s.huyendo = false;
-      // la orden de retirada también lo manda atrás, salvo que ya esté allí
-      const retirada = s.orden.tipo === 'retirada' && dist > LLEGADA_REFUGIO + 3;
-      if (!s.huyendo && !retirada) {
+      if (!s.huyendo) {
         if (s.montado && s.rol !== 'medico') s.desmontar();
         continue;
       }
@@ -491,9 +516,14 @@ export class Escuadron implements EscuadronAPI {
     else c.llamar(s.posicion, c.rumbo);
   }
 
-  /** Adónde se retira: junto al médico (si no es él) o a tu espalda. */
+  /** Adónde se retira por sus heridas o por el peligro: junto al médico (si no es él) o a tu espalda. */
   private refugioPara(s: Soldado, medico: Soldado | null): THREE.Vector3 {
     if (medico && medico !== s) return medico.posicion.clone();
+    return this.traseraJugador();
+  }
+
+  /** A tu espalda, donde se juntan los que se retiran contigo. */
+  private traseraJugador(): THREE.Vector3 {
     return this.ctx.jugador.posicion.clone().addScaledVector(this.rumboFormacion, -12);
   }
 
@@ -507,7 +537,7 @@ export class Escuadron implements EscuadronAPI {
     const j = this.ctx.jugador;
     if (!j.vivo || j.agarradoPor || j.salud >= j.saludMax * 0.6) return;
     for (const s of libres) {
-      if (s.rol !== 'medico' || asignados.has(s)) continue;
+      if (s.rol !== 'medico' || asignados.has(s) || s.orden.dada) continue;
       if (s.mision.tipo !== 'curar') s.decir('¡Aguanta, voy a curarte!');
       s.mision = { tipo: 'curar', humano: j };
       asignados.add(s);
@@ -566,8 +596,9 @@ export class Escuadron implements EscuadronAPI {
   }
 
   private titanPara(s: Soldado, memo: Map<unknown, TitanAPI | null>): TitanAPI | null {
-    // el intendente y el médico no se meten en la pelea: cuidan de las bombonas y de los heridos
-    if (s.rol === 'intendente' || s.rol === 'medico') return null;
+    // el intendente y el médico no pelean por su cuenta: solo si les mandas luchar (no seguirte ni retirarse)
+    const luchan = s.orden.dada && s.orden.tipo !== 'seguir' && s.orden.tipo !== 'retirada';
+    if ((s.rol === 'intendente' || s.rol === 'medico') && !luchan) return null;
     const o = s.orden;
     const calcular = (clave: unknown, f: () => TitanAPI | null): TitanAPI | null => {
       if (!memo.has(clave)) memo.set(clave, f());

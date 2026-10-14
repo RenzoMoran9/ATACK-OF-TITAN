@@ -5,7 +5,8 @@ import type { OrdenEscuadron } from '../core/tipos';
  * teclas, nombres y frases de cada orden, color de la bengala de señales de la Legión,
  * palabras de brújula para los avisos, el titán que señala la mira, el ciclo de selección
  * con Tab, puestos de espera y puntos de patrulla, el detector de atascos y los criterios
- * de nivel de detalle y de reabastecimiento de los soldados.
+ * de nivel de detalle, de reabastecimiento de los soldados y de obediencia (qué puede hacer un
+ * soldado por su cuenta cuando ya le has dado una orden).
  */
 
 export interface Vec3 {
@@ -209,6 +210,16 @@ export function necesitaRecarga(gas: number, filo: number, repuesto: number): bo
  * acercado a su meta al menos `progresoMin` m. Si la meta se mueve, empieza de nuevo
  * (seguir a alguien que corre no es estar atascado).
  */
+/**
+ * Obediencia: lo que mandas se cumple siempre. Sin una orden tuya, el soldado rescata a quien
+ * tenga un titán en la mano; con una orden, solo rescata si le mandas atacar, o seguirte cuando
+ * el que está agarrado eres tú.
+ */
+export function puedeRescatar(orden: OrdenEscuadron, dada: boolean, alJugador: boolean): boolean {
+  if (!dada) return true;
+  return orden === 'atacar' || (orden === 'seguir' && alJugador);
+}
+
 export class DetectorAtasco {
   private t = 0;
   private dInicio = 0;
