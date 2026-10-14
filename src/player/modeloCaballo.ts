@@ -11,6 +11,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
  * cada vértice por debajo del vientre pertenece a una pata según su cuadrante (delante/detrás,
  * izquierda/derecha) y gira alrededor del hombro o la cadera, y lo que queda por debajo de la
  * rodilla gira además alrededor de ella. Los ángulos de las cuatro patas llegan como uniforms.
+ *
+ * Hay muchos caballos (el del jugador y uno por soldado): la geometría se lee una vez y cada
+ * caballo recibe su propio juego de materiales y uniforms de patas, para que cada uno galope
+ * a su aire sin copiar los vértices.
  */
 
 const URL_MODELO = './modelos/caballo.glb';
@@ -30,20 +34,25 @@ export interface ModeloCaballo {
   posar(muslo: readonly number[], cana: readonly number[]): void;
 }
 
+/** El modelo leído una vez: de aquí salen los caballos que hagan falta. */
+export interface PlantillaCaballo {
+  instanciar(): ModeloCaballo;
+}
+
 interface Patas {
   uMuslo: { value: THREE.Vector4 };
   uCana: { value: THREE.Vector4 };
 }
 
-let cargando: Promise<ModeloCaballo> | null = null;
+let cargando: Promise<PlantillaCaballo> | null = null;
 
-/** Carga el modelo una sola vez (solo hay un caballo en el juego). */
-export function cargarModeloCaballo(): Promise<ModeloCaballo> {
+/** Carga el modelo una sola vez para todos los caballos del juego. */
+export function cargarModeloCaballo(): Promise<PlantillaCaballo> {
   cargando ??= new GLTFLoader().loadAsync(URL_MODELO).then(prepararGLTF);
   return cargando;
 }
 
-function prepararGLTF(gltf: { scene: THREE.Object3D }): ModeloCaballo {
+function prepararGLTF(gltf: { scene: THREE.Object3D }): PlantillaCaballo {
   const escena = gltf.scene;
   escena.updateMatrixWorld(true);
   const mallas: THREE.Mesh[] = [];
@@ -96,43 +105,46 @@ function prepararGLTF(gltf: { scene: THREE.Object3D }): ModeloCaballo {
   const zDel = (pares.del.z / Math.max(1, pares.del.n) - cz) * s;
   const zTras = (pares.tras.z / Math.max(1, pares.tras.n) - cz) * s;
 
-  const grupo = new THREE.Group();
-  const patas: Patas = { uMuslo: { value: new THREE.Vector4() }, uCana: { value: new THREE.Vector4() } };
   // las patas giran desde la escápula y la cadera, bastante por encima del vientre
   const parametros = { vientre, pivote: vientre + 0.4, rodilla: vientre * 0.48, zDel, zTras };
-  mallas.forEach((m, i) => {
-    const original = m.material as THREE.MeshStandardMaterial;
-    const cuerpo = i === iCuerpo;
-    // Lambert: barato en el celular y con la misma lectura que el resto del mundo
-    const mat = new THREE.MeshLambertMaterial({
-      map: original.map,
-      normalMap: original.normalMap,
-      side: THREE.DoubleSide,
-      // pelo de la crin y la cola: recorte en vez de transparencia (sin problemas de orden)
-      alphaTest: cuerpo ? 0 : 0.45,
-      transparent: false,
+  const instanciar = (): ModeloCaballo => {
+    const grupo = new THREE.Group();
+    const patas: Patas = { uMuslo: { value: new THREE.Vector4() }, uCana: { value: new THREE.Vector4() } };
+    mallas.forEach((m, i) => {
+      const original = m.material as THREE.MeshStandardMaterial;
+      const cuerpo = i === iCuerpo;
+      // Lambert: barato en el celular y con la misma lectura que el resto del mundo
+      const mat = new THREE.MeshLambertMaterial({
+        map: original.map,
+        normalMap: original.normalMap,
+        side: THREE.DoubleSide,
+        // pelo de la crin y la cola: recorte en vez de transparencia (sin problemas de orden)
+        alphaTest: cuerpo ? 0 : 0.45,
+        transparent: false,
+      });
+      if (cuerpo) doblarPatas(mat, patas, parametros);
+      const malla = new THREE.Mesh(geos[i], mat);
+      malla.castShadow = true;
+      malla.receiveShadow = true;
+      if (cuerpo) {
+        const profundidad = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+        doblarPatas(profundidad, patas, parametros);
+        malla.customDepthMaterial = profundidad;
+      }
+      grupo.add(malla);
     });
-    if (cuerpo) doblarPatas(mat, patas, parametros);
-    const malla = new THREE.Mesh(geos[i], mat);
-    malla.castShadow = true;
-    malla.receiveShadow = true;
-    if (cuerpo) {
-      const profundidad = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
-      doblarPatas(profundidad, patas, parametros);
-      malla.customDepthMaterial = profundidad;
-    }
-    grupo.add(malla);
-  });
-  return {
-    grupo,
-    lomo: ALTURA_LOMO,
-    pivote: parametros.pivote,
-    rodilla: parametros.rodilla,
-    posar(muslo, cana) {
-      patas.uMuslo.value.set(muslo[0], muslo[1], muslo[2], muslo[3]);
-      patas.uCana.value.set(cana[0], cana[1], cana[2], cana[3]);
-    },
+    return {
+      grupo,
+      lomo: ALTURA_LOMO,
+      pivote: parametros.pivote,
+      rodilla: parametros.rodilla,
+      posar(muslo, cana) {
+        patas.uMuslo.value.set(muslo[0], muslo[1], muslo[2], muslo[3]);
+        patas.uCana.value.set(cana[0], cana[1], cana[2], cana[3]);
+      },
+    };
   };
+  return { instanciar };
 }
 
 /** Inyecta en el shader el giro de cada pata (también en la normal, para que la luz acompañe). */

@@ -17,7 +17,7 @@ const CONTROLES = `
     <li><b>Shift</b> (mantener) correr, gasta aguante · Shift o Espacio justo antes de tocar el suelo: rodada</li>
     <li><b>F</b> también da el tajo · <b>R</b> cambiar cuchillas · <b>WASD</b> mover · <b>Ratón/flechas</b> cámara</li>
     <li>Cuando un titán cierra la mano sobre ti, <b>impulso o gancho nuevo justo a tiempo</b>: lo esquivas · volando bajo junto a un tobillo, el tajo va al <b>tendón</b></li>
-    <li><b>B</b> bengala (en la cara, lo ciega 3 s) · <b>X</b> fijar parte del titán (nuca, ojos, brazos, corvas…) · <b>C</b> caballo: montar / bajar / silbar</li>
+    <li><b>B</b> bengala (en la cara, lo ciega 3 s) · <b>X</b> fijar parte del titán (nuca, ojos, brazos, corvas…) · <b>C</b> caballo: montar / bajar / silbar · <b>V</b> acelerar a caballo (gasta el aliento)</li>
     <li><b>H</b> descansar hasta el amanecer (de noche, en un refugio)</li>
     <li><b>1</b> seguidme · <b>2</b> atacad · <b>3</b> proteged a los civiles · <b>4</b> retirada · <b>5</b> esperad aquí · <b>6</b> id allí · <b>7</b> atacad a ese titán · <b>8</b> explorad</li>
     <li><b>L</b> linterna · <b>M</b> mapa · <b>G</b> recoger equipo / pedir gas · <b>N</b> sonido sí/no</li>

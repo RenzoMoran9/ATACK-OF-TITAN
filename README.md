@@ -43,6 +43,7 @@ npm run dev                       # http://localhost:5173
 | **B** | **Bengala** roja hacia la mira (50 m/s). Si estalla a 4 m o menos de la cara de un titán, lo ciega 3 s. 4 bengalas; se reponen en los depósitos |
 | **X** | **Fijar parte** del titán que tienes delante: nuca → ojos → brazos → corvas → tendones → nada. El tajo asistido y los ganchos (clic derecho) van a ella aunque la mira esté en otro sitio |
 | **C** | **Caballo**: al lado, montar; montado, bajar; lejos, silbar (viene al galope). Montado: WASD lo dirige, Shift galope, Espacio salta de la silla, y si clavas un gancho sales volando de ella |
+| **V** | **Acelerar a caballo** (montado, mantenido): un galope más rápido que gasta el aliento (la barra ALIENTO); vuelve despacio al soltar |
 | **K** | **Armar un campamento** donde estés (en un claro): cerco de alambre con latas y seis carpas alrededor de una hoguera. El escuadrón se reparte las obras y tú ayudas con el martillo |
 | **G** junto a una obra | **Martillazo**: pulsa cuando la aguja pase por la zona verde. En el centro, el poste entra de una vez; bien, en tres golpes; fuera, apenas avanza |
 | **H** | Descansar hasta el amanecer (de noche, en un refugio: Trost, un puesto, el campamento de la Legión, tu campamento o un pueblo en paz) |
@@ -168,6 +169,15 @@ va a la nuca cuando el titán no le mira. Rescatan a quien esté en la mano de u
 **Moblit, el intendente**, va en todos los escuadrones con una mochila de bombonas (400 de gas; los demás llevan 120 y tú
 150). No pelea: cuando a ti te queda menos del 35 % o a un compañero menos del 30 %, vuela hasta él y le pasa gas. Con
 **G** se lo pides a él primero, esté donde esté.
+
+**Heridos y caballos.** Cada soldado tiene su caballo. Un titán que lo agarra le quita vida (si lo rescatan, llega herido).
+Por debajo del 40 % se retira a caballo y te avisa; si hay un médico, va hacia él. No vuelve a la línea hasta el 85 %.
+Cuando tres o más titanes se acercan, el escuadrón también sale del encuentro a caballo, y la orden 4 (retirada) lo manda
+atrás con el mismo galope.
+
+**Hanji, el médico**, va siempre a caballo y no pelea. Cura a los heridos que tiene cerca y, cuando tu vida baja del 60 %,
+viene a por ti a galope para curarte. Un herido que descansa junto a ti, sin médico al lado, se recupera despacio. Su vida aparece en
+el panel del escuadrón (VIDA), en rojo por debajo del 40 %.
 
 Si cae entero, en un refugio (Trost, un puesto de avanzada, el campamento o un pueblo en paz) se te unen
 **refuerzos de la Legión**. Si das una orden y no

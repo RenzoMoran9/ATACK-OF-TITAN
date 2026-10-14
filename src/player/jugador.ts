@@ -101,6 +101,15 @@ export class Jugador implements JugadorAPI {
     const c = this.combate?.cuchillas;
     if (c) c.repuesto = Math.min(Cuchillas.MAX_REPUESTO, c.repuesto + pares);
   }
+  /** El médico te cura (sin pasarse de la salud máxima). */
+  curar(cantidad: number): void {
+    if (!this.vivo) return;
+    this.salud = Math.min(this.saludMax, this.salud + cantidad);
+  }
+  /** Aliento de tu caballo para acelerar (V). */
+  get aliento(): number | undefined {
+    return this.caballo?.aliento;
+  }
   revivir(pies: THREE.Vector3, rumbo?: number): void {
     this.vivo = true;
     this.devoradoPor = null;
@@ -174,7 +183,8 @@ export class Jugador implements JugadorAPI {
       this.bajarDelCaballo(true);
       return;
     }
-    c.conducir(dt, deseo, galope);
+    // V: acelerar más (gasta el aliento del caballo)
+    c.conducir(dt, deseo, galope, entrada.mantenida('KeyV'));
     c.silla(this.pos);
     this.vel.copy(c.vel);
     this.rumbo = c.rumbo;

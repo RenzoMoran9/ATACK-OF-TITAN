@@ -29,6 +29,8 @@ export class Hud {
   private readonly vida: HTMLDivElement;
   private readonly filo: HTMLDivElement;
   private readonly aguante: HTMLDivElement;
+  private readonly aliento: HTMLDivElement;
+  private readonly filaAliento: HTMLDivElement;
   private readonly repuesto: HTMLSpanElement;
   private readonly estadoCuchillas: HTMLSpanElement;
   private readonly objetivo: HTMLDivElement;
@@ -78,6 +80,7 @@ export class Hud {
         <div class="hud-barras">
           <div class="fila"><span>VIDA</span><div class="barra"><div class="vida"></div></div></div>
           <div class="fila"><span>AGUANTE</span><div class="barra"><div class="aguante"></div></div></div>
+          <div class="fila fila-aliento" hidden><span>ALIENTO</span><div class="barra"><div class="aliento"></div></div></div>
           <div class="fila"><span>FILO</span><div class="barra"><div class="filo"></div></div><span class="repuesto">×4</span></div>
           <span class="estado-cuchillas"></span>
           <span class="bengalas"></span>
@@ -109,6 +112,8 @@ export class Hud {
     this.vida = q('.vida');
     this.filo = q('.filo');
     this.aguante = q('.aguante');
+    this.aliento = q('.aliento');
+    this.filaAliento = q('.fila-aliento');
     this.repuesto = q('.repuesto');
     this.estadoCuchillas = q('.estado-cuchillas');
     this.objetivo = q('.hud-objetivo .titulo');
@@ -205,6 +210,9 @@ export class Hud {
     this.aguante.style.width = `${(ag.fraccion * 100).toFixed(1)}%`;
     this.aguante.classList.toggle('agotado', ag.agotado);
     this.aguante.parentElement!.parentElement!.classList.toggle('llena', ag.fraccion >= 0.999);
+    // aliento del caballo: solo montado, para el botón de acelerar (V)
+    this.filaAliento.hidden = !jugador.montado;
+    this.aliento.style.width = `${((jugador.aliento ?? 1) * 100).toFixed(1)}%`;
     const c = jugador.combate?.cuchillas;
     if (c) {
       this.filo.style.width = `${c.filo * 100}%`;

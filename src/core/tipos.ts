@@ -267,8 +267,11 @@ export interface GestorTitanesAPI {
   dibujar(dt: number, t: number): void;
 }
 
-/** intendente: no pelea; lleva mucho gas y lo reparte a quien se quede sin él. */
-export type RolSoldado = 'cebo' | 'apoyo' | 'rematador' | 'intendente';
+/**
+ * intendente: no pelea; lleva mucho gas y lo reparte a quien se quede sin él.
+ * medico: no pelea; va siempre a caballo y cura a los heridos y a ti junto a él.
+ */
+export type RolSoldado = 'cebo' | 'apoyo' | 'rematador' | 'intendente' | 'medico';
 
 // ── Órdenes del escuadrón (teclas 1–8; Tab elige a quién) ──
 export type OrdenEscuadron =
@@ -294,6 +297,8 @@ export interface InfoSoldado {
   actividad: string;
   /** Gas 0–100. */
   gas: number;
+  /** Vida 0–100 (la pierde en la mano de un titán; a 0 cae). */
+  salud: number;
   /** Filo del par montado (0–1) y pares de repuesto. */
   filo: number;
   repuesto: number;
@@ -366,6 +371,8 @@ export interface JugadorAPI extends Humano {
   readonly rumbo?: number;
   /** Va a caballo. */
   readonly montado?: boolean;
+  /** Aliento del caballo para acelerar (0–1), si lo tienes. */
+  readonly aliento?: number;
   /** Depósito de gas (las misiones pueden vaciarlo: «los cilindros silban vacíos»). */
   readonly gas: { nivel: number; readonly capacidad: number };
   teletransportar(pies: THREE.Vector3, rumbo?: number): void;
@@ -375,4 +382,6 @@ export interface JugadorAPI extends Humano {
   revivir(pies: THREE.Vector3, rumbo?: number): void;
   /** Recoge gas y pares de cuchillas del equipo de un soldado caído. */
   recogerEquipo(gas: number, pares: number): void;
+  /** Lo cura el médico (sin pasarse de la salud máxima). */
+  curar(cantidad: number): void;
 }

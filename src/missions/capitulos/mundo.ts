@@ -33,6 +33,7 @@ const ESCUADRON: MiembroEscuadron[] = [
   { nombre: 'Jean', rol: 'apoyo' },
   { nombre: 'Connie', rol: 'apoyo' },
   { nombre: 'Moblit', rol: 'intendente' },
+  { nombre: 'Hanji', rol: 'medico' },
 ];
 const REFUERZOS: MiembroEscuadron[] = [
   { nombre: 'Sasha', rol: 'apoyo' },
@@ -40,6 +41,7 @@ const REFUERZOS: MiembroEscuadron[] = [
   { nombre: 'Bertholdt', rol: 'apoyo' },
   { nombre: 'Ymir', rol: 'cebo' },
   { nombre: 'Moblit', rol: 'intendente' },
+  { nombre: 'Hanji', rol: 'medico' },
 ];
 
 const PUNTOS_CARDINALES = ['norte', 'nordeste', 'este', 'sudeste', 'sur', 'suroeste', 'oeste', 'noroeste'];

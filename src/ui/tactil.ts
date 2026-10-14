@@ -69,6 +69,7 @@ export class ControlesTactiles {
         <button class="t-btn chico q" data-k="KeyQ" data-mover="q"><span>◀</span><small>GANCHO</small></button>
         <button class="t-btn chico e" data-k="KeyE" data-mover="e"><span>▶</span><small>GANCHO</small></button>
         <button class="t-btn medio caballo" data-k="KeyC" data-mover="caballo" hidden><span>♞</span><small>MONTAR</small></button>
+        <button class="t-btn medio acelerar" data-k="KeyV" data-mover="acelerar" hidden><span>»</span><small>ACELERAR</small></button>
       </div>
       <div class="tactil-menu" data-mover="menu">
         <button class="t-btn mini" data-k="KeyR" title="Cambiar cuchillas">⚔<small>R</small></button>
@@ -190,6 +191,11 @@ export class ControlesTactiles {
     const s = b.querySelector('small')!;
     if (icono.textContent !== c.icono) icono.textContent = c.icono;
     if (s.textContent !== c.texto) s.textContent = c.texto;
+  }
+
+  /** ACELERAR (V) solo cuando vas montado; en el modo de mover botones se ve siempre. */
+  acelerar(montado: boolean): void {
+    this.raiz.querySelector<HTMLButtonElement>('.tactil-acciones .acelerar')!.hidden = !(montado || this.editando);
   }
 
   private get botonCaballo(): HTMLButtonElement {

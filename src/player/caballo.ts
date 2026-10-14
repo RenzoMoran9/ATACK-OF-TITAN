@@ -27,8 +27,14 @@ import { cargarModeloCaballo, type ModeloCaballo } from './modeloCaballo';
 export const VELOCIDAD_PASO = 1.8;
 export const VELOCIDAD_TROTE = 6;
 export const VELOCIDAD_GALOPE = 16;
+/** Con el botón de acelerar (V): un galope más rápido, que gasta el aliento del caballo. */
+export const VELOCIDAD_ACELERADA = VELOCIDAD_GALOPE * 1.5;
 const ACELERACION = 4.5;
+const ACELERACION_ACELERADA = 9;
 const FRENADA = 7;
+/** Aliento (0–1): se gasta en unos 4,5 s de aceleración y vuelve en unos 10 s. */
+const DRENAJE_ALIENTO = 0.22;
+const RECUPERA_ALIENTO = 0.1;
 /** Aceleración angular (rad/s²): el giro no es instantáneo. */
 const ACEL_GIRO = 7;
 /** Altura de la silla (centro del jinete) sobre el suelo. */
@@ -36,9 +42,16 @@ export const ALTURA_SILLA = 2.05;
 const RADIO = 0.9;
 
 /** Velocidad objetivo del caballo según lo que se pulsa (lógica pura). */
-export function velocidadObjetivo(mueve: boolean, galope: boolean): number {
+export function velocidadObjetivo(mueve: boolean, galope: boolean, acelerando = false): number {
   if (!mueve) return 0;
+  if (acelerando) return VELOCIDAD_ACELERADA;
   return galope ? VELOCIDAD_GALOPE : VELOCIDAD_TROTE;
+}
+
+/** Aliento del caballo tras `dt` s: se gasta mientras acelera y vuelve despacio (lógica pura). */
+export function alientoTras(aliento: number, acelerando: boolean, dt: number): number {
+  const cambio = acelerando ? -DRENAJE_ALIENTO : RECUPERA_ALIENTO;
+  return THREE.MathUtils.clamp(aliento + cambio * dt, 0, 1);
 }
 
 /** Giro máximo (rad/s): ágil al paso, más abierto al galope (radio de unos 17 m). */
@@ -87,6 +100,8 @@ export class Caballo {
   private bote = 0;
   /** Velocidad angular actual (rad/s). */
   omega = 0;
+  /** Aliento para acelerar (0–1). */
+  aliento = 1;
   /** Cascos en el suelo ahora mismo (delantera izq, delantera der, trasera izq, trasera der). */
   readonly apoyadas = [true, true, true, true];
   /** Marcha actual (para el sonido de los cascos). */
@@ -155,7 +170,8 @@ export class Caballo {
     escena.add(this.grupo);
     // el modelo de verdad sustituye al de primitivas en cuanto carga
     cargarModeloCaballo()
-      .then((m) => {
+      .then((plantilla) => {
+        const m = plantilla.instanciar();
         this.modelo = m;
         this.cuerpo.visible = false;
         this.grupo.add(m.grupo);
@@ -191,17 +207,32 @@ export class Caballo {
     this.llamado = a.clone().setY(0);
   }
 
-  /** Montado: hacia dónde quiere ir el jinete (horizontal, o cero) y si galopa. */
-  conducir(dt: number, deseo: THREE.Vector3, galope: boolean): void {
+  /**
+   * Montado (o un soldado a caballo): hacia dónde quiere ir el jinete (horizontal, o cero), si
+   * galopa y si acelera con el aliento que le queda.
+   */
+  conducir(dt: number, deseo: THREE.Vector3, galope: boolean, acelerando = false): void {
     this.llamado = null;
     const mueve = deseo.lengthSq() > 0.01;
-    let objetivo = velocidadObjetivo(mueve, galope);
+    const boost = acelerando && mueve && this.aliento > 0;
+    this.aliento = alientoTras(this.aliento, boost, dt);
+    let objetivo = velocidadObjetivo(mueve, galope, boost);
     if (mueve) {
       const angulo = this.virar(dt, Math.atan2(deseo.x, deseo.z));
       objetivo = velocidadParaGirar(objetivo, angulo);
     } else this.virar(dt, null);
-    this.acelerar(dt, objetivo);
+    this.acelerar(dt, objetivo, boost);
     this.mover(dt);
+  }
+
+  /** Quita el caballo de la escena (cambio de capítulo o de escuadrón). Sus materiales son suyos; la geometría del modelo se comparte. */
+  liberar(): void {
+    this.grupo.removeFromParent();
+    this.grupo.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      (o.material as THREE.Material).dispose();
+      o.customDepthMaterial?.dispose();
+    });
   }
 
   /** Suelto: viene si lo llamas, huye de los titanes y si no, pasta. */
@@ -253,8 +284,8 @@ export class Caballo {
     return falta;
   }
 
-  private acelerar(dt: number, objetivo: number): void {
-    const a = objetivo > this.velocidad ? ACELERACION : FRENADA;
+  private acelerar(dt: number, objetivo: number, boost = false): void {
+    const a = objetivo > this.velocidad ? (boost ? ACELERACION_ACELERADA : ACELERACION) : FRENADA;
     this.velocidad += THREE.MathUtils.clamp(objetivo - this.velocidad, -a * dt, a * dt);
   }
 
