@@ -28,11 +28,12 @@
   },
   "gas": {
     "capacidad": 150,
-    "costeDisparo": 1,
-    "costeRecogidaPorSegundo": 2.5,
-    "costeImpulsoPorSegundo": 9,
-    "costeFreno": 3,
-    "costeFrenoPorSegundo": 11,
+    "costeDisparo": 0.333,
+    "costeRecogidaPorSegundo": 0.833,
+    "costeImpulsoPorSegundo": 3,
+    "costeFreno": 1,
+    "costeFrenoPorSegundo": 3.667,
+    "costeSaltoPared": 1.333,
     "recargaPorSegundo": 35,
     "radioRecarga": 6
   },

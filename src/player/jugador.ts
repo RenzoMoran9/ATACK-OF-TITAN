@@ -660,7 +660,7 @@ export class Jugador implements JugadorAPI {
       this.pegado = null;
       this.odm.pegado = false;
       this.vel.copy(n).multiplyScalar(7).add(new THREE.Vector3(0, 5, 0)).addScaledVector(deseo, 5);
-      if (pulsoEspacio && (this.odm.gasInfinito || this.gas.consumir(4))) {
+      if (pulsoEspacio && (this.odm.gasInfinito || this.gas.consumir(config.gas.costeSaltoPared))) {
         this.odm.liberarTodo();
         this.vel.addScaledVector(mirada, 14);
         this.emitirChorro(mirada.clone().negate(), 14);
