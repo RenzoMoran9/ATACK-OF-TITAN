@@ -45,6 +45,7 @@ export function crearMateriales() {
 
 export type Materiales = ReturnType<typeof crearMateriales>;
 
-export function ajustarNoche(m: Materiales, noche: boolean): void {
-  m.entramadoVentana.emissiveIntensity = noche ? 1.2 : 0;
+/** Ventanas encendidas al anochecer (`noche` de 0 a 1). */
+export function ajustarNoche(m: Materiales, noche: number): void {
+  m.entramadoVentana.emissiveIntensity = 1.2 * noche;
 }

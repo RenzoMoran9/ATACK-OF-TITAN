@@ -1,3 +1,4 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { Fisica } from '../core/fisica';
 import { crearRng, type Rng } from '../core/rng';
@@ -10,8 +11,9 @@ import { texturaAgua, texturaEmblema } from './texturas';
 import { ANCHO_RIO, CAMINOS_CONTROL, LUGARES, RIO_CONTROL, curva, type IdLugar } from './trazado';
 
 /**
- * Lugares para explorar fuera de la muralla: aldeas abandonadas (casas de Trost, unas
- * enteras y otras sin tejado o derrumbadas, y un molino), las ruinas del Castillo de Utgard
+ * Lugares para explorar fuera de la muralla: pueblos abandonados (casas de Trost, unas
+ * enteras y otras sin tejado o derrumbadas, que se pueden reconstruir por etapas; algunos con
+ * molino), las ruinas del Castillo de Utgard
  * (torre de piedra de ~38 m y muros rotos, todo enganchable), el río con su puente de piedra,
  * los puestos de avanzada de suministros (carro, cajas, barriles de gas, tienda y estandarte;
  * son depósitos de recarga) y el campamento de la Legión de Reconocimiento. Cada lugar va en
@@ -48,8 +50,28 @@ export interface Plano {
   torres: { x: number; z: number; r: number }[];
 }
 
+/** Un pueblo que se puede repoblar y reconstruir (las casas en ruinas van por etapas). */
+export interface DatosPueblo {
+  id: IdLugar;
+  nombre: string;
+  centro: THREE.Vector3;
+  radio: number;
+  /** Casas en total (enteras + en ruinas): marca cuánta gente puede vivir allí. */
+  casas: number;
+  vista: VistaPueblo;
+  /** Lo lee el farol del pueblo: solo se enciende si vive gente. */
+  readonly estado: { habitado: boolean };
+  /** Material de las ventanas del pueblo (se encienden de noche si está habitado). */
+  ventanas: THREE.MeshLambertMaterial;
+  /** Punto de recarga que aparece al terminar la reconstrucción (cajas y barriles en la plaza). */
+  deposito: THREE.Vector3;
+  /** Campana de la plaza (alarma de los aldeanos). */
+  campana: THREE.Vector3;
+}
+
 export interface DatosLugares {
   lugares: Lugar[];
+  pueblos: DatosPueblo[];
   depositos: { pos: THREE.Vector3; nombre: string }[];
   plano: Plano;
   /** Agua del río (su textura se desliza con la corriente). */
@@ -154,7 +176,8 @@ class Obra implements LotesCasa {
     }
   }
 
-  terminar(escena: THREE.Scene, mats: Materiales): void {
+  /** Añade los lotes a la escena (y los emblemas si son propios); devuelve las mallas creadas. */
+  terminar(escena: THREE.Scene, mats: Materiales, emblemasPropios = false): THREE.Mesh[] {
     const pares: [Lote, THREE.Material][] = [
       [this.piedra, mats.piedra],
       [this.fachadaA, mats.entramadoVentana],
@@ -162,8 +185,23 @@ class Obra implements LotesCasa {
       [this.tejas, mats.tejas],
       [this.madera, mats.madera],
     ];
-    for (const [l, mat] of pares) if (!l.vacio) escena.add(l.crearMesh(mat));
+    if (emblemasPropios) pares.push([this.emblemas, materialEmblema()]);
+    const mallas: THREE.Mesh[] = [];
+    for (const [l, mat] of pares) {
+      if (l.vacio) continue;
+      const m = l.crearMesh(mat, l !== this.emblemas);
+      escena.add(m);
+      mallas.push(m);
+    }
+    return mallas;
   }
+}
+
+let matEmblema: THREE.MeshLambertMaterial | null = null;
+/** Alas de la libertad de los estandartes (compartido). */
+function materialEmblema(): THREE.MeshLambertMaterial {
+  matEmblema ??= new THREE.MeshLambertMaterial({ map: texturaEmblema(), transparent: true, alphaTest: 0.4, side: THREE.DoubleSide });
+  return matEmblema;
 }
 
 // ───────────────────────── Aldeas ─────────────────────────
@@ -229,7 +267,74 @@ function construirMolino(o: Obra, lx: number, lz: number, rng: Rng): void {
   o.madera.añadir(new THREE.CylinderGeometry(0.5, 0.5, 1.2, 10).rotateX(Math.PI / 2), o.m(lx, 13, lz + 3.8), COLOR.rueda);
 }
 
-function construirAldea(o: Obra, rng: Rng, radio: number, nCasas: number, molino: boolean): void {
+/** Andamio de madera alrededor de una casa en obras: postes en las esquinas y tablones. */
+function construirAndamio(o: Obra, c: Casa, rng: Rng): void {
+  const cr = Math.cos(c.rotY);
+  const sr = Math.sin(c.rotY);
+  const w = (hx: number, hz: number) => ({ x: c.x + hx * cr + hz * sr, z: c.z - hx * sr + hz * cr });
+  const alto = c.alturaAlero + 1.5;
+  const ax = c.ancho / 2 + 0.9;
+  const az = c.fondo / 2 + 0.9;
+  const poste = new THREE.Color('#8a6a45');
+  const tablon = new THREE.Color('#a8865c');
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1]]) {
+    const p = w(sx * ax, sz * az);
+    o.madera.añadir(cajaUV(0.22, alto, 0.22, 1), matriz(p.x, alto / 2, p.z, c.rotY), poste);
+  }
+  for (let y = 2.4; y < alto - 0.5; y += 2.6) {
+    for (const sz of [-1, 1]) {
+      const p = w(0, sz * az);
+      o.madera.añadir(cajaUV(c.ancho + 2, 0.12, 0.7, 1), matriz(p.x, y, p.z, c.rotY), tablon);
+    }
+    for (const sx of [-1, 1]) {
+      const p = w(sx * ax, 0);
+      o.madera.añadir(cajaUV(0.25, 0.12, c.fondo + 1.8, 1), matriz(p.x, y, p.z, c.rotY), tablon);
+    }
+  }
+  // cruces de refuerzo y una pila de vigas nuevas al lado
+  for (const sz of [-1, 1]) {
+    const p = w(0, sz * az + sz * 0.1);
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, c.rotY, Math.atan2(alto, c.ancho) * (sz > 0 ? 1 : -1)));
+    o.madera.añadir(cajaUV(Math.hypot(c.ancho, alto) * 0.9, 0.14, 0.14, 1), matriz(p.x, alto / 2, p.z, 0, q), poste);
+  }
+  const pila = w(ax + 2.2, rng.rango(-1, 1));
+  for (let k = 0; k < 6; k++) {
+    o.madera.añadir(cajaUV(0.35, 0.35, 5, 1), matriz(pila.x + (k % 3) * 0.4 - 0.4, 0.2 + Math.floor(k / 3) * 0.36, pila.z, c.rotY + Math.PI / 2), tablon);
+  }
+}
+
+/** Campos de cultivo junto al pueblo (surcos de trigo y de hortalizas), lejos de los caminos. */
+function construirCampos(o: Obra, rng: Rng, radio: number, caminos: PuntoXZ[][]): void {
+  const colores = [new THREE.Color('#c9a948'), new THREE.Color('#7d8f3e'), new THREE.Color('#b59a42')];
+  let hechos = 0;
+  for (let k = 0; k < 10 && hechos < 3; k++) {
+    const a = rng.rango(0, Math.PI * 2);
+    const d = radio + 12;
+    const lx = Math.cos(a) * d;
+    const lz = Math.sin(a) * d;
+    const p = o.mundo(lx, lz);
+    if (caminos.some((c) => distanciaPolilinea(p.x, p.z, c) < 20)) continue;
+    hechos++;
+    const color = colores[hechos % colores.length];
+    const rot = -a;
+    const cr = Math.cos(rot);
+    const sr = Math.sin(rot);
+    for (let f = -3; f <= 3; f++) {
+      // surcos a lo largo de la tangente del pueblo
+      const fx = lx + f * 2.2 * cr;
+      const fz = lz - f * 2.2 * sr;
+      o.madera.añadir(cajaUV(0.9, 0.45, 22, 1), o.m(fx, 0.22, fz, rot), color.clone().multiplyScalar(rng.rango(0.85, 1.05)));
+    }
+  }
+}
+
+/**
+ * Pueblo abandonado que se puede reconstruir. Las casas enteras van en `o`; las ruinas se
+ * reparten en tres etapas (de la plaza hacia fuera). Cada etapa tiene su versión en ruinas,
+ * su versión reconstruida (oculta y sin colisiones al principio) y sus andamios, cada una en
+ * sus propias mallas para encenderlas y apagarlas con `VistaPueblo`.
+ */
+function construirPueblo(o: Obra, rng: Rng, radio: number, nCasas: number, molino: boolean, extra: { id: IdLugar; escena: THREE.Scene; mats: Materiales; matsRuina: Materiales; antorchas: Antorchas }): DatosPueblo {
   // parcelas en una rejilla con holgura alrededor de una plaza con pozo
   const parcelas: PuntoXZ[] = [];
   for (let i = -5; i <= 5; i++) {
@@ -246,6 +351,8 @@ function construirAldea(o: Obra, rng: Rng, radio: number, nCasas: number, molino
     [parcelas[k], parcelas[m]] = [parcelas[m], parcelas[k]];
   }
   const sitioMolino = molino ? parcelas.pop()! : null;
+  const ruinas: { casa: Casa; plantas: number; subida: number; derrumbada: boolean }[] = [];
+  let casas = 0;
   for (const p of parcelas.slice(0, nCasas)) {
     const ancho = rng.siguiente() < 0.55 ? 8 : 12;
     const fondo = rng.siguiente() < 0.6 ? 8 : 10;
@@ -255,20 +362,144 @@ function construirAldea(o: Obra, rng: Rng, radio: number, nCasas: number, molino
     const pendiente = THREE.MathUtils.degToRad(rng.rango(50, 58));
     const subida = (fondo / 2) * Math.tan(pendiente);
     const plantas = rng.entero(1, 2);
-    const casa: Casa = { x: o.x + p.x, z: o.z + p.z, ancho, fondo, rotY, alturaAlero: ZOCALO + plantas * PLANTA, alturaCumbrera: ZOCALO + plantas * PLANTA + subida };
+    const w = o.mundo(p.x, p.z);
+    const casa: Casa = { x: w.x, z: w.z, ancho, fondo, rotY: rotY + o.rot, alturaAlero: ZOCALO + plantas * PLANTA, alturaCumbrera: ZOCALO + plantas * PLANTA + subida };
     const estado = rng.siguiente();
-    if (estado < 0.4) {
+    casas++;
+    if (estado < 0.3) {
       construirCasa(casa, plantas, subida, rng, o, o.fisica);
-      o.plano.edificios.push({ x: casa.x, z: casa.z, ancho, fondo, rotY });
-    } else construirRuina(o, casa, estado > 0.72, rng);
+      o.plano.edificios.push({ x: casa.x, z: casa.z, ancho, fondo, rotY: casa.rotY });
+    } else ruinas.push({ casa, plantas, subida, derrumbada: estado > 0.7 });
   }
-  // pozo en la plaza
+  // pozo y campana en la plaza
   const pozo = new THREE.CylinderGeometry(1.8, 2, 1.1, 16);
   escalarUV(pozo, 5, 0.6);
   o.piedra.añadir(pozo, o.m(0, 0.55, 0), new THREE.Color('#bdb5a6'));
   o.fisica.cilindro({ x: o.x, y: 0.55, z: o.z }, 0.55, 2, 'otro');
   o.plano.torres.push({ x: o.x, z: o.z, r: 2 });
+  const campana = o.mundo(6, -6);
+  for (const lado of [-1, 1]) o.madera.añadir(cajaUV(0.25, 5, 0.25, 1), o.m(6 + lado * 1.1, 2.5, -6), COLOR.poste);
+  o.madera.añadir(cajaUV(2.6, 0.25, 0.3, 1), o.m(6, 5, -6), COLOR.poste);
+  o.madera.añadir(new THREE.CylinderGeometry(0.25, 0.6, 0.9, 10, 1, true), o.m(6, 4.4, -6), new THREE.Color('#8c6a2e'));
   if (sitioMolino) construirMolino(o, sitioMolino.x, sitioMolino.z, rng);
+
+  const estadoPueblo = { habitado: false };
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
+    const f = o.mundo(Math.cos(a) * 10, Math.sin(a) * 10);
+    extra.antorchas.farol(f.x, 0, f.z, () => estadoPueblo.habitado);
+  }
+
+  // Etapas: las ruinas más cercanas a la plaza se levantan primero
+  ruinas.sort((a, b) => Math.hypot(a.casa.x - o.x, a.casa.z - o.z) - Math.hypot(b.casa.x - o.x, b.casa.z - o.z));
+  const N = 3;
+  const etapas: EtapaPueblo[] = [];
+  let deposito = new THREE.Vector3(o.x, 0, o.z);
+  for (let k = 0; k < N; k++) {
+    const grupo = ruinas.filter((_, i) => Math.floor((i * N) / Math.max(1, ruinas.length)) === k);
+    const nueva = (x: Obra = o) => new Obra(x.x, x.z, x.rot, x.fisica, x.plano, new Lote());
+    const oRuina = nueva();
+    const oNueva = nueva();
+    const oAndamio = nueva();
+    const rngR = crearRng(1000 + k * 31 + Math.round(o.x));
+    const rngN = crearRng(2000 + k * 31 + Math.round(o.z));
+    const collRuina = o.fisica.grabar(() => {
+      for (const r of grupo) construirRuina(oRuina, r.casa, r.derrumbada, rngR);
+    });
+    const collNueva = o.fisica.grabar(() => {
+      for (const r of grupo) construirCasa(r.casa, r.plantas, r.subida, rngN, oNueva, o.fisica);
+      if (k === 1) construirCampos(oNueva, rngN, radio, o.plano.caminos);
+      if (k === N - 1) {
+        // al terminar: suministros en la plaza (recarga) y el estandarte de la Legión
+        construirSuministros(oNueva, -9, 7, rngN);
+        construirEstandarte(oNueva, -5, 11);
+        const d = o.mundo(-9, 7);
+        deposito = new THREE.Vector3(d.x, 0, d.z);
+      }
+    });
+    for (const c of collNueva) c.setEnabled(false);
+    for (const r of grupo) construirAndamio(oAndamio, r.casa, rngN);
+    const ocultar = (ms: THREE.Mesh[], v: boolean) => {
+      for (const m of ms) m.visible = v;
+      return ms;
+    };
+    etapas.push({
+      casas: grupo.map((r) => r.casa),
+      ruina: oRuina.terminar(extra.escena, extra.matsRuina, true),
+      nueva: ocultar(oNueva.terminar(extra.escena, extra.mats, true), false),
+      andamio: ocultar(oAndamio.terminar(extra.escena, extra.mats, true), false),
+      collRuina,
+      collNueva,
+      reconstruida: false,
+    });
+  }
+  const def = LUGARES[extra.id];
+  return {
+    id: extra.id,
+    nombre: def.nombre,
+    centro: new THREE.Vector3(o.x, 0, o.z),
+    radio: def.radio,
+    casas,
+    vista: new VistaPueblo(etapas),
+    estado: estadoPueblo,
+    ventanas: extra.mats.entramadoVentana,
+    deposito,
+    campana: new THREE.Vector3(campana.x, 4.4, campana.z),
+  };
+}
+
+interface EtapaPueblo {
+  casas: Casa[];
+  ruina: THREE.Mesh[];
+  nueva: THREE.Mesh[];
+  andamio: THREE.Mesh[];
+  collRuina: RAPIER.Collider[];
+  collNueva: RAPIER.Collider[];
+  reconstruida: boolean;
+}
+
+/** Enseña cada etapa del pueblo en ruinas, en obras (andamios) o reconstruida. */
+export class VistaPueblo {
+  constructor(private readonly etapas: EtapaPueblo[]) {}
+
+  get numEtapas(): number {
+    return this.etapas.length;
+  }
+
+  /**
+   * `hechas` etapas reconstruidas; si `enObra`, la siguiente lleva andamios. Una etapa no
+   * cambia mientras `pos` (el jugador) esté dentro de una de sus casas (quedaría atrapado).
+   */
+  mostrar(hechas: number, enObra: boolean, pos: THREE.Vector3 | null): void {
+    this.etapas.forEach((e, k) => {
+      const nueva = k < hechas;
+      if (nueva !== e.reconstruida && !(pos && e.casas.some((c) => dentroDeCasa(c, pos, 1.2)))) {
+        e.reconstruida = nueva;
+        for (const m of e.ruina) m.visible = !nueva;
+        for (const m of e.nueva) m.visible = nueva;
+        for (const c of e.collRuina) c.setEnabled(!nueva);
+        for (const c of e.collNueva) c.setEnabled(nueva);
+      }
+      const andamio = !e.reconstruida && enObra && k === hechas;
+      for (const m of e.andamio) m.visible = andamio;
+    });
+  }
+
+  /** Centros de las casas en obras ahora mismo (para el sonido de martillos). */
+  obras(hechas: number): THREE.Vector3[] {
+    const e = this.etapas[hechas];
+    return e ? e.casas.map((c) => new THREE.Vector3(c.x, 2, c.z)) : [];
+  }
+}
+
+function dentroDeCasa(c: Casa, p: THREE.Vector3, margen: number): boolean {
+  const dx = p.x - c.x;
+  const dz = p.z - c.z;
+  const cr = Math.cos(c.rotY);
+  const sr = Math.sin(c.rotY);
+  const lx = dx * cr - dz * sr;
+  const lz = dx * sr + dz * cr;
+  return Math.abs(lx) < c.ancho / 2 + margen && Math.abs(lz) < c.fondo / 2 + margen && p.y < c.alturaCumbrera + 2;
 }
 
 // ───────────────────────── Castillo de Utgard ─────────────────────────
@@ -510,17 +741,30 @@ export function construirLugares(escena: THREE.Scene, fisica: Fisica, mats: Mate
   const emblemas = new Lote();
   const lugares: Lugar[] = [];
   const depositos: DatosLugares['depositos'] = [];
-  const obra = (id: IdLugar, tipo: TipoLugar, rot: number, hacer: (o: Obra, rng: Rng) => void): Obra => {
+  const pueblos: DatosPueblo[] = [];
+  const obra = (id: IdLugar, tipo: TipoLugar, rot: number, hacer: (o: Obra, rng: Rng) => void, matsObra = mats): Obra => {
     const def = LUGARES[id];
     const o = new Obra(def.x, def.z, rot, fisica, plano, emblemas);
     hacer(o, crearRng(semilla + id.length * 977 + Math.round(def.x)));
-    o.terminar(escena, mats);
+    o.terminar(escena, matsObra);
     lugares.push({ id, nombre: def.nombre, tipo, pos: new THREE.Vector3(def.x, 0, def.z), radio: def.radio, descubierto: false });
     return o;
   };
 
-  obra('pastores', 'aldea', 0, (o, rng) => construirAldea(o, rng, 66, 11, false));
-  obra('molino', 'aldea', 0, (o, rng) => construirAldea(o, rng, 66, 10, true));
+  // Pueblos: cada uno con sus ventanas (solo se iluminan si vuelve a vivir gente); las ruinas, nunca
+  const matsRuina = { ...mats, entramadoVentana: mats.entramadoVentana.clone() };
+  matsRuina.entramadoVentana.emissiveIntensity = 0;
+  const PUEBLOS: [IdLugar, number, number, boolean][] = [
+    ['pastores', 0, 11, false],
+    ['molino', 0, 10, true],
+    ['ragako', 0.3, 10, false],
+    ['dauper', -0.2, 9, true],
+  ];
+  for (const [id, rot, n, molino] of PUEBLOS) {
+    const matsPueblo = { ...mats, entramadoVentana: mats.entramadoVentana.clone() };
+    matsPueblo.entramadoVentana.emissiveIntensity = 0;
+    obra(id, 'aldea', rot, (o, rng) => pueblos.push(construirPueblo(o, rng, 66, n, molino, { id, escena, mats: matsPueblo, matsRuina, antorchas })), matsPueblo);
+  }
   obra('utgard', 'castillo', 0.35, (o, rng) => construirCastillo(o, rng));
   for (const id of ['puestoOeste', 'puestoSur', 'puestoEste'] as const) {
     const o = obra(id, 'puesto', 0.4 + id.length, (o, rng) => construirPuesto(o, rng, antorchas));
@@ -548,7 +792,7 @@ export function construirLugares(escena: THREE.Scene, fisica: Fisica, mats: Mate
   puente.terminar(escena, mats);
   lugares.push({ id: 'puente', nombre: pc.nombre, tipo: 'puente', pos: new THREE.Vector3(mejor.x, 0, mejor.z), radio: pc.radio, descubierto: false });
 
-  escena.add(emblemas.crearMesh(new THREE.MeshLambertMaterial({ map: texturaEmblema(), transparent: true, alphaTest: 0.4, side: THREE.DoubleSide }), false));
+  escena.add(emblemas.crearMesh(materialEmblema(), false));
 
   // Agua y orillas
   const agua = texturaAgua();
@@ -584,5 +828,5 @@ export function construirLugares(escena: THREE.Scene, fisica: Fisica, mats: Mate
     for (const l of lugares) if (Math.hypot(x - l.pos.x, z - l.pos.z) < l.radio + margen) return false;
     return true;
   };
-  return { lugares, depositos, plano, agua, despejado };
+  return { lugares, pueblos, depositos, plano, agua, despejado };
 }

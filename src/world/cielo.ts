@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { azimutSol, calidez, elevacionSol, factorNoche, posicionLuna } from '../core/cicloDia';
 import type { Hora } from '../core/depuracion';
 import { crearRng } from '../core/rng';
 import { texturaNube } from './texturas';
@@ -6,6 +7,8 @@ import { texturaNube } from './texturas';
 /**
  * Cielo amplio con gradiente, sol, nubes grandes, estrellas de noche, luz solar con
  * sombras que siguen al jugador, luz hemisférica (cielo azul / tierra ocre) y niebla.
+ * `aplicarHora` mezcla los ajustes de amanecer, día, atardecer y noche según la hora del
+ * ciclo (src/core/cicloDia.ts) y mueve el sol por el cielo; de noche la luz es la luna.
  */
 
 interface Preset {
@@ -88,6 +91,42 @@ export const PRESETS: Record<Hora, Preset> = {
   },
 };
 
+/** Amanecer: más fresco y rosado que el atardecer. */
+const PRESET_AMANECER: Preset = {
+  cenit: '#4a618f',
+  horizonte: '#efb99a',
+  bajo: '#86705f',
+  elevacionSol: 6,
+  azimutSol: 5,
+  colorSol: '#ffc59a',
+  intensidadSol: 3.2,
+  brilloDisco: 1.4,
+  hemiCielo: '#b6b4d0',
+  hemiSuelo: '#7d6550',
+  intensidadHemi: 1.9,
+  niebla: '#d4b6a6',
+  nieblaCerca: 300,
+  nieblaLejos: 2800,
+  tintaNubes: '#ffd3c0',
+  exposicion: 1.15,
+  noche: false,
+};
+
+/** Momentos clave del día: entre dos seguidos se interpola. */
+const CLAVES: [number, Preset][] = [
+  [0, PRESETS.noche],
+  [4.8, PRESETS.noche],
+  [6.2, PRESET_AMANECER],
+  [8.2, PRESETS.dia],
+  [16.8, PRESETS.dia],
+  [18.6, PRESETS.atardecer],
+  [19.9, PRESETS.noche],
+  [24, PRESETS.noche],
+];
+
+/** Hora del ciclo que corresponde a cada ajuste fijo (capturas, panel de depuración). */
+export const HORA_DE: Record<Hora, number> = { dia: 12.5, atardecer: 18.55, noche: 23 };
+
 const VERT = /* glsl */ `
 varying vec3 vDir;
 void main() {
@@ -124,8 +163,17 @@ export class Cielo {
   private readonly cupula: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   private readonly nubes: THREE.Sprite[] = [];
   private readonly estrellas: THREE.Points;
-  private presetActual: Preset = PRESETS.dia;
+  private readonly niebla = new THREE.Fog('#c4d2de', 350, 3200);
+  private readonly tmpColor = new THREE.Color();
+  private readonly tmpColor2 = new THREE.Color();
+  private esNoche = false;
   hora: Hora = 'dia';
+  /** 0 de día … 1 de noche cerrada. */
+  noche = 0;
+  /** 1 con el sol bajo (amanecer, atardecer). */
+  calidez = 0;
+  /** Menos calidad, menos distancia de dibujado: la niebla se acerca. */
+  factorDistancia = 1;
 
   constructor(private readonly escena: THREE.Scene, radioSombra: number, tamanoSombra: number) {
     this.cupula = new THREE.Mesh(
@@ -204,34 +252,75 @@ export class Cielo {
     escena.add(this.sol, this.sol.target, this.hemi, this.grupo);
   }
 
+  /** Ajuste fijo (capturas y panel): la hora típica de ese momento. */
   aplicar(hora: Hora, renderer: THREE.WebGLRenderer): void {
-    const p = PRESETS[hora];
     this.hora = hora;
-    this.presetActual = p;
+    this.aplicarHora(HORA_DE[hora], renderer);
+  }
+
+  /** Cielo, luces y niebla para una hora del ciclo (0–24), mezclando los ajustes vecinos. */
+  aplicarHora(h: number, renderer: THREE.WebGLRenderer): void {
+    let i = 0;
+    while (i < CLAVES.length - 2 && CLAVES[i + 1][0] <= h) i++;
+    const [h0, a] = CLAVES[i];
+    const [h1, b] = CLAVES[i + 1];
+    const k = THREE.MathUtils.clamp((h - h0) / Math.max(1e-6, h1 - h0), 0, 1);
+    const num = (x: number, y: number) => x + (y - x) * k;
+    const col = (out: THREE.Color, x: string, y: string) => out.set(x).lerp(this.tmpColor.set(y), k);
+    this.noche = factorNoche(h);
+    this.calidez = calidez(h);
+    this.esNoche = this.noche > 0.5;
     const u = this.cupula.material.uniforms;
-    (u.cenit.value as THREE.Color).set(p.cenit);
-    (u.horizonte.value as THREE.Color).set(p.horizonte);
-    (u.bajo.value as THREE.Color).set(p.bajo);
-    (u.colorSol.value as THREE.Color).set(p.colorSol);
-    u.brilloDisco.value = p.brilloDisco;
-    const el = THREE.MathUtils.degToRad(p.elevacionSol);
-    const az = THREE.MathUtils.degToRad(p.azimutSol);
-    this.dirSol.set(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az)).normalize();
+    col(u.cenit.value as THREE.Color, a.cenit, b.cenit);
+    col(u.horizonte.value as THREE.Color, a.horizonte, b.horizonte);
+    col(u.bajo.value as THREE.Color, a.bajo, b.bajo);
+    col(u.colorSol.value as THREE.Color, a.colorSol, b.colorSol);
+    u.brilloDisco.value = num(a.brilloDisco, b.brilloDisco);
+    // Sol de día; de noche, la luna. La luz se apaga junto al horizonte al cambiar de una a otra.
+    const elev = elevacionSol(h);
+    let el: number;
+    let az: number;
+    let f: number;
+    if (elev > 0) {
+      el = Math.max(elev, 1.5);
+      az = azimutSol(h);
+      f = THREE.MathUtils.smoothstep(elev, -0.5, 5);
+    } else {
+      const luna = posicionLuna(h);
+      el = luna.elevacion;
+      az = luna.azimut;
+      f = THREE.MathUtils.smoothstep(-elev, 0, 10);
+    }
+    const elR = THREE.MathUtils.degToRad(el);
+    const azR = THREE.MathUtils.degToRad(az);
+    this.dirSol.set(Math.cos(elR) * Math.cos(azR), Math.sin(elR), Math.cos(elR) * Math.sin(azR)).normalize();
     (u.dirSol.value as THREE.Vector3).copy(this.dirSol);
-    this.sol.color.set(p.colorSol);
-    this.sol.intensity = p.intensidadSol;
-    this.hemi.color.set(p.hemiCielo);
-    this.hemi.groundColor.set(p.hemiSuelo);
-    this.hemi.intensity = p.intensidadHemi;
-    this.escena.fog = new THREE.Fog(p.niebla, p.nieblaCerca, p.nieblaLejos);
-    this.escena.background = new THREE.Color(p.horizonte);
-    for (const n of this.nubes) n.material.color.set(p.tintaNubes);
-    this.estrellas.visible = p.noche;
-    renderer.toneMappingExposure = p.exposicion;
+    this.sol.color.copy(u.colorSol.value as THREE.Color);
+    this.sol.intensity = num(a.intensidadSol, b.intensidadSol) * Math.max(0.04, f);
+    col(this.hemi.color, a.hemiCielo, b.hemiCielo);
+    col(this.hemi.groundColor, a.hemiSuelo, b.hemiSuelo);
+    this.hemi.intensity = num(a.intensidadHemi, b.intensidadHemi);
+    const niebla = this.niebla;
+    col(niebla.color, a.niebla, b.niebla);
+    niebla.near = num(a.nieblaCerca, b.nieblaCerca) * this.factorDistancia;
+    niebla.far = num(a.nieblaLejos, b.nieblaLejos) * this.factorDistancia;
+    this.escena.fog = niebla;
+    if (!(this.escena.background instanceof THREE.Color)) this.escena.background = new THREE.Color();
+    (this.escena.background as THREE.Color).copy(u.horizonte.value as THREE.Color);
+    col(this.tmpColor2, a.tintaNubes, b.tintaNubes);
+    for (const n of this.nubes) n.material.color.copy(this.tmpColor2);
+    this.estrellas.visible = this.noche > 0.02;
+    (this.estrellas.material as THREE.PointsMaterial).opacity = 0.85 * this.noche;
+    renderer.toneMappingExposure = num(a.exposicion, b.exposicion);
   }
 
   get esDeNoche(): boolean {
-    return this.presetActual.noche;
+    return this.esNoche;
+  }
+
+  /** Lejanía de la niebla de día con el factor de distancia actual (para el plano lejano). */
+  get lejaniaDia(): number {
+    return PRESETS.dia.nieblaLejos * this.factorDistancia;
   }
 
   /**

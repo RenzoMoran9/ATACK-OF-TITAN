@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Navegacion } from '../core/navegacion';
+import { type Cilindro, empujeFuera } from '../core/colision';
 import { nuevoId } from '../core/poblacion';
 import type { Rng } from '../core/rng';
 import type { Humano, TitanAPI } from '../core/tipos';
@@ -36,6 +37,8 @@ export interface EntornoCivil {
   /** Dirección horizontal hacia fuera a través de la puerta. */
   readonly salidaPuerta: THREE.Vector3;
   readonly gravedad: number;
+  /** Cilindros que los civiles no atraviesan además de los muros (el jugador, si está a su altura). */
+  readonly solidos: readonly Cilindro[];
   readonly rng: Rng;
   /** Siguiente punto hacia la puerta por el campo de huida (null si no hay campo aquí). */
   pasoHuida(c: Civil): THREE.Vector3 | null;
@@ -83,6 +86,8 @@ export class Civil implements Humano {
   distTitan = Infinity;
   /** Brazo del titán que lo sujeta. */
   brazoAgarre: 'brazoIzq' | 'brazoDer' | null = null;
+  /** Aldeano de un pueblo: pasea por él y, si huye, se aleja del titán sin ir a la puerta de Trost. */
+  hogar: { x: number; z: number; radio: number } | null = null;
 
   private readonly vAndar: number;
   private readonly vCorrer: number;
@@ -343,6 +348,15 @@ export class Civil implements Humano {
       this.cambiar('quieto');
       return;
     }
+    // Aldeano: corre lejos del titán (hacia fuera de su pueblo si hace falta) y se calma luego
+    if (this.hogar) {
+      const v = this.herido ? Math.min(2.2, this.vCorrer * 0.55) : this.vCorrer;
+      if (titanVisto && this.titanCerca) {
+        tmp.copy(this.pies).sub(this.titanCerca.posicion).setY(0).normalize().multiplyScalar(12).add(this.pies);
+        this.moverHacia(dt, e, tmp, v, true);
+      } else this.frenar(dt, 3);
+      return;
+    }
     // ¿Ha llegado a la puerta?
     if (Math.hypot(this.pies.x - e.puerta.x, this.pies.z - e.puerta.z) < 7) {
       this.turno = e.turnoPuerta();
@@ -457,15 +471,21 @@ export class Civil implements Humano {
     if (dv > acel * dt) tmp2.multiplyScalar((acel * dt) / dv);
     this.velocidad.add(tmp2);
     this.velocidad.y = 0;
-    this.moverLibre(dt, e.nav);
+    this.moverLibre(dt, e.nav, e.solidos);
     if (this.velocidad.lengthSq() > 0.04) this.girarHacia(tmp.set(this.pies.x + this.velocidad.x, 0, this.pies.z + this.velocidad.z), dt, 7);
   }
 
   /** Integra la velocidad deslizando contra las casas (rejilla de navegación). */
-  private moverLibre(dt: number, nav: Navegacion | null): void {
-    const nx = this.pies.x + this.velocidad.x * dt;
-    const nz = this.pies.z + this.velocidad.z * dt;
+  private moverLibre(dt: number, nav: Navegacion | null, solidos: readonly Cilindro[] = []): void {
+    let nx = this.pies.x + this.velocidad.x * dt;
+    let nz = this.pies.z + this.velocidad.z * dt;
     const r = CIVILES.radio;
+    // el jugador no se atraviesa: el paso se aparta de su cuerpo antes de comprobar los muros
+    if (solidos.length) {
+      const e = empujeFuera(nx, nz, r, solidos);
+      nx += e.dx;
+      nz += e.dz;
+    }
     if (!nav || nav.libre(nx, nz, r) || !nav.libre(this.pies.x, this.pies.z, r)) {
       this.pies.x = nx;
       this.pies.z = nz;
