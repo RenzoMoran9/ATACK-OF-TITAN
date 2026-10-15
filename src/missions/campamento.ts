@@ -80,18 +80,38 @@ export interface EstadoGuardadoCampamento {
 
 interface Canon {
   tramo: number;
+  /** Gira hacia el blanco (guiñada y elevación limitadas por la tronera). */
   pivote: THREE.Group;
-  tubo: THREE.Mesh;
+  /** El tubo con sus anillos: retrocede al disparar. */
+  tubo: THREE.Group;
+  /** Cureña: gira solo en horizontal, con el tubo. */
+  base: THREE.Group;
+  material: THREE.MeshLambertMaterial;
   boca: THREE.Object3D;
+  fogonazo: THREE.Sprite;
   rumbo: number;
   recarga: number;
+  /** Retroceso (0–1) tras el disparo. */
+  retroceso: number;
 }
 
 interface Bala {
   malla: THREE.Mesh;
   desde: THREE.Vector3;
+  titan: TitanAPI;
+  zona: ZonaTitan;
+  /** Punto de impacto (se actualiza mientras vuela: sigue al titán). */
   hasta: THREE.Vector3;
+  duracion: number;
   t: number;
+}
+
+/** Vida que le van quitando los cañonazos a un titán (0–1) y su barra sobre la cabeza. */
+interface VidaTitan {
+  vida: number;
+  tGolpe: number;
+  fondo: THREE.Sprite;
+  barra: THREE.Sprite;
 }
 
 const MADERA = new THREE.MeshLambertMaterial({ color: '#6b4c30' });
@@ -104,7 +124,8 @@ const LONA_VERDE = new THREE.MeshLambertMaterial({ color: '#5d6e4a', side: THREE
 const ESTANDARTE = new THREE.MeshLambertMaterial({ color: '#2f4a2a', side: THREE.DoubleSide });
 const LATA = new THREE.MeshLambertMaterial({ color: '#9aa0a6' });
 const PIEDRA = new THREE.MeshLambertMaterial({ color: '#8f8a80' });
-const BALA = new THREE.MeshBasicMaterial({ color: '#1d1d1d' });
+const BALA = new THREE.MeshLambertMaterial({ color: '#202020' });
+const BRONCE = new THREE.MeshLambertMaterial({ color: '#3a3326' });
 
 const N = NUM_POSTES;
 const PASO = (Math.PI * 2) / N;
@@ -117,14 +138,26 @@ const R_ESTACAS = RADIO_CERCO + 1.9;
 const TRAMOS_ESCALERA = [4, 8];
 const TRAMOS_CANON = [2, 5, 7, 10];
 const TRAMO_TORRE = 11;
+/** Radio de la atalaya (separada del adarve para que no se toquen). */
+const R_TORRE = 8.8;
 const ALTO_TORRE = 8.5;
 const ALTO_PUERTA = 3.2;
 /** Un aliado a esta distancia de la puerta la abre. */
-const ALCANCE_PUERTA = 8;
-const RECARGA_CANON = 5;
-const ALCANCE_CANON = 170;
-const ARCO_CANON = (75 * Math.PI) / 180;
-const RADIO_AVISO = 180;
+const ALCANCE_PUERTA = 6.5;
+const RECARGA_CANON = 4;
+/** Alcance de los cañones (m) y arco que cubre cada uno a cada lado de su tronera. */
+const ALCANCE_CANON = 260;
+const ARCO_CANON = (50 * Math.PI) / 180;
+/** Velocidad de la bala (m/s): de lejos tarda en llegar. */
+const VEL_BALA = 150;
+/** Tronera: medio ancho del hueco en la empalizada y altura de los troncos rebajados. */
+const MEDIA_TRONERA = 1.15;
+const ALTO_TRONERA = 2.3;
+/** Altura del eje del cañón sobre el suelo (adarve + plataforma + cureña). */
+const ALTO_CANON = ALTO_ADARVE + 0.12 + 0.78;
+/** Segundos sin cañonazos para que un titán empiece a regenerar la vida perdida. */
+const REGEN_TITAN = 10;
+const RADIO_AVISO = 260;
 const PIERNAS: ZonaTitan[] = ['corvaIzq', 'corvaDer', 'tendonIzq', 'tendonDer'];
 
 /** Giro en Y para que el eje X local de una pieza quede tangente al muro en el ángulo `a`. */
@@ -160,8 +193,9 @@ export class Campamento implements FuerteAPI {
   private readonly avisados = new Set<number>();
   private readonly canones: Canon[] = [];
   private readonly balas: Bala[] = [];
-  private readonly geoBala = new THREE.SphereGeometry(0.3, 8, 6);
-  private puerta: { hoja: THREE.Group; base: THREE.Vector3; alza: number; collider: RAPIER.Collider | null; navCerrada: boolean } | null = null;
+  private readonly geoBala = new THREE.SphereGeometry(0.3, 10, 8);
+  private readonly vidas = new Map<TitanAPI, VidaTitan>();
+  private puerta: { hoja: THREE.Group; base: THREE.Vector3; alza: number; collider: RAPIER.Collider | null; navCerrada: boolean; tAbierta: number } | null = null;
   private tLatas = 0;
   private tAviso = -99;
   private tHerida = -99;
@@ -189,7 +223,10 @@ export class Campamento implements FuerteAPI {
         const u = (k + 0.5) / n;
         const lateral = (u - 0.5) * CUERDA;
         if (i === 0 && Math.abs(lateral) < ANCHO_PUERTA / 2 + 0.45) continue; // hueco de la puerta
-        this.datosTroncos.push({ x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u, tramo: i, alto: ALTO_MURO + (Math.random() - 0.5) * 0.3, giro: Math.random() * Math.PI });
+        // tronera: los troncos delante de cada cañón, más bajos para que asome el tubo
+        const tronera = TRAMOS_CANON.includes(i) && Math.abs(lateral) < MEDIA_TRONERA;
+        const alto = tronera ? ALTO_TRONERA : ALTO_MURO + (Math.random() - 0.5) * 0.3;
+        this.datosTroncos.push({ x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u, tramo: i, alto, giro: Math.random() * Math.PI });
       }
       const ang = anguloTramo(i, this.giro);
       const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
@@ -205,8 +242,9 @@ export class Campamento implements FuerteAPI {
     this.troncos = new THREE.InstancedMesh(geoTronco, TRONCO, this.datosTroncos.length);
     this.puntas = new THREE.InstancedMesh(geoPunta, PUNTA, this.datosTroncos.length);
     for (const m of [this.troncos, this.puntas]) {
+      // sin recibir sombra: en mallas instanciadas tan juntas la sombra propia parpadea
       m.castShadow = true;
-      m.receiveShadow = true;
+      m.receiveShadow = false;
       m.frustumCulled = false;
       this.grupo.add(m);
     }
@@ -415,6 +453,8 @@ export class Campamento implements FuerteAPI {
     this.estacasAtacadas(dt);
     this.vigias();
     for (const k of this.canones) k.recarga = Math.max(0, k.recarga - dt);
+    this.expulsarTitanes();
+    this.regenerarVidas(dt);
     // la hoguera crepita
     const f = 1 + 0.18 * Math.sin(this.t * 13) * Math.sin(this.t * 7.3);
     this.fuego.scale.set(1.3 * f, 1.8 * f, 1);
@@ -426,25 +466,59 @@ export class Campamento implements FuerteAPI {
     }
   }
 
-  /** Cada fotograma: cañones hacia su blanco y balas en vuelo. */
+  /** Cada fotograma: cañones hacia su blanco, balas en vuelo y barras de vida de los titanes tocados. */
   dibujar(dt: number): void {
     const usados = new Set<TitanAPI>();
     for (const k of this.canones) {
       if (!this.tramoHecho(k.tramo)) continue;
       const t = this.objetivoDe(k, usados);
       if (t) usados.add(t);
-      const destino = t ? this.puntoDeTiro(t) : k.pivote.position.clone().add(new THREE.Vector3(Math.cos(k.rumbo), -0.15, Math.sin(k.rumbo)).multiplyScalar(10));
-      k.pivote.lookAt(destino);
-      (k.tubo.material as THREE.MeshLambertMaterial).color.setRGB(0.17 + 0.45 * Math.min(1, k.recarga / RECARGA_CANON), 0.17, 0.18);
+      this.apuntar(k, t ? this.puntoDeTiro(t) : null);
+      k.retroceso = Math.max(0, k.retroceso - dt * 1.6);
+      k.tubo.position.z = -0.45 * Math.sin(Math.min(1, k.retroceso) * Math.PI * 0.5);
+      k.fogonazo.visible = k.retroceso > 0.82;
+      k.fogonazo.scale.setScalar(1.2 + 2.5 * (1 - k.retroceso));
+      k.material.color.setRGB(0.16 + 0.4 * Math.min(1, k.recarga / RECARGA_CANON), 0.16, 0.17);
     }
+    // balas: parábola hacia el punto del titán (que se mueve mientras vuelan)
     for (let i = this.balas.length - 1; i >= 0; i--) {
       const b = this.balas[i];
-      b.t += dt / 0.25;
-      b.malla.position.lerpVectors(b.desde, b.hasta, Math.min(1, b.t));
+      b.t += dt / b.duracion;
+      if (b.titan.vivo) {
+        const p = b.titan.puntosDebiles.find((x) => x.zona === b.zona);
+        if (p) b.hasta.copy(p.centro);
+      }
+      const u = Math.min(1, b.t);
+      const arco = 4 * u * (1 - u) * Math.min(25, b.desde.distanceTo(b.hasta) * 0.06);
+      b.malla.position.lerpVectors(b.desde, b.hasta, u).y += arco;
+      if (Math.random() < 0.5) this.ctx.efectos.vapor(b.malla.position, 1, 0.35, 0.3);
       if (b.t >= 1) {
         b.malla.removeFromParent();
         this.balas.splice(i, 1);
+        this.impacto(b);
       }
+    }
+    this.dibujarVidas();
+  }
+
+  /** Barra de vida (cañonazos) sobre la cabeza de cada titán tocado; se recupera si dejan de darle. */
+  private dibujarVidas(): void {
+    const camara = this.ctx.camara;
+    const derecha = new THREE.Vector3().setFromMatrixColumn(camara.matrixWorld, 0);
+    for (const [t, v] of this.vidas) {
+      if (!t.vivo || v.vida >= 1) {
+        v.fondo.removeFromParent();
+        v.barra.removeFromParent();
+        this.vidas.delete(t);
+        continue;
+      }
+      const ancho = 1.5 + t.altura * 0.25;
+      const cabeza = t.cabeza().add(new THREE.Vector3(0, 1.2 + t.altura * 0.12, 0)).addScaledVector(derecha, -ancho / 2);
+      v.fondo.position.copy(cabeza);
+      v.barra.position.copy(cabeza);
+      v.fondo.scale.set(ancho, 0.22 + t.altura * 0.02, 1);
+      v.barra.scale.set(Math.max(0.001, ancho * v.vida), 0.22 + t.altura * 0.02, 1);
+      (v.barra.material as THREE.SpriteMaterial).color.setHSL(0.33 * v.vida, 0.85, 0.45);
     }
   }
 
@@ -504,8 +578,12 @@ export class Campamento implements FuerteAPI {
   private puertaAutomatica(dt: number): void {
     const p = this.puerta;
     if (!p || !this.tramoHecho(0)) return;
-    const aliado = (h: Humano) => h.vivo && !h.agarradoPor && Math.hypot(h.posicion.x - p.base.x, h.posicion.z - p.base.z) < ALCANCE_PUERTA && h.posicion.y < 6;
-    const abrir = aliado(this.ctx.jugador) || this.ctx.escuadron.soldados.some(aliado);
+    // se abre con un aliado a 6,5 m; no empieza a cerrarse hasta que no quede nadie a 8 m durante 1,5 s
+    // (así no sube y baja sin parar con alguien rondando el borde)
+    const cerca = (r: number) => (h: Humano) => h.vivo && !h.agarradoPor && Math.hypot(h.posicion.x - p.base.x, h.posicion.z - p.base.z) < r && h.posicion.y < 6;
+    const hay = (r: number) => cerca(r)(this.ctx.jugador) || this.ctx.escuadron.soldados.some(cerca(r));
+    if (hay(ALCANCE_PUERTA) || (p.alza > 0 && hay(ALCANCE_PUERTA + 1.5))) p.tAbierta = this.t;
+    const abrir = this.t - p.tAbierta < 1.5;
     const antes = p.alza;
     p.alza = THREE.MathUtils.clamp(p.alza + (abrir ? 1 : -1) * dt * 1.6, 0, 1);
     p.hoja.position.y = -p.alza * (ALTO_PUERTA - 0.08);
@@ -572,15 +650,17 @@ export class Campamento implements FuerteAPI {
       if (!t.vivo || t instanceof Silueta || this.avisados.has(t.id)) continue;
       this.avisados.add(t.id);
       this.tAviso = this.t;
-      this.ctx.eventos.emit({ tipo: 'mensaje', texto: textoAviso('Vigía', t, t.posicion.x - j.x, t.posicion.z - j.z), segundos: 3.5 });
+      const aTiro = this.canones.some((k) => this.tramoHecho(k.tramo) && this.objetivoDe(k, new Set()) === t);
+      this.ctx.eventos.emit({ tipo: 'mensaje', texto: textoAviso('Vigía', t, t.posicion.x - j.x, t.posicion.z - j.z) + (aTiro ? ' A tiro de cañón: T' : ''), segundos: 3.5 });
       const ang = anguloTramo(TRAMO_TORRE, this.giro);
-      this.ctx.efectos.bengala(this.centro.clone().add(new THREE.Vector3(Math.cos(ang) * 9.5, ALTO_TORRE + 2, Math.sin(ang) * 9.5)), COLOR_AVISO);
+      this.ctx.efectos.bengala(this.centro.clone().add(new THREE.Vector3(Math.cos(ang) * R_TORRE, ALTO_TORRE + 2, Math.sin(ang) * R_TORRE)), COLOR_AVISO);
       return;
     }
   }
 
   // ─────────────────────────── Cañones ───────────────────────────
 
+  /** Titán más cercano dentro del arco y el alcance de este cañón (sin repetir los ya elegidos). */
   private objetivoDe(k: Canon, evitar: Set<TitanAPI>): TitanAPI | null {
     let mejor: TitanAPI | null = null;
     let dMejor = ALCANCE_CANON;
@@ -593,12 +673,32 @@ export class Campamento implements FuerteAPI {
       da = Math.atan2(Math.sin(da), Math.cos(da));
       if (Math.abs(da) > ARCO_CANON) continue;
       const d = Math.hypot(dx, dz);
+      if (d < 6) continue;
       if (d < dMejor) {
         dMejor = d;
         mejor = t;
       }
     }
     return mejor;
+  }
+
+  /** Orienta el cañón hacia `p` sin salirse de la tronera (o en reposo, hacia fuera). */
+  private apuntar(k: Canon, p: THREE.Vector3 | null): void {
+    const o = k.pivote.position;
+    let guiñada = 0;
+    let elevacion = 0.02;
+    if (p) {
+      let da = Math.atan2(p.z - o.z, p.x - o.x) - k.rumbo;
+      da = Math.atan2(Math.sin(da), Math.cos(da));
+      guiñada = THREE.MathUtils.clamp(da, -ARCO_CANON, ARCO_CANON);
+      const d = Math.hypot(p.x - o.x, p.z - o.z);
+      // un poco por encima del blanco: la bala cae en parábola
+      elevacion = THREE.MathUtils.clamp(Math.atan2(p.y - o.y, d) + Math.min(0.12, d * 0.0005), -0.12, 0.35);
+    }
+    const a = k.rumbo + guiñada;
+    k.base.rotation.y = Math.PI / 2 - a;
+    const dir = new THREE.Vector3(Math.cos(a) * Math.cos(elevacion), Math.sin(elevacion), Math.sin(a) * Math.cos(elevacion));
+    k.pivote.lookAt(o.clone().add(dir));
   }
 
   /** Nuca del titán caído; rodillas del que está en pie. */
@@ -613,23 +713,86 @@ export class Campamento implements FuerteAPI {
     return t.puntosDebiles.find((p) => p.zona === z)?.centro.clone() ?? t.posicion.clone().setY(t.altura * 0.4);
   }
 
+  /** Fogonazo, retroceso y la bala en camino; el daño se aplica cuando llega. */
   private dispararCanon(k: Canon, t: TitanAPI): void {
     k.recarga = RECARGA_CANON;
+    k.retroceso = 1;
     const zona = this.zonaDeTiro(t);
     const blanco = this.puntoDeTiro(t);
-    k.pivote.lookAt(blanco);
+    this.apuntar(k, blanco);
     k.pivote.updateMatrixWorld(true);
     const boca = k.boca.getWorldPosition(new THREE.Vector3());
     const bala = new THREE.Mesh(this.geoBala, BALA);
     bala.position.copy(boca);
+    bala.castShadow = true;
     this.ctx.escena.add(bala);
-    this.balas.push({ malla: bala, desde: boca, hasta: blanco.clone(), t: 0 });
-    this.ctx.efectos.vapor(boca, 16, 1.3, 4);
+    const d = boca.distanceTo(blanco);
+    this.balas.push({ malla: bala, desde: boca, titan: t, zona, hasta: blanco, duracion: Math.max(0.2, d / VEL_BALA), t: 0 });
+    this.ctx.efectos.vapor(boca, 22, 1.4, 5);
     this.ctx.eventos.emit({ tipo: 'canon', pos: boca });
+  }
+
+  /**
+   * La bala llega: rodillas del titán en pie (cojea o cae), nuca del caído, y siempre le quita vida.
+   * Cuanto más grande el titán, más cañonazos aguanta (3 uno de 3 m, 6 uno de 15 m). Sin vida, muere.
+   */
+  private impacto(b: Bala): void {
+    const t = b.titan;
+    this.ctx.efectos.vapor(b.hasta, 12, 1 + t.altura * 0.06, 4);
+    if (!t.vivo) return;
+    const zona = t.puntosDebiles.some((p) => p.zona === b.zona && p.activo) ? b.zona : 'cuerpo';
     const danio = zona === 'nuca' ? umbralNuca(t.altura) * 0.55 : zona === 'cuerpo' ? 1 : umbralZona(zona, t.altura) * 1.3;
     const res = t.recibirCorte(zona, danio, this.ctx.jugador);
-    this.ctx.efectos.vapor(blanco, 8, 0.8 + t.altura * 0.05, 3);
-    if (res.efecto !== 'nada' && res.efecto !== 'superficial') this.ctx.efectos.sangre(blanco.clone(), blanco.clone().sub(boca).normalize(), 12);
+    if (res.efecto !== 'nada') this.ctx.efectos.sangre(b.hasta.clone(), b.hasta.clone().sub(b.desde).normalize(), 14);
+    if (!t.vivo) return;
+    const v = this.vidaDe(t);
+    v.vida = Math.max(0, v.vida - 1 / (2.5 + t.altura / 4.5));
+    v.tGolpe = this.t;
+    if (v.vida <= 0) {
+      t.recibirCorte('nuca', umbralNuca(t.altura) * 3, this.ctx.jugador);
+      if (!t.vivo) this.ctx.eventos.emit({ tipo: 'mensaje', texto: `¡Titán de ${Math.round(t.altura)} m abatido a cañonazos!`, segundos: 2.5 });
+    }
+  }
+
+  private vidaDe(t: TitanAPI): VidaTitan {
+    let v = this.vidas.get(t);
+    if (!v) {
+      const fondo = new THREE.Sprite(new THREE.SpriteMaterial({ color: '#111111', transparent: true, opacity: 0.75, depthWrite: false }));
+      const barra = new THREE.Sprite(new THREE.SpriteMaterial({ color: '#3fae49', depthWrite: false }));
+      for (const sp of [fondo, barra]) {
+        sp.center.set(0, 0.5);
+        sp.renderOrder = 5;
+        this.ctx.escena.add(sp);
+      }
+      barra.renderOrder = 6;
+      v = { vida: 1, tGolpe: this.t, fondo, barra };
+      this.vidas.set(t, v);
+    }
+    return v;
+  }
+
+  /** Los titanes heridos por los cañones se regeneran si pasan un rato sin recibir. */
+  private regenerarVidas(dt: number): void {
+    for (const v of this.vidas.values()) if (this.t - v.tGolpe > REGEN_TITAN) v.vida = Math.min(1, v.vida + 0.04 * dt);
+  }
+
+  /** Con la empalizada cerrada, ningún titán puede estar dentro ni encima del muro: sale empujado. */
+  private expulsarTitanes(): void {
+    if (!this.empalizadaCerrada) return;
+    const c = this.centro;
+    for (const t of this.ctx.poblacion.titanesCerca(c, R_ESTACAS + 8)) {
+      if (!t.vivo) continue;
+      const r = Math.max(0.6, 0.17 * t.altura) * 0.7;
+      const limite = R_ESTACAS + 0.6 + r + 0.05;
+      const dx = t.posicion.x - c.x;
+      const dz = t.posicion.z - c.z;
+      const d = Math.hypot(dx, dz);
+      if (d >= limite) continue;
+      const ux = d > 1e-3 ? dx / d : Math.cos(this.giro);
+      const uz = d > 1e-3 ? dz / d : Math.sin(this.giro);
+      t.posicion.x = c.x + ux * limite;
+      t.posicion.z = c.z + uz * limite;
+    }
   }
 
   // ─────────────────────────── Construcción ───────────────────────────
@@ -651,8 +814,10 @@ export class Campamento implements FuerteAPI {
     // largueros que atan los troncos por dentro
     for (const y of [0.8, ALTO_MURO - 0.6]) {
       if (i === 0) continue;
-      const larguero = new THREE.Mesh(new THREE.BoxGeometry(CUERDA, 0.16, 0.12), MADERA);
-      larguero.position.copy(en(APOTEMA - 0.25, y));
+      // un pelo más cortos y a alturas alternas: los de tramos vecinos no se solapan (parpadeo)
+      const rL = APOTEMA - 0.34;
+      const larguero = new THREE.Mesh(new THREE.BoxGeometry(CUERDA * (rL / APOTEMA) - 0.06, 0.16, 0.12), MADERA);
+      larguero.position.copy(en(rL, y + (i % 2) * 0.03));
       larguero.rotation.y = rot;
       pieza(larguero);
     }
@@ -662,8 +827,9 @@ export class Campamento implements FuerteAPI {
     }
     // adarve: tablas sobre pies derechos, con barandilla por dentro
     const largo = CUERDA * (R_ADARVE / APOTEMA) + 0.05;
+    // tramos alternos 1 cm más altos: donde se cruzan dos tablas en la esquina no parpadean
     const tablas = new THREE.Mesh(new THREE.BoxGeometry(largo, 0.16, ANCHO_ADARVE), TABLA);
-    tablas.position.copy(en(R_ADARVE, ALTO_ADARVE - 0.08));
+    tablas.position.copy(en(R_ADARVE, ALTO_ADARVE - 0.08 + (i % 2) * 0.012));
     tablas.rotation.y = rot;
     tablas.receiveShadow = true;
     pieza(tablas);
@@ -676,7 +842,7 @@ export class Campamento implements FuerteAPI {
       pieza(poste);
     }
     const baranda = new THREE.Mesh(new THREE.BoxGeometry(largo, 0.08, 0.08), MADERA);
-    baranda.position.copy(en(R_ADARVE - ANCHO_ADARVE / 2 + 0.05, ALTO_ADARVE + 0.95, 0));
+    baranda.position.copy(en(R_ADARVE - ANCHO_ADARVE / 2 + 0.05, ALTO_ADARVE + 0.95 + (i % 2) * 0.02, 0));
     baranda.rotation.y = rot;
     pieza(baranda);
     // escalera de bloques hasta el adarve
@@ -691,34 +857,94 @@ export class Campamento implements FuerteAPI {
         pieza(peldaño);
       }
     }
-    // cañón sobre su cureña, asomando por encima de la empalizada
-    if (TRAMOS_CANON.includes(i)) {
-      const cureña = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.3, 1.1), MADERA);
-      cureña.position.copy(en(R_ADARVE + 0.1, ALTO_ADARVE + 0.65));
-      cureña.rotation.y = rot;
-      pieza(cureña);
-      for (const lat of [-0.6, 0.6]) {
-        const rueda = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.12, 12), MADERA);
-        rueda.position.copy(en(R_ADARVE + 0.1, ALTO_ADARVE + 0.45, lat));
-        rueda.rotation.set(0, rot, Math.PI / 2, 'YXZ');
-        pieza(rueda);
-      }
-      const pivote = new THREE.Group();
-      pivote.position.copy(en(R_ADARVE + 0.1, ALTO_ADARVE + 1.55));
-      const tubo = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.26, 2.6, 12), new THREE.MeshLambertMaterial({ color: '#2b2c2f' }));
-      tubo.rotation.x = Math.PI / 2;
-      tubo.position.z = 1.0;
-      pivote.add(tubo);
-      const brocal = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.05, 6, 12), HIERRO);
-      brocal.position.z = 2.3;
-      pivote.add(brocal);
-      const boca = new THREE.Object3D();
-      boca.position.z = 2.35;
-      pivote.add(boca);
-      pivote.lookAt(pivote.position.clone().addScaledVector(dir, 10));
-      pieza(pivote);
-      this.canones.push({ tramo: i, pivote, tubo, boca, rumbo: a, recarga: 0 });
+    // cañón de campaña sobre su plataforma, asomando por la tronera
+    if (TRAMOS_CANON.includes(i)) this.construirCanon(i, a, en);
+  }
+
+  /**
+   * Cañón: plataforma de tablones sobre el adarve, cureña de dos gualderas con cuatro ruedas (gira
+   * con la puntería) y el tubo de hierro con muñones, anillos de refuerzo, culata y su fogonazo.
+   */
+  private construirCanon(i: number, a: number, en: (r: number, y: number, lat?: number) => THREE.Vector3): void {
+    const piezas = this.piezasTramo.get(i)!;
+    const pieza = (m: THREE.Object3D) => {
+      m.visible = false;
+      this.grupo.add(m);
+      piezas.push(m);
+    };
+    const haciaFuera = Math.PI / 2 - a; // giro en Y que lleva el +Z local hacia fuera del muro
+    // plataforma ancha y maciza, con dos vigas de apoyo que bajan al suelo
+    const plataforma = new THREE.Group();
+    plataforma.position.copy(en(R_ADARVE + 0.05, ALTO_ADARVE));
+    plataforma.rotation.y = haciaFuera;
+    const tablon = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.12, 2.0), TABLA);
+    tablon.position.y = 0.06;
+    tablon.receiveShadow = true;
+    plataforma.add(tablon);
+    for (const x of [-1.15, 1.15]) {
+      const viga = new THREE.Mesh(new THREE.BoxGeometry(0.22, ALTO_ADARVE, 0.22), TRONCO);
+      viga.position.set(x, -ALTO_ADARVE / 2, -0.7);
+      plataforma.add(viga);
     }
+    pieza(plataforma);
+    // cureña (gira solo en horizontal)
+    const base = new THREE.Group();
+    base.position.copy(en(R_ADARVE + 0.15, ALTO_ADARVE + 0.12));
+    base.rotation.y = haciaFuera;
+    for (const x of [-0.36, 0.36]) {
+      const gualdera = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.6, 1.5), MADERA);
+      gualdera.position.set(x, 0.42, -0.15);
+      gualdera.castShadow = true;
+      base.add(gualdera);
+    }
+    for (const z of [-0.75, 0.45]) {
+      const eje = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.14, 0.16), HIERRO);
+      eje.position.set(0, 0.2, z);
+      base.add(eje);
+      for (const x of [-0.52, 0.52]) {
+        const rueda = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.12, 14), TRONCO);
+        rueda.rotation.z = Math.PI / 2;
+        rueda.position.set(x, 0.22, z);
+        base.add(rueda);
+      }
+    }
+    const travesaño = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.2, 0.2), MADERA);
+    travesaño.position.set(0, 0.3, -0.85);
+    base.add(travesaño);
+    pieza(base);
+    // tubo: gira en horizontal y en elevación sobre los muñones
+    const pivote = new THREE.Group();
+    pivote.position.copy(en(R_ADARVE + 0.15, ALTO_CANON));
+    const material = new THREE.MeshLambertMaterial({ color: '#29292c' });
+    const tubo = new THREE.Group();
+    const cuerpo = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.27, 2.3, 16), material);
+    cuerpo.rotation.x = Math.PI / 2;
+    cuerpo.position.z = 0.55;
+    cuerpo.castShadow = true;
+    tubo.add(cuerpo);
+    for (const [z, r] of [[-0.45, 0.29], [0.15, 0.26], [0.95, 0.22], [1.62, 0.21]] as const) {
+      const anillo = new THREE.Mesh(new THREE.TorusGeometry(r, 0.045, 6, 16), material);
+      anillo.position.z = z;
+      tubo.add(anillo);
+    }
+    const culata = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), material);
+    culata.position.z = -0.72;
+    tubo.add(culata);
+    const muñones = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.86, 8), BRONCE);
+    muñones.rotation.z = Math.PI / 2;
+    tubo.add(muñones);
+    pivote.add(tubo);
+    const boca = new THREE.Object3D();
+    boca.position.z = 1.75;
+    pivote.add(boca);
+    const fogonazo = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaParticula(), color: '#ffb347', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    fogonazo.position.z = 2.1;
+    fogonazo.visible = false;
+    pivote.add(fogonazo);
+    pieza(pivote);
+    const k: Canon = { tramo: i, pivote, base, tubo, material, boca, fogonazo, rumbo: a, recarga: 0, retroceso: 0 };
+    this.apuntar(k, null);
+    this.canones.push(k);
   }
 
   /** Marco de la puerta con su travesaño y el estandarte, y la hoja (madera con flejes y tranca). */
@@ -766,14 +992,14 @@ export class Campamento implements FuerteAPI {
       p.visible = false;
       this.grupo.add(p);
     }
-    this.puerta = { hoja, base, alza: 0, collider: null, navCerrada: false };
+    this.puerta = { hoja, base, alza: 0, collider: null, navCerrada: false, tAbierta: -99 };
   }
 
   /** Atalaya de cuatro pies derechos con plataforma, barandilla, escala y tejadillo. */
   private construirTorre(progreso: number): void {
     const c = this.centro;
     const a = anguloTramo(TRAMO_TORRE, this.giro);
-    const pos = new THREE.Vector3(c.x + Math.cos(a) * 9.4, 0, c.z + Math.sin(a) * 9.4);
+    const pos = new THREE.Vector3(c.x + Math.cos(a) * R_TORRE, 0, c.z + Math.sin(a) * R_TORRE);
     const g = new THREE.Group();
     g.position.copy(pos);
     g.rotation.y = giroTangente(a);
@@ -977,7 +1203,17 @@ export class Campamento implements FuerteAPI {
     this.grupo.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.LineSegments) o.geometry.dispose();
     });
-    for (const k of this.canones) (k.tubo.material as THREE.Material).dispose();
+    for (const k of this.canones) {
+      k.material.dispose();
+      (k.fogonazo.material as THREE.Material).dispose();
+    }
+    for (const v of this.vidas.values()) {
+      for (const sp of [v.fondo, v.barra]) {
+        sp.removeFromParent();
+        (sp.material as THREE.Material).dispose();
+      }
+    }
+    this.vidas.clear();
     this.geoBala.dispose();
     if (this.ctx.fuerte === this) this.ctx.fuerte = null;
     if (!this.listo) for (const s of this.ctx.escuadron.soldados) this.ctx.escuadron.trabajarEn(s, null);

@@ -718,7 +718,8 @@ export class Titan implements TitanAPI {
           if (largo > 1e-3) dir.divideScalar(largo);
           const destino = this.posicion.clone().addScaledVector(dir, Math.max(0, largo - adelanto * 0.9)).setY(0);
           const libre = this.ctx.nav.libre(destino.x, destino.z, this.radioNav * 0.7) ? destino : (this.ctx.nav.puntoLibreCercano(destino.x, destino.z, this.radioNav * 0.7, 6) ?? this.posicion.clone());
-          a.destino = libre.setY(0);
+          // nunca salta por encima de la empalizada del campamento
+          a.destino = (this.ctx.fuerte?.bloquea(libre.x, libre.z, this.radioNav * 0.7) ? this.posicion.clone() : libre).setY(0);
           a.desde.copy(this.posicion);
           a.fase = 'salto';
           a.t = 0;
@@ -955,7 +956,10 @@ export class Titan implements TitanAPI {
     const r = this.radioNav * 0.7;
     // la empalizada del campamento es maciza para los titanes aunque la puerta esté abierta
     const libre = (x: number, z: number) => nav.libre(x, z, r) && !this.ctx.fuerte?.bloquea(x, z, r);
-    if (libre(nueva.x, nueva.z) || !libre(this.posicion.x, this.posicion.z)) {
+    // atascado en un obstáculo de la rejilla puede salir; dentro del campamento, nunca se mueve hacia dentro
+    const fuerte = this.ctx.fuerte;
+    const atascado = !nav.libre(this.posicion.x, this.posicion.z, r) && !fuerte?.bloquea(nueva.x, nueva.z, r);
+    if (libre(nueva.x, nueva.z) || atascado) {
       this.posicion.copy(nueva);
     } else if (libre(nueva.x, this.posicion.z)) {
       this.posicion.x = nueva.x;
