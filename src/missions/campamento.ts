@@ -12,7 +12,6 @@ import {
   DESGASTE_ALAMBRE,
   FRENO_ALAMBRE,
   NUM_POSTES,
-  OBRA_SOLDADO,
   RADIO_CARPAS,
   RADIO_CERCO,
   VIDA_ALAMBRE,
@@ -24,20 +23,19 @@ import {
   desvioPorPuerta,
   nuevaZona,
   puntosCerco,
-  repartirObras,
   tramoDe,
   type Golpe,
 } from './logicaCampamento';
 import { Silueta } from './silueta';
 
 /**
- * Campamento fortificado de la Legión que montas donde quieras (K), a cualquier hora: una
+ * Campamento fortificado de la Legión que montas donde quieras (K), a cualquier hora, y que se
+ * levanta solo en unos 25 s (tramo a tramo desde la puerta, la atalaya y las carpas): una
  * empalizada redonda de troncos afilados con su adarve (pasarela interior a 2,2 m desde la que se
  * ve por encima del muro), dos escaleras, una atalaya junto a la puerta, cuatro cañones sobre el
  * adarve, una corona de estacas por fuera y, dentro, un corro de carpas alrededor de la hoguera.
  *
- * Al armarlo, el escuadrón se reparte las obras (cada tramo de empalizada, cada carpa y la atalaya)
- * y tú ayudas con el martillo: G (o el botón MARTILLO) cuando la aguja pasa por la zona verde.
+ * Mientras se levanta, el escuadrón espera dentro.
  *
  * Terminado:
  * - La empalizada es maciza (colisionadores reales): nadie la atraviesa. Se entra por la puerta,
@@ -144,6 +142,9 @@ const ALTO_TORRE = 8.5;
 const ALTO_PUERTA = 3.2;
 /** Un aliado a esta distancia de la puerta la abre. */
 const ALCANCE_PUERTA = 6.5;
+/** Obra automática: cada pieza tarda DURACION_OBRA s y empieza PASO_OBRA s después de la anterior. */
+const DURACION_OBRA = 3;
+const PASO_OBRA = 1.15;
 const RECARGA_CANON = 4;
 /** Alcance de los cañones (m) y arco que cubre cada uno a cada lado de su tronera. */
 const ALCANCE_CANON = 260;
@@ -187,8 +188,10 @@ export class Campamento implements FuerteAPI {
   private readonly collidersTramo = new Map<number, RAPIER.Collider[]>();
   private collidersTorre: RAPIER.Collider[] = [];
   private readonly fuego: THREE.Sprite;
-  private readonly asignadas = new Map<Humano, number>();
-  private readonly tGolpes = new Map<Humano, number>();
+  /** Orden en que se levantan las obras (índices de `obras`) y reloj de la obra. */
+  private readonly ordenObras: number[] = [];
+  private tObra = 0;
+  private tMartillo = 0;
   private readonly heridas = new Map<number, number>();
   private readonly avisados = new Set<number>();
   private readonly canones: Canon[] = [];
@@ -292,7 +295,8 @@ export class Campamento implements FuerteAPI {
       const g = new THREE.Group();
       const lona = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 2.8, 3, 1, true), i % 2 ? LONA : LONA_VERDE);
       lona.rotation.x = -Math.PI / 2;
-      lona.position.y = 0.625;
+      // la cara de abajo del prisma queda 3 cm sobre el suelo: pegada a él parpadeaba
+      lona.position.y = 0.655;
       lona.castShadow = true;
       g.add(lona);
       const palo = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.9, 5), MADERA);
@@ -325,8 +329,22 @@ export class Campamento implements FuerteAPI {
     this.fuego.position.set(c.x, 0.7, c.z);
     this.grupo.add(this.fuego);
 
+    // orden de obra: la puerta, luego los tramos de dos en dos hacia el fondo, la atalaya y las carpas
+    this.ordenObras.push(0);
+    for (let k = 1; k <= N / 2; k++) {
+      this.ordenObras.push(k);
+      if (N - k !== k) this.ordenObras.push(N - k);
+    }
+    this.obras.forEach((o, i) => {
+      if (o.tipo === 'torre') this.ordenObras.push(i);
+    });
+    this.obras.forEach((o, i) => {
+      if (o.tipo === 'carpa') this.ordenObras.push(i);
+    });
     this.alambre = guardado?.alambre ?? VIDA_ALAMBRE;
     this.listoAvisado = this.listo;
+    // mientras se levanta, el escuadrón espera dentro
+    if (!this.listo) for (const s of ctx.escuadron.soldados) ctx.escuadron.trabajarEn(s, null, this.centro);
     ctx.escena.add(this.grupo);
     ctx.fuerte = this;
     this.zona = nuevaZona(Math.random);
@@ -436,19 +454,7 @@ export class Campamento implements FuerteAPI {
   actualizar(dt: number): void {
     this.t += dt;
     this.tAguja += dt;
-    const j = this.ctx.jugador;
-    // obra junto al jugador (a pie)
-    this.obraJugador = -1;
-    let dMin = 3.2;
-    this.obras.forEach((o, i) => {
-      if (o.progreso >= 1) return;
-      const d = Math.hypot(o.pos.x - j.posicion.x, o.pos.z - j.posicion.z);
-      if (d < dMin && j.posicion.y < 3) {
-        dMin = d;
-        this.obraJugador = i;
-      }
-    });
-    this.trabajoEscuadron(dt);
+    this.construir(dt);
     this.puertaAutomatica(dt);
     this.estacasAtacadas(dt);
     this.vigias();
@@ -522,56 +528,34 @@ export class Campamento implements FuerteAPI {
     }
   }
 
-  /** Cada soldado vivo y cerca va a una obra sin terminar y la levanta en unos segundos. */
-  private trabajoEscuadron(dt: number): void {
-    const esc = this.ctx.escuadron;
-    const vivos = esc.soldados.filter((s) => s.vivo && !s.agarradoPor && s.posicion.distanceTo(this.centro) < 150);
-    if (this.listo || vivos.length === 0) return;
-    const libres = vivos.filter((s) => {
-      const i = this.asignadas.get(s);
-      return i === undefined || this.obras[i].progreso >= 1 || i === this.obraJugador;
-    });
-    if (libres.length) {
-      const ocupadas = new Set<number>();
-      for (const [h, i] of this.asignadas) if (h.vivo && !libres.includes(h)) ocupadas.add(i);
-      const obras = this.obras.map((o, i) => ({ x: o.pos.x, z: o.pos.z, hecha: o.progreso >= 1 || ocupadas.has(i) }));
-      const reparto = repartirObras(libres.map((s) => ({ x: s.posicion.x, z: s.posicion.z })), obras, this.obraJugador);
-      libres.forEach((s, k) => {
-        const i = reparto[k];
-        if (i < 0) {
-          this.asignadas.delete(s);
-          esc.trabajarEn(s, null, this.centro);
-          return;
-        }
-        if (this.asignadas.get(s) === i) return;
-        this.asignadas.set(s, i);
-        // a pie de obra, siempre por dentro (hacia la hoguera)
-        const o = this.obras[i];
-        const dentro = this.centro.clone().sub(o.pos).setY(0).normalize().multiplyScalar(o.tipo === 'tramo' ? 1.8 : 1.8);
-        esc.trabajarEn(s, o.pos.clone().add(dentro), this.centro);
-      });
-    }
-    let cambio = false;
-    for (const s of vivos) {
-      const i = this.asignadas.get(s);
-      if (i === undefined) continue;
+  /**
+   * Obra automática: los tramos de empalizada se levantan uno tras otro desde la puerta hacia el
+   * fondo, luego la atalaya y las carpas (unos 25 s en total), con polvo y martillazos.
+   */
+  private construir(dt: number): void {
+    if (this.listo) return;
+    this.tObra += dt;
+    this.tMartillo -= dt;
+    let activa: Obra | null = null;
+    this.ordenObras.forEach((i, k) => {
       const o = this.obras[i];
-      if (o.progreso >= 1 || Math.hypot(o.pos.x - s.posicion.x, o.pos.z - s.posicion.z) > 3.5 || s.posicion.y > 2.5) continue;
-      o.progreso = Math.min(1, o.progreso + dt / OBRA_SOLDADO);
-      cambio = true;
-      const tg = (this.tGolpes.get(s) ?? 0) - dt;
-      if (tg <= 0) {
-        this.tGolpes.set(s, 0.7 + Math.random() * 0.3);
-        this.ctx.efectos.vapor(o.pos.clone().setY(0.2), 2, 0.4, 1);
-      } else this.tGolpes.set(s, tg);
+      if (o.progreso >= 1 || this.tObra < k * PASO_OBRA) return;
+      o.progreso = Math.min(1, o.progreso + dt / DURACION_OBRA);
+      activa = o;
+    });
+    const o = activa as Obra | null;
+    if (!o) return;
+    if (this.tMartillo <= 0) {
+      this.tMartillo = 0.35 + Math.random() * 0.2;
+      this.ctx.efectos.vapor(o.pos.clone().setY(0.2), 3, 0.5, 1.2);
+      this.ctx.eventos.emit({ tipo: 'martillazo', pos: o.pos.clone().setY(1), golpe: 'bueno' });
     }
-    if (cambio) this.dibujarObras();
+    this.dibujarObras();
   }
 
   /** Terminado: el escuadrón espera dentro del campamento (y solo sale si le mandas atacar). */
   private liberarEscuadron(): void {
     for (const s of this.ctx.escuadron.soldados) this.ctx.escuadron.trabajarEn(s, null, this.centro);
-    this.asignadas.clear();
   }
 
   /** La puerta se abre sola con un aliado cerca y se cierra sin él. Los titanes no la abren. */

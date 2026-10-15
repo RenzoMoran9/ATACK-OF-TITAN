@@ -45,13 +45,13 @@ npm run dev                       # http://localhost:5173
 | **Ataque directo** (TAJO con una parte fijada, lejos) | Un toque en **TAJO** engancha los ganchos al punto marcado, los **sostiene sin tener el botón pulsado** y corta solo al llegar a ~3 m. Si no hay dónde clavarse, avisa «No llego al punto» |
 | **C** | **Caballo**: al lado, montar; montado, bajar; lejos, silbar (viene al galope). Montado: WASD lo dirige, Shift galope, Espacio salta de la silla, y si clavas un gancho sales volando de ella |
 | **V** | **Acelerar a caballo** (montado, mantenido): un galope más rápido que gasta el aliento (la barra ALIENTO); vuelve despacio al soltar |
-| **K** | **Armar un campamento fortificado** donde estés (en un claro, a cualquier hora): empalizada de troncos con adarve, atalaya, puerta automática, estacas, cuatro cañones y seis carpas alrededor de una hoguera. El escuadrón se reparte las obras y tú ayudas con el martillo |
+| **K** | **Armar un campamento fortificado** donde estés (en un claro, a cualquier hora): empalizada de troncos con adarve, atalaya, puerta automática, estacas, cuatro cañones y seis carpas alrededor de una hoguera. **Se levanta solo** en unos 25 s, con el escuadrón esperando dentro |
 | **T** | Disparar los **cañones** del campamento (desde dentro): apuntan solos a las rodillas del titán en pie o a la nuca del caído; 5 s de recarga cada uno |
 | **G** junto a una obra | **Martillazo**: pulsa cuando la aguja pase por la zona verde. En el centro, el poste entra de una vez; bien, en tres golpes; fuera, apenas avanza |
 | **H** | Descansar hasta el amanecer (de noche, en un refugio: Trost, un puesto, el campamento de la Legión, tu campamento o un pueblo en paz) |
 | **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, pedir gas a un compañero |
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
-| **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
+| **5 / 6 / 7 / 8** | Esperad aquí (se quedan en su sitio: solo pelean con el titán que llega hasta ellos; dentro del campamento no salen) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
 | **Tab** | A quién mandas: todo el escuadrón → cada soldado → todos. Los demás conservan su orden (Todos + 5 = te vas solo; Tab hasta Mikasa + 1 = te la llevas) |
 | **M** | Mapa del territorio (bosques, río, lugares, escuadrón, titanes cercanos, puntos de recarga) |
 | **N** | Sonido sí / no (se recuerda) |
@@ -222,8 +222,8 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   rápido, más abierto), frena para dar media vuelta y, cuando lo llamas, llega frenando poco a poco. Parado y girando,
   da pasitos. Los cascos suenan al ritmo de la marcha.
 - **Campamento fortificado** (K): donde quieras, a cualquier hora, en un claro fuera de Trost. La puerta mira hacia
-  donde miras al armarlo. Cada soldado va a su tramo de empalizada, a su carpa o a la atalaya y lo levanta en unos
-  segundos; tú ayudas con el martillo. Terminado:
+  donde miras al armarlo. **Se construye solo** (unos 25 s): la empalizada sube tramo a tramo desde la puerta, luego
+  la atalaya y las carpas; mientras, el escuadrón espera dentro. Terminado:
   - **Empalizada maciza** de troncos afilados (3,4 m): ni tú, ni los soldados, ni los titanes la atraviesan. Por arriba
     está abierta: desde el **adarve** (pasarela a 2,2 m, con dos escaleras) ves por encima del muro, y desde la
     **atalaya** (8,5 m) todo el contorno.

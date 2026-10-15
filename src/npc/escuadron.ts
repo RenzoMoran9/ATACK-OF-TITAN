@@ -61,8 +61,11 @@ const MANOS: ZonaTitan[] = ['manoIzq', 'manoDer', 'mandibula'];
 const TENDONES: ZonaTitan[] = ['corvaIzq', 'corvaDer', 'tendonIzq', 'tendonDer'];
 const ABAJO = new THREE.Vector3(0, -1, 0);
 const CENTRO = 0.85;
-/** Radio que defiende quien espera o mantiene un puesto. */
-const RADIO_DEFENSA = 60;
+/**
+ * Quien espera o mantiene un puesto no se mueve de él: solo pelea con el titán que llega hasta
+ * su sitio (a este radio) o que va a por él. «Esperad aquí» es quedarse, no salir de caza.
+ */
+const RADIO_DEFENSA = 22;
 const RADIO_PATRULLA = 120;
 /** Hasta dónde avisan los vigías de un titán. */
 const RADIO_AVISO = 90;
@@ -671,6 +674,8 @@ export class Escuadron implements EscuadronAPI {
     if (!f?.listo || !s.vivo) return false;
     const o = s.orden;
     if (o.tipo === 'esperar' && o.campamento) return true;
+    // «esperad aquí» o «id allí» con el punto dentro del campamento: se quedan dentro
+    if ((o.tipo === 'esperar' || o.tipo === 'irA') && o.punto && f.dentro(o.punto.clone().setY(1))) return true;
     return f.dentro(this.ctx.jugador.posicion) && (o.tipo === 'seguir' || o.tipo === 'proteger' || o.tipo === 'retirada');
   }
 
@@ -701,7 +706,7 @@ export class Escuadron implements EscuadronAPI {
       case 'esperar':
       case 'irA': {
         const c = o.punto ?? s.posicion;
-        return calcular(c, () => this.amenazaPunto(c, RADIO_DEFENSA)) ?? this.amenazaDirecta(s, 30);
+        return calcular(c, () => this.amenazaPunto(c, RADIO_DEFENSA)) ?? this.amenazaDirecta(s, 18);
       }
       default:
         return calcular(o.tipo, () => this.elegirTitan(o.tipo));
