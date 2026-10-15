@@ -190,6 +190,21 @@ export class Navegacion {
     this.marcar(-r1, r1, -r1, r1);
   }
 
+  /**
+   * Anillo entre los radios r0 y r1 alrededor de (cx, cz) (el fuerte del jugador). Con `valor = 0`
+   * lo libera. Solo toca las celdas cuyo centro cae dentro del anillo.
+   */
+  bloquearAnilloEn(cx: number, cz: number, r0: number, r1: number, valor = 1): void {
+    for (let j = this.iz(cz - r1); j <= this.iz(cz + r1); j++) {
+      for (let i = this.ix(cx - r1); i <= this.ix(cx + r1); i++) {
+        if (!this.dentro(i, j)) continue;
+        const r = Math.hypot(this.cx(i) - cx, this.cz(j) - cz);
+        if (r >= r0 - this.celda * 0.5 && r <= r1 + this.celda * 0.5) this.ocupado[j * this.ancho + i] = valor;
+      }
+    }
+    this.marcar(cx - r1, cx + r1, cz - r1, cz + r1);
+  }
+
   /** Marca o libera el arco de la puerta (para abrir la brecha). */
   ponerArco(r0: number, r1: number, angulo: number, ancho: number, valor: number): void {
     for (let j = this.iz(-r1); j <= this.iz(r1); j++) {

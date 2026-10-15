@@ -137,7 +137,9 @@ export type EventoJuego =
   | { tipo: 'civilSalvado'; humano: Humano }
   | { tipo: 'brecha' }
   | { tipo: 'mensaje'; texto: string; segundos?: number }
-  | { tipo: 'recarga'; quien: Humano };
+  | { tipo: 'recarga'; quien: Humano }
+  | { tipo: 'canon'; pos: THREE.Vector3 }
+  | { tipo: 'puertaFuerte'; pos: THREE.Vector3 };
 
 export type TipoEvento = EventoJuego['tipo'];
 

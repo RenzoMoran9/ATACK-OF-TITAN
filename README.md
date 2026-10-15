@@ -41,7 +41,8 @@ npm run dev                       # http://localhost:5173
 | **WASD** | Mover en el suelo. En el aire sin cables ni gas: dirige el salto hacia donde pulsas sin perder impulso, y la tecla contraria frena (para caer justo sobre una rama) |
 | **R** | Cambiar de par de cuchillas (4 de repuesto) |
 | **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, llamar a Moblit: te trae gas, hojas nuevas y un vendaje |
-| **T** | **Carpa de campaña**: se arma delante de ti a cualquier hora (día, atardecer o noche) en suelo firme y sin titanes cerca. A su lado recuperas vida, gas, hojas y aguante, y los compañeros que descansen allí también. T junto a ella la recoge |
+| **T** | **Campamento fortificado**: se arma delante de ti a cualquier hora, en suelo llano y sin titanes cerca. Muros y techo macizos (nadie los atraviesa), **puerta que se abre sola** para ti y tus soldados y se cierra al alejarse (los titanes no la abren y no pueden agarrar a nadie dentro), **pinchos** que hieren las piernas a los titanes que lo atacan y **seis cañones** con apuntado automático. Dentro recuperas vida, gas, hojas y aguante. T junto a él lo recoge |
+| **X** | Dispara los **cañones** del campamento (solo desde dentro): apuntan solos a las rodillas del titán en pie o a la nuca del caído; cada uno tarda 5 s en recargarse |
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
 | **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
 | **Tab** | A quién mandas: todo el escuadrón → cada soldado → todos. Los demás conservan su orden (Todos + 5 = te vas solo; Tab hasta Mikasa + 1 = te la llevas) |
@@ -90,6 +91,7 @@ Auto, Alta, Media o Fluida. Cada soldado se dibuja con ~25 piezas fundidas (ante
 
 - **Vida de los soldados**: el apretón de un titán se la gasta. Si tienen hojas, intentan **cortarle los dedos ellos solos** antes de que se los coma, y esquivan los agarres con más frecuencia.
 - **Heridos a resguardo**: con menos del 40 % de vida dejan de pelear y se **reúnen a un lado**, a unos 45 m de ti y del lado más lejano a los titanes, hasta recuperarse (80 %). Ignoran las órdenes mientras tanto.
+- **En el campamento** los soldados con orden de seguir o proteger se quedan **dentro** mientras tú estés dentro; la retirada (4) los mete allí, y solo salen a pelear si ordenas atacar (2) o atacar a un titán (7).
 - **Moblit, el intendente**: **gas infinito**, reparte gas, **hojas nuevas y vendajes** sin que se lo pidan (a ti primero, luego a los heridos). Siempre anda cerca, a cubierto, al otro lado de ti respecto a los titanes, y **nunca entra en la pelea salvo que mueran todos los demás**.
 
 ## Sonido
