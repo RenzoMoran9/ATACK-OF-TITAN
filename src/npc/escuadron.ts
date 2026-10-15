@@ -680,8 +680,12 @@ export class Escuadron implements EscuadronAPI {
   }
 
   private titanPara(s: Soldado, memo: Map<unknown, TitanAPI | null>): TitanAPI | null {
-    // dentro del campamento nadie sale a pelear sin que se lo mandes
-    if (this.enFuerte(s)) return null;
+    // dentro del campamento nadie sale a pelear sin que se lo mandes; solo si un titán se cuela por
+    // una brecha, los de dentro se le echan encima
+    if (this.enFuerte(s)) {
+      const f = this.ctx.fuerte!;
+      return this.ctx.poblacion.titanesCerca(f.centro, 14).find((t) => esAmenaza(t) && f.dentro(t.posicion.clone().setY(1))) ?? null;
+    }
     // el intendente nunca pelea, salvo que hayan caído todos los demás
     if (s.rol === 'intendente') {
       if (this.soldados.some((x) => x !== s && x.vivo)) return null;

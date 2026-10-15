@@ -91,6 +91,10 @@ interface Canon {
   recarga: number;
   /** Retroceso (0–1) tras el disparo. */
   retroceso: number;
+  /** Vida del cañón: si los titanes lo destrozan, deja de disparar hasta que lo reparan. */
+  vida: number;
+  roto: boolean;
+  tSinTitanes: number;
 }
 
 interface Bala {
@@ -145,7 +149,17 @@ const ALCANCE_PUERTA = 6.5;
 /** Obra automática: cada pieza tarda DURACION_OBRA s y empieza PASO_OBRA s después de la anterior. */
 const DURACION_OBRA = 3;
 const PASO_OBRA = 1.15;
-const RECARGA_CANON = 4;
+const RECARGA_CANON = 3;
+/** Vida de cada tramo de empalizada y de cada cañón (los titanes que llegan los van rompiendo). */
+const VIDA_TRAMO = 900;
+const VIDA_CANON = 350;
+/** Segundos sin titanes cerca para que un cañón destrozado vuelva a estar en servicio. */
+const REPARA_CANON = 40;
+/** Un tramo roto se rehace en este tiempo (más despacio que la obra nueva), si no hay titanes cerca. */
+const DURACION_REPARACION = 14;
+/** Primer ataque al campamento y tiempo entre ataques (s), mientras estés cerca de él. */
+const PRIMER_ATAQUE = 150;
+const ENTRE_ATAQUES: [number, number] = [300, 480];
 /** Alcance de los cañones (m) y arco que cubre cada uno a cada lado de su tronera. */
 const ALCANCE_CANON = 260;
 const ARCO_CANON = (50 * Math.PI) / 180;
@@ -202,6 +216,14 @@ export class Campamento implements FuerteAPI {
   private readonly balas: Bala[] = [];
   private readonly geoBala = new THREE.SphereGeometry(0.3, 10, 8);
   private readonly vidas = new Map<TitanAPI, VidaTitan>();
+  /** Vida de cada tramo de empalizada (los terminados empiezan llenos). */
+  private readonly vidaTramo: number[] = Array.from({ length: N }, () => VIDA_TRAMO);
+  private tAtaque = PRIMER_ATAQUE;
+  private ataques = 0;
+  private atacantes: TitanAPI[] = [];
+  private hud: HTMLDivElement | null = null;
+  private tHud = 0;
+  private tAvisoBrecha = -99;
   private puerta: { hoja: THREE.Group; base: THREE.Vector3; alza: number; collider: RAPIER.Collider | null; navCerrada: boolean; tAbierta: number } | null = null;
   private tLatas = 0;
   private tAviso = -99;
@@ -346,9 +368,9 @@ export class Campamento implements FuerteAPI {
       if (o.tipo === 'carpa') this.ordenObras.push(i);
     });
     this.alambre = guardado?.alambre ?? VIDA_ALAMBRE;
-    this.listoAvisado = this.listo;
+    this.listoAvisado = this.completo;
     // mientras se levanta, el escuadrón espera dentro
-    if (!this.listo) for (const s of ctx.escuadron.soldados) ctx.escuadron.trabajarEn(s, null, this.centro);
+    if (!this.completo) for (const s of ctx.escuadron.soldados) ctx.escuadron.trabajarEn(s, null, this.centro);
     ctx.escena.add(this.grupo);
     ctx.fuerte = this;
     this.zona = nuevaZona(Math.random);
@@ -362,7 +384,13 @@ export class Campamento implements FuerteAPI {
     return this.obras.filter((o) => o.tipo === 'tramo').map((o) => o.progreso >= 1);
   }
 
+  /** Terminado alguna vez: sigue siendo un campamento en servicio aunque le abran brechas. */
   get listo(): boolean {
+    return this.listoAvisado || this.completo;
+  }
+
+  /** Todas las obras en pie ahora mismo (sin brechas). */
+  get completo(): boolean {
     return this.obras.every((o) => o.progreso >= 1);
   }
 
@@ -435,8 +463,10 @@ export class Campamento implements FuerteAPI {
   disparar(): string {
     const j = this.ctx.jugador;
     if (!this.dentro(j.posicion)) return 'Los cañones se disparan desde dentro del campamento';
-    const listos = this.canones.filter((k) => this.tramoHecho(k.tramo));
-    if (listos.length === 0) return 'Aún no hay cañones montados';
+    const montados = this.canones.filter((k) => this.tramoHecho(k.tramo));
+    if (montados.length === 0) return 'Aún no hay cañones montados';
+    const listos = montados.filter((k) => !k.roto);
+    if (listos.length === 0) return '¡Los cañones están destrozados! Se reparan cuando no haya titanes cerca';
     const usados = new Set<TitanAPI>();
     let disparos = 0;
     let hayObjetivo = false;
@@ -462,6 +492,10 @@ export class Campamento implements FuerteAPI {
     this.escala(dt);
     this.puertaAutomatica(dt);
     this.estacasAtacadas(dt);
+    this.asedio(dt);
+    this.repararCanones(dt);
+    this.ataquesAlCampamento(dt);
+    this.actualizarHud(dt);
     this.vigias();
     for (const k of this.canones) k.recarga = Math.max(0, k.recarga - dt);
     this.expulsarTitanes();
@@ -470,7 +504,7 @@ export class Campamento implements FuerteAPI {
     const f = 1 + 0.18 * Math.sin(this.t * 13) * Math.sin(this.t * 7.3);
     this.fuego.scale.set(1.3 * f, 1.8 * f, 1);
     this.fuego.visible = this.listo;
-    if (this.listo && !this.listoAvisado) {
+    if (this.completo && !this.listoAvisado) {
       this.listoAvisado = true;
       this.ctx.eventos.emit({ tipo: 'mensaje', texto: 'Campamento listo: sube al adarve o a la atalaya para vigilar; T dispara los cañones', segundos: 4 });
       this.liberarEscuadron();
@@ -482,6 +516,13 @@ export class Campamento implements FuerteAPI {
     const usados = new Set<TitanAPI>();
     for (const k of this.canones) {
       if (!this.tramoHecho(k.tramo)) continue;
+      if (k.roto) {
+        // destrozado: el tubo cae de morro sobre la cureña, negro y humeante
+        k.pivote.rotation.set(0.45, Math.PI / 2 - k.rumbo, 0, 'YXZ');
+        k.material.color.setRGB(0.08, 0.08, 0.08);
+        if (Math.random() < dt * 3) this.ctx.efectos.vapor(k.pivote.position.clone().setY(k.pivote.position.y + 0.4), 1, 0.6, 0.8);
+        continue;
+      }
       const t = this.objetivoDe(k, usados);
       if (t) usados.add(t);
       this.apuntar(k, t ? this.puntoDeTiro(t) : null);
@@ -538,14 +579,16 @@ export class Campamento implements FuerteAPI {
    * fondo, luego la atalaya y las carpas (unos 25 s en total), con polvo y martillazos.
    */
   private construir(dt: number): void {
-    if (this.listo) return;
+    if (this.completo) return;
     this.tObra += dt;
     this.tMartillo -= dt;
     let activa: Obra | null = null;
     this.ordenObras.forEach((i, k) => {
       const o = this.obras[i];
       if (o.progreso >= 1 || this.tObra < k * PASO_OBRA) return;
-      o.progreso = Math.min(1, o.progreso + dt / DURACION_OBRA);
+      // con titanes encima no se puede trabajar; lo roto se rehace más despacio que lo nuevo
+      if (this.ctx.poblacion.titanesCerca(o.pos, 30).some((t) => t.vivo)) return;
+      o.progreso = Math.min(1, o.progreso + dt / (this.listoAvisado ? DURACION_REPARACION : DURACION_OBRA));
       activa = o;
     });
     const o = activa as Obra | null;
@@ -784,13 +827,175 @@ export class Campamento implements FuerteAPI {
     const res = t.recibirCorte(zona, danio, this.ctx.jugador);
     if (res.efecto !== 'nada') this.ctx.efectos.sangre(b.hasta.clone(), b.hasta.clone().sub(b.desde).normalize(), 14);
     if (!t.vivo) return;
-    const v = this.vidaDe(t);
-    v.vida = Math.max(0, v.vida - 1 / (2.5 + t.altura / 4.5));
-    v.tGolpe = this.t;
-    if (v.vida <= 0) {
-      t.recibirCorte('nuca', umbralNuca(t.altura) * 3, this.ctx.jugador);
-      if (!t.vivo) this.ctx.eventos.emit({ tipo: 'mensaje', texto: `¡Titán de ${Math.round(t.altura)} m abatido a cañonazos!`, segundos: 2.5 });
+    this.quitarVida(t, this.danioCanon(t));
+    // la metralla y la onda alcanzan a los que van al lado (la mitad)
+    for (const otro of this.ctx.poblacion.titanesCerca(b.hasta, 8)) {
+      if (otro !== t && otro.vivo && !(otro instanceof Silueta)) this.quitarVida(otro, this.danioCanon(otro) * 0.5);
     }
+  }
+
+  /**
+   * Vida que quita un cañonazo: un titán normal cae con 2 (los pequeños) o 3 (los de 15 m). Los
+   * cambiantes aguantan mucho más: la Hembra unos 6 y el Acorazado, con su coraza, unos 25.
+   */
+  private danioCanon(t: TitanAPI): number {
+    const base = 1 / (1.4 + t.altura / 12);
+    return t.especial === 'acorazado' ? base * 0.1 : t.especial === 'hembra' ? base * 0.4 : base;
+  }
+
+  private quitarVida(t: TitanAPI, cuanto: number): void {
+    const v = this.vidaDe(t);
+    v.vida = Math.max(0, v.vida - cuanto);
+    v.tGolpe = this.t;
+    if (v.vida > 0) return;
+    this.rematar(t);
+    if (!t.vivo) {
+      const nombre = t.especial === 'acorazado' ? '¡El Acorazado' : t.especial === 'hembra' ? '¡La Hembra' : `¡Titán de ${Math.round(t.altura)} m`;
+      this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${nombre} abatido a cañonazos!`, segundos: 3 });
+    }
+  }
+
+  /** Sin vida: nuca. Si la coraza la protege, primero una corva (cae y se le agrieta) y luego la nuca. */
+  private rematar(t: TitanAPI): void {
+    const U = umbralNuca(t.altura) * 3;
+    if (t.recibirCorte('nuca', U, this.ctx.jugador).efecto === 'muerte' || !t.vivo) return;
+    const corva = (['corvaIzq', 'corvaDer'] as ZonaTitan[]).find((z) => t.puntosDebiles.some((p) => p.zona === z && p.activo));
+    if (corva) t.recibirCorte(corva, umbralZona(corva, t.altura) * 3, this.ctx.jugador);
+    t.recibirCorte('nuca', U, this.ctx.jugador);
+  }
+
+  // ─────────────────────────── Asedio ───────────────────────────
+
+  /**
+   * Los titanes pegados a la empalizada la golpean: cada tramo pierde vida (y el cañón de ese
+   * tramo también). Un tramo sin vida se derrumba y abre brecha; se rehace solo cuando no hay
+   * titanes cerca. El Acorazado golpea cuatro veces más fuerte.
+   */
+  private asedio(dt: number): void {
+    const c = this.centro;
+    for (const t of this.ctx.poblacion.titanesCerca(c, R_ESTACAS + 14)) {
+      if (!t.vivo || t instanceof Silueta || t.estado === 'derribado' || t.estado === 'cegado' || t.estado === 'apagado') continue;
+      const d = Math.hypot(t.posicion.x - c.x, t.posicion.z - c.z);
+      if (d > R_ESTACAS + 2 + t.altura * 0.15) continue;
+      const i = tramoDe(t.posicion.x, t.posicion.z, c.x, c.z, this.giro);
+      if (!this.tramoHecho(i)) continue;
+      const fuerza = (3 + t.altura * 1.6) * (t.especial === 'acorazado' ? 4 : t.especial === 'hembra' ? 2 : 1);
+      this.vidaTramo[i] -= fuerza * dt;
+      for (const k of this.canones) {
+        if (k.roto || k.tramo !== i) continue;
+        k.vida -= fuerza * 0.6 * dt;
+        if (k.vida <= 0) {
+          k.roto = true;
+          k.tSinTitanes = 0;
+          this.ctx.efectos.vapor(k.pivote.position.clone(), 20, 1.5, 4);
+          this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Han destrozado un cañón!', segundos: 2.5 });
+        }
+      }
+      if (this.vidaTramo[i] <= 0) this.romperTramo(i);
+    }
+  }
+
+  /** El tramo se viene abajo: sin colisión ni bloqueo, los troncos por el suelo y brecha abierta. */
+  private romperTramo(i: number): void {
+    const o = this.obras[i];
+    o.progreso = 0;
+    const lista = this.collidersTramo.get(i);
+    if (lista) for (const col of lista) this.ctx.fisica.eliminarCollider(col);
+    this.collidersTramo.delete(i);
+    this.marcarNavTramo(i, 0);
+    if (i === 0 && this.puerta) {
+      if (this.puerta.collider) this.ctx.fisica.eliminarCollider(this.puerta.collider);
+      this.puerta.collider = null;
+      this.puerta.navCerrada = false;
+    }
+    this.vidaTramo[i] = 0;
+    this.ctx.efectos.vapor(o.pos.clone().setY(1.5), 30, 2.5, 5);
+    this.ctx.eventos.emit({ tipo: 'canon', pos: o.pos.clone().setY(1.5) });
+    if (this.t - this.tAvisoBrecha > 3) {
+      this.tAvisoBrecha = this.t;
+      this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Han abierto una brecha en la empalizada!', segundos: 3 });
+    }
+    this.dibujarObras();
+  }
+
+  /** Un cañón destrozado vuelve a estar en servicio tras un rato sin titanes cerca. */
+  private repararCanones(dt: number): void {
+    for (const k of this.canones) {
+      if (!k.roto) {
+        if (k.vida < VIDA_CANON && !this.ctx.poblacion.titanesCerca(k.pivote.position, 40).some((t) => t.vivo)) k.vida = Math.min(VIDA_CANON, k.vida + 8 * dt);
+        continue;
+      }
+      if (!this.tramoHecho(k.tramo)) continue;
+      if (this.ctx.poblacion.titanesCerca(k.pivote.position, 50).some((t) => t.vivo)) {
+        k.tSinTitanes = 0;
+        continue;
+      }
+      k.tSinTitanes += dt;
+      if (k.tSinTitanes >= REPARA_CANON) {
+        k.roto = false;
+        k.vida = VIDA_CANON;
+        this.ctx.eventos.emit({ tipo: 'mensaje', texto: 'Cañón reparado', segundos: 2 });
+      }
+    }
+  }
+
+  /**
+   * Mientras estés cerca del campamento terminado, cada 5–8 min llega una oleada de titanes hacia
+   * él (más grande cada vez). Desde la segunda, a veces la encabeza el Acorazado; la cuarta siempre.
+   */
+  private ataquesAlCampamento(dt: number): void {
+    if (!this.listoAvisado) return;
+    const j = this.ctx.jugador.posicion;
+    if (Math.hypot(j.x - this.centro.x, j.z - this.centro.z) > 450) return;
+    this.atacantes = this.atacantes.filter((t) => t.vivo);
+    if (this.atacantes.length > 0) return;
+    this.tAtaque -= dt;
+    if (this.tAtaque > 0) return;
+    this.tAtaque = ENTRE_ATAQUES[0] + Math.random() * (ENTRE_ATAQUES[1] - ENTRE_ATAQUES[0]);
+    this.ataques++;
+    const acorazado = this.ataques % 4 === 0 || (this.ataques >= 2 && Math.random() < 0.35);
+    const n = Math.min(8, 2 + this.ataques);
+    const ang = Math.random() * Math.PI * 2;
+    const r = 240 + Math.random() * 40;
+    const sitio = new THREE.Vector3(this.centro.x + Math.cos(ang) * r, 0, this.centro.z + Math.sin(ang) * r);
+    const libre = this.ctx.nav.puntoLibreCercano(sitio.x, sitio.z, 3, 10) ?? sitio;
+    const titanes: TitanAPI[] = [];
+    if (acorazado) titanes.push(this.ctx.titanes.generar({ posicion: libre.clone(), altura: 15, especial: 'acorazado' }));
+    titanes.push(...this.ctx.titanes.generarGrupo(n, libre, 35, [4, 5, 7, 8, 10, 12, 15], 0.2));
+    for (const t of titanes) t.dirigirA?.(this.centro);
+    this.atacantes = titanes;
+    this.ctx.eventos.emit({ tipo: 'mensaje', texto: `¡${titanes.length} titanes vienen hacia el campamento${acorazado ? ', con el Acorazado al frente' : ''}!`, segundos: 4 });
+    this.ctx.efectos.bengala(this.centro.clone().setY(12), COLOR_AVISO);
+  }
+
+  /** Vida de la base y cañones en servicio, arriba en pantalla mientras estés cerca. */
+  private actualizarHud(dt: number): void {
+    this.tHud -= dt;
+    if (this.tHud > 0) return;
+    this.tHud = 0.25;
+    const j = this.ctx.jugador.posicion;
+    const cerca = this.listoAvisado && Math.hypot(j.x - this.centro.x, j.z - this.centro.z) < 160;
+    if (!cerca) {
+      if (this.hud) this.hud.hidden = true;
+      return;
+    }
+    if (!this.hud) {
+      const el = document.createElement('div');
+      el.style.cssText =
+        'position:fixed;left:50%;top:max(118px,calc(env(safe-area-inset-top) + 104px));transform:translateX(-50%);z-index:5;pointer-events:none;' +
+        'font:600 12px/1.3 Georgia,serif;color:#f1e7d0;text-shadow:0 1px 2px #000;text-align:center;letter-spacing:.06em';
+      el.innerHTML = '<div class="t"></div><div style="width:180px;height:7px;margin:3px auto 0;background:rgba(0,0,0,.55);border:1px solid rgba(241,231,208,.5)"><div class="b" style="height:100%;width:100%;background:#7fae4f"></div></div>';
+      document.body.appendChild(el);
+      this.hud = el;
+    }
+    const total = this.vidaTramo.reduce((n, v, i) => n + (this.tramoHecho(i) ? Math.max(0, v) : 0), 0) / (VIDA_TRAMO * N);
+    const enServicio = this.canones.filter((k) => !k.roto && this.tramoHecho(k.tramo)).length;
+    const brechas = this.obras.filter((o) => o.tipo === 'tramo' && o.progreso < 1).length;
+    this.hud.hidden = false;
+    (this.hud.querySelector('.t') as HTMLElement).textContent = `CAMPAMENTO ${Math.round(total * 100)} % · CAÑONES ${enServicio}/${this.canones.length}${brechas ? ` · BRECHAS ${brechas}` : ''}`;
+    const b = this.hud.querySelector('.b') as HTMLElement;
+    b.style.width = `${Math.round(total * 100)}%`;
+    b.style.background = total > 0.6 ? '#7fae4f' : total > 0.3 ? '#d9a33b' : '#c2412e';
   }
 
   private vidaDe(t: TitanAPI): VidaTitan {
@@ -981,7 +1186,7 @@ export class Campamento implements FuerteAPI {
     fogonazo.visible = false;
     pivote.add(fogonazo);
     pieza(pivote);
-    const k: Canon = { tramo: i, pivote, base, tubo, material, boca, fogonazo, rumbo: a, recarga: 0, retroceso: 0 };
+    const k: Canon = { tramo: i, pivote, base, tubo, material, boca, fogonazo, rumbo: a, recarga: 0, retroceso: 0, vida: VIDA_CANON, roto: false, tSinTitanes: 0 };
     this.apuntar(k, null);
     this.canones.push(k);
   }
@@ -1134,6 +1339,7 @@ export class Campamento implements FuerteAPI {
       }
     }
     this.collidersTramo.set(i, lista);
+    this.vidaTramo[i] = VIDA_TRAMO;
     this.marcarNavTramo(i, 1);
     if (i === 0 && this.puerta) this.puerta.navCerrada = true;
   }
@@ -1229,6 +1435,8 @@ export class Campamento implements FuerteAPI {
 
   /** Desmonta el campamento (al armar otro o al salir). */
   eliminar(): void {
+    this.hud?.remove();
+    this.hud = null;
     const f = this.ctx.fisica;
     for (const [i, lista] of this.collidersTramo) {
       for (const col of lista) f.eliminarCollider(col);
