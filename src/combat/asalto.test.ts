@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DISTANCIA_GOLPE_ASALTO, DURACION_ASALTO, VELOCIDAD_CORTE_ASALTO, asaltoFallido, cortaAhora, empiezaAsalto, empujeDeCorte } from './asalto';
+import { ATASCO_ASALTO, DISTANCIA_GOLPE_ASALTO, DURACION_ASALTO, MARGEN_CANCELAR, VELOCIDAD_CORTE_ASALTO, asaltoCancelado, asaltoFallido, cortaAhora, empiezaAsalto, empujeDeCorte } from './asalto';
 import { VELOCIDAD_MINIMA } from './corte';
 
 describe('ataque directo', () => {
@@ -34,5 +34,22 @@ describe('ataque directo', () => {
     }
     // ya viene rápido: el empuje normal basta, no se añade más
     expect(empujeDeCorte(5.9, 15)).toBe(5.9);
+  });
+});
+
+describe('salir del ataque directo', () => {
+  it('Espacio, los ganchos o Q/E lo cancelan (pasado un instante)', () => {
+    expect(asaltoCancelado(MARGEN_CANCELAR / 2, true)).toBe(false);
+    expect(asaltoCancelado(MARGEN_CANCELAR + 0.05, true)).toBe(true);
+    expect(asaltoCancelado(2, false)).toBe(false);
+  });
+
+  it('atascado sin acercarse (algo en medio), se suelta', () => {
+    expect(asaltoFallido(1.5, true, ATASCO_ASALTO / 2)).toBe(false);
+    expect(asaltoFallido(1.5, true, ATASCO_ASALTO + 0.1)).toBe(true);
+  });
+
+  it('nunca dura más de DURACION_ASALTO', () => {
+    expect(asaltoFallido(DURACION_ASALTO + 0.1, true, 0)).toBe(true);
   });
 });

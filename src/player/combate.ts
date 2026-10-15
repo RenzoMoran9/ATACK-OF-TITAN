@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Cuchillas } from '../combat/cuchillas';
-import { asaltoFallido, cortaAhora, empiezaAsalto, empujeDeCorte } from '../combat/asalto';
+import { AVANCE_MIN, asaltoCancelado, asaltoFallido, cortaAhora, empiezaAsalto, empujeDeCorte } from '../combat/asalto';
 import { calcularDanio, desgaste, umbralZona, zonaAlAlcance } from '../combat/corte';
 import {
   ALCANCE_BENGALA,
@@ -117,7 +117,7 @@ export class CombateJugador {
   parteFijada: { titan: TitanAPI; zona: ZonaTitan } | null = null;
   private readonly tmp = new THREE.Vector3();
   /** Ataque directo en curso: tiempo desde que empezó y si ya ha cortado. */
-  private asalto: { t: number; cortado: boolean } | null = null;
+  private asalto: { t: number; cortado: boolean; dMin: number; tSinAvance: number } | null = null;
 
   constructor(private readonly ctx: ContextoJuego, private readonly c: CuerpoCombatiente) {
     ctx.eventos.on('esquiva', (e) => {
@@ -204,6 +204,10 @@ export class CombateJugador {
       this.iniciarAsalto();
       pulsado = false;
     }
+    // Espacio (salto o gas), los ganchos o Q/E: te sueltas del ataque y haces lo que pides
+    if (this.asalto && !this.asalto.cortado && asaltoCancelado(this.asalto.t, ['Space', 'Mouse2', 'KeyQ', 'KeyE'].some((k) => entrada.mantenida(k)))) {
+      this.terminarAsalto();
+    }
     if (this.asalto) this.seguirAsalto(dt, mirada);
     const pasada = pulsado && !this.tajo && this.cuchillas.puedeCortar ? zonaPasadaBaja(this.c.pos, this.ctx.poblacion.titanesCerca(this.c.pos, 30)) : null;
     if (pasada) {
@@ -239,7 +243,7 @@ export class CombateJugador {
   /** Ataque directo: los ganchos van al punto (la mira ya apunta allí) y se quedan clavados hasta el corte. */
   private iniciarAsalto(): void {
     this.preparando = false;
-    this.asalto = { t: 0, cortado: false };
+    this.asalto = { t: 0, cortado: false, dMin: Infinity, tSinAvance: 0 };
     this.c.dispararGanchos();
     this.c.sostenerGanchos(true);
     this.mensaje('¡Al punto!', 1);
@@ -259,14 +263,20 @@ export class CombateJugador {
       this.terminarAsalto();
       return;
     }
-    if (cortaAhora(p.centro.distanceTo(this.c.pos), this.cuchillas.puedeCortar)) {
+    const d = p.centro.distanceTo(this.c.pos);
+    // atasco: si no se acerca (un muro o una casa en medio, el titán pegado a algo), se suelta
+    if (d < a.dMin - AVANCE_MIN) {
+      a.dMin = d;
+      a.tSinAvance = 0;
+    } else a.tSinAvance += dt;
+    if (cortaAhora(d, this.cuchillas.puedeCortar)) {
       a.cortado = true;
       this.iniciarTajo(false, 1, mirada, true); // el impulso asistido lleva al punto
       return;
     }
     const enUso = this.c.ganchosEnUso();
-    if (asaltoFallido(a.t, enUso)) {
-      if (!enUso) this.mensaje('No llego al punto', 1.2);
+    if (asaltoFallido(a.t, enUso, a.tSinAvance)) {
+      if (!enUso || a.tSinAvance > 0) this.mensaje('No llego al punto', 1.2);
       this.terminarAsalto();
     }
   }

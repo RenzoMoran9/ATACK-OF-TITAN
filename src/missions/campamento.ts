@@ -823,7 +823,9 @@ export class Campamento implements FuerteAPI {
     this.ctx.efectos.vapor(b.hasta, 12, 1 + t.altura * 0.06, 4);
     if (!t.vivo) return;
     const zona = t.puntosDebiles.some((p) => p.zona === b.zona && p.activo) ? b.zona : 'cuerpo';
-    const danio = zona === 'nuca' ? umbralNuca(t.altura) * 0.55 : zona === 'cuerpo' ? 1 : umbralZona(zona, t.altura) * 1.3;
+    // los cambiantes encajan mucho mejor la bala: el Acorazado casi ni se inmuta
+    const aguante = t.especial === 'acorazado' ? 0.08 : t.especial === 'hembra' ? 0.3 : 1;
+    const danio = (zona === 'nuca' ? umbralNuca(t.altura) * 0.55 : zona === 'cuerpo' ? 1 : umbralZona(zona, t.altura) * 1.3) * aguante;
     const res = t.recibirCorte(zona, danio, this.ctx.jugador);
     if (res.efecto !== 'nada') this.ctx.efectos.sangre(b.hasta.clone(), b.hasta.clone().sub(b.desde).normalize(), 14);
     if (!t.vivo) return;

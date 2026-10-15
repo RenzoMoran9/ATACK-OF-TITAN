@@ -8,7 +8,12 @@
 /** A esta distancia (m, del centro del cuerpo al punto) corta solo. */
 export const DISTANCIA_GOLPE_ASALTO = 3;
 /** Tiempo máximo del ataque: pasado, se suelta todo. */
-export const DURACION_ASALTO = 6;
+export const DURACION_ASALTO = 4;
+/** Sin acercarse al punto al menos AVANCE_MIN m en este tiempo (algo en medio), se suelta. */
+export const ATASCO_ASALTO = 0.8;
+export const AVANCE_MIN = 0.5;
+/** Tras empezar, este margen antes de que Espacio, los ganchos o Q/E lo cancelen. */
+export const MARGEN_CANCELAR = 0.15;
 
 /** ¿Empieza un ataque directo? Solo con la parte marcada lejos (de cerca, el tajo normal) y cuchillas útiles. */
 export function empiezaAsalto(distancia: number, cuchillasUtiles: boolean): boolean {
@@ -24,8 +29,13 @@ export function cortaAhora(distancia: number, cuchillasUtiles: boolean): boolean
  * ¿Se cancela? Si pasado un instante ningún gancho está en uso, no había dónde clavarse; y en
  * cualquier caso, a los DURACION_ASALTO segundos se acaba.
  */
-export function asaltoFallido(t: number, ganchosEnUso: boolean): boolean {
-  return (t > 0.6 && !ganchosEnUso) || t > DURACION_ASALTO;
+export function asaltoFallido(t: number, ganchosEnUso: boolean, tSinAvance = 0): boolean {
+  return (t > 0.6 && !ganchosEnUso) || t > DURACION_ASALTO || tSinAvance > ATASCO_ASALTO;
+}
+
+/** ¿Lo cancela el jugador? Espacio (salto o gas), los dos ganchos o Q/E, pasado un instante. */
+export function asaltoCancelado(t: number, saltoOGanchos: boolean): boolean {
+  return t > MARGEN_CANCELAR && saltoOGanchos;
 }
 
 /**
