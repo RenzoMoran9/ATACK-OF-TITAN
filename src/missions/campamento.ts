@@ -596,7 +596,7 @@ export class Campamento implements FuerteAPI {
       const tramo = tramoDe(t.posicion.x, t.posicion.z, c.x, c.z, this.giro);
       if (!this.tramoHecho(tramo)) continue;
       t.enredar?.(1.2, FRENO_ALAMBRE);
-      this.alambre -= DESGASTE_ALAMBRE * 0.15 * dt;
+      this.alambre -= DESGASTE_ALAMBRE * 0.06 * dt;
       if (this.tLatas <= 0) {
         this.tLatas = 1.2;
         this.ctx.eventos.emit({ tipo: 'alambre', pos: t.posicion.clone().setY(1) });
