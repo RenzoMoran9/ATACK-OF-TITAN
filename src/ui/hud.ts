@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { consejoEspecial } from '../titans/especiales';
 import type { ContextoJuego } from '../core/contexto';
 import type { Campana } from '../missions/campana';
 import type { Jugador } from '../player/jugador';
@@ -320,7 +321,7 @@ export class Hud {
     const anormalCerca = ctx.poblacion.titanes.filter((t) => t.vivo && t.anormal && t.posicion.distanceTo(jugador.pos) < 120);
     this.anormal.hidden = anormalCerca.length === 0;
     const jefe = anormalCerca.find((t) => t.especial);
-    const texto = jefe ? (jefe.especial === 'acorazado' ? '¡Titán Acorazado! Solo corvas y codos' : '¡Titana Hembra! Endurece la nuca') : anormalCerca.some((t) => t.cuadrupedo) ? '¡Corre a cuatro patas!' : '¡Titán anormal!';
+    const texto = jefe?.especial ? consejoEspecial(jefe.especial) : anormalCerca.some((t) => t.cuadrupedo) ? '¡Corre a cuatro patas!' : '¡Titán anormal!';
     if (this.anormal.textContent !== texto) this.anormal.textContent = texto;
 
     // QTE de agarre

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { nombreEspecial } from '../../titans/especiales';
 import { HORA_INICIAL, factorNoche, momentoDia, textoHora } from '../../core/cicloDia';
 import type { EspecialTitan, MiembroEscuadron, TitanAPI } from '../../core/tipos';
 import { Caballo } from '../../player/caballo';
@@ -6,6 +7,7 @@ import { Poblador } from '../../titans/poblador';
 import type { Lugar } from '../../world/lugares';
 import type { ApiCapitulo, Capitulo } from '../campana';
 import { borrarPartida, guardarPartida, leerPartida, type PartidaGuardada } from '../guardado';
+import { AsaltosMuralla } from '../asaltoMuralla';
 import { Campamento } from '../campamento';
 import { NUM_POSTES, RADIO_CARPAS, RADIO_CERCO, puntosCerco } from '../logicaCampamento';
 import { GestorPueblos } from '../pueblos';
@@ -24,6 +26,7 @@ import { GestorPueblos } from '../pueblos';
  * - H en un refugio (Trost, un puesto, el campamento o un pueblo en paz), de noche: descansar
  *   hasta el amanecer.
  * - A partir del segundo día a veces se avista a un cambiante (Acorazado o Hembra).
+ * - Cada 13–20 min, el Colosal, el Acorazado o la Bestia asaltan la puerta sur de Trost (src/missions/asaltoMuralla.ts).
  * - Se guarda solo (src/missions/guardado.ts).
  */
 
@@ -66,6 +69,8 @@ export class CapMundo implements Capitulo {
   /** Lo pone el menú: true = cargar la partida guardada. */
   continuar = false;
   pueblos: GestorPueblos | null = null;
+  /** Asaltos del Colosal, el Acorazado y la Bestia a la puerta sur de Trost. */
+  asaltos: AsaltosMuralla | null = null;
   caballo: Caballo | null = null;
   campamento: Campamento | null = null;
   private api!: ApiCapitulo;
@@ -126,6 +131,8 @@ export class CapMundo implements Capitulo {
     ctx.civiles.generar(30, new THREE.Vector3(0, 0, 0), 150);
     this.poblador = new Poblador(ctx);
     this.pueblos = new GestorPueblos(ctx);
+    this.asaltos?.limpiar();
+    this.asaltos = new AsaltosMuralla(ctx);
     if (p) this.pueblos.cargar(p.pueblos);
     // tu caballo espera a tu lado
     this.caballo ??= new Caballo(ctx.escena, ctx.nav, ctx.poblacion);
@@ -147,7 +154,7 @@ export class CapMundo implements Capitulo {
       ctx.eventos.on('titanMuerto', (e) => {
         if (!e.titan.especial) return;
         this.jefes++;
-        const nombre = e.titan.especial === 'acorazado' ? 'al Acorazado' : 'a la Hembra';
+        const nombre = e.titan.especial === 'hembra' ? 'a la Titana Hembra' : `al ${nombreEspecial(e.titan.especial, false)}`;
         api.mensaje(`¡Has abatido ${nombre}!`, 4);
         if (this.jefeSuelto === e.titan) this.jefeSuelto = null;
       }),
@@ -166,6 +173,7 @@ export class CapMundo implements Capitulo {
     this.caballo?.actualizar(dt);
     this.pueblos?.actualizar(dt, Math.max(0, horas), !ciclo.noche, factorNoche(ciclo.hora), ciclo.dia);
     this.campamento?.actualizar(dt);
+    this.asaltos?.actualizar(dt);
     this.campamento?.dibujar(dt);
     this.pasoDescanso();
     if (ctx.entrada.consumir('KeyH')) this.alternarDescanso();
@@ -203,6 +211,8 @@ export class CapMundo implements Capitulo {
     this.pueblos = null;
     this.campamento?.eliminar();
     this.campamento = null;
+    this.asaltos?.limpiar();
+    this.asaltos = null;
     const ctx = this.api?.ctx;
     if (ctx) {
       ctx.ciclo.aceleracion = 1;

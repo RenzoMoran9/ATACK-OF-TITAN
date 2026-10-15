@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ikDosHuesos } from '../player/poses';
+import type { EspecialTitan } from '../core/tipos';
 import { texturaCaraTitan } from '../world/texturas';
 
 /**
@@ -60,6 +61,24 @@ export const COMPLEXION_CAMBIANTE: Proporciones = {
   radioCabeza: 0.068, brazo: 0.42, radioBrazo: 0.03,
 };
 
+/** Colosal: 60 m, delgado y fibroso, cuello largo y cabeza pequeña. */
+export const COMPLEXION_COLOSAL: Proporciones = {
+  cadera: 0.47, muslo: 0.23, radioPierna: 0.045, anchoCadera: 0.055,
+  perfil: [[0, 0.43], [0.06, 0.44], [0.075, 0.5], [0.068, 0.56], [0.085, 0.64], [0.105, 0.72], [0.112, 0.775], [0.09, 0.8], [0.045, 0.812], [0, 0.814]],
+  profundidad: 0.55,
+  hombroY: 0.77, hombroX: 0.115, cuelloAlto: 0.05,
+  radioCabeza: 0.07, brazo: 0.42, radioBrazo: 0.026,
+};
+
+/** Bestia: simiesca, piernas cortas, pecho enorme, brazos larguísimos que llegan al suelo. */
+export const COMPLEXION_BESTIA: Proporciones = {
+  cadera: 0.36, muslo: 0.17, radioPierna: 0.065, anchoCadera: 0.07,
+  perfil: [[0, 0.34], [0.08, 0.35], [0.11, 0.4], [0.125, 0.47], [0.155, 0.55], [0.185, 0.63], [0.19, 0.69], [0.15, 0.722], [0.07, 0.742], [0, 0.745]],
+  profundidad: 0.8,
+  hombroY: 0.715, hombroX: 0.165, cuelloAlto: 0.022,
+  radioCabeza: 0.075, brazo: 0.62, radioBrazo: 0.046,
+};
+
 /** Varía una complexión con la semilla (±8 %) para que no haya dos iguales. */
 export function variarProporciones(base: Proporciones, azar: () => number): Proporciones {
   const v = (x: number, f = 0.08) => x * (1 + (azar() - 0.5) * 2 * f);
@@ -79,6 +98,8 @@ export interface AspectoTitan {
   piel: string;
   pelo: string | null;
   cara: 0 | 1;
+  /** Cambiante: añade su coraza, su pelaje o su musculatura a la vista. */
+  especial?: EspecialTitan | null;
 }
 
 /** Ángulos que aplica el modelo (radianes; desplazamientos en metros). */
@@ -256,6 +277,8 @@ export class ModeloTitan {
     cara.scale.copy(craneo.scale);
     cara.renderOrder = 1;
     cara.castShadow = false;
+    // el Colosal no tiene cara de puro: calavera de músculo con la dentadura al aire
+    if (aspecto.especial === 'colosal') cara.visible = false;
     for (const lado of [-1, 1]) malla(elipsoide(0.018 * H, 0.032 * H, 0.014 * H), this.pielSombra, this.cabeza, lado * rc * 0.98, 0, -rc * 0.05);
     if (aspecto.pelo) {
       const pelo = malla(new THREE.SphereGeometry(rc * 1.04, 26, 12, 0, Math.PI * 2, 0, Math.PI * 0.42), new THREE.MeshLambertMaterial({ color: aspecto.pelo }), this.cabeza);
@@ -293,7 +316,170 @@ export class ModeloTitan {
       ante.add(mano);
       malla(elipsoide(0.03 * H, 0.05 * H, 0.025 * H), this.pielSombra, mano, 0, -0.035 * H, 0);
     }
+    if (aspecto.especial) this.vestirEspecial(aspecto.especial, malla, { H, rc, caderaY, hombroY, muslo, espinilla, brazo, antebrazo });
     this.fundirPiel();
+  }
+
+  /**
+   * Lo que distingue a cada cambiante, encima del cuerpo base:
+   * - Acorazado: placas de coraza color hueso en pecho, vientre, espalda, hombros, brazos y piernas,
+   *   y máscara con la frente marcada y rendijas para los ojos. Corvas y codos, al aire.
+   * - Colosal: sin piel, el músculo rojo a la vista con sus fibras y tendones claros, costillas
+   *   marcadas, cuencas hundidas y la dentadura entera al aire, sin labios.
+   * - Bestia: pelaje pardo por todo el cuerpo (más largo en hombros y espalda), melena, barba,
+   *   orejas y unos brazos que le llegan al suelo.
+   */
+  private vestirEspecial(
+    e: EspecialTitan,
+    malla: (geo: THREE.BufferGeometry, mat: THREE.Material, padre: THREE.Object3D, x?: number, y?: number, z?: number) => THREE.Mesh,
+    m: { H: number; rc: number; caderaY: number; hombroY: number; muslo: number; espinilla: number; brazo: number; antebrazo: number },
+  ): void {
+    const { H, rc, caderaY, hombroY, muslo, espinilla, brazo, antebrazo } = m;
+    const p = this.p;
+    const altoTorso = hombroY - caderaY;
+    const radioEn = (y: number) => {
+      // radio del torso a la altura y (fracción de H, absoluta) según el perfil
+      const perfil = p.perfil;
+      for (let i = 1; i < perfil.length; i++) {
+        const [r0, y0] = perfil[i - 1];
+        const [r1, y1] = perfil[i];
+        if (y >= y0 && y <= y1) return (r0 + (r1 - r0) * ((y - y0) / Math.max(1e-6, y1 - y0))) * H;
+      }
+      return perfil[perfil.length - 1][0] * H;
+    };
+    const sinSombra = (x: THREE.Mesh) => {
+      x.castShadow = false;
+      return x;
+    };
+    if (e === 'acorazado') {
+      const placa = new THREE.MeshLambertMaterial({ color: '#ddcfab' });
+      const junta = new THREE.MeshLambertMaterial({ color: '#5d4c3c' });
+      // pecho: dos grandes placas pectorales
+      for (const lado of [-1, 1]) {
+        const y = altoTorso - 0.085 * H;
+        const r = radioEn(hombroY / H - 0.085);
+        malla(elipsoide(0.062 * H, 0.055 * H, 0.03 * H), placa, this.torso, lado * 0.052 * H, y, r * p.profundidad * 0.92);
+      }
+      // vientre: placas en dos columnas, con la junta oscura entre ellas
+      for (let k = 0; k < 4; k++) {
+        const y = altoTorso * (0.12 + k * 0.15);
+        const r = radioEn((caderaY + y) / H);
+        for (const lado of [-1, 1]) malla(new THREE.BoxGeometry(0.048 * H, 0.032 * H, 0.016 * H), placa, this.torso, lado * 0.027 * H, y, r * p.profundidad * 0.95);
+        sinSombra(malla(new THREE.BoxGeometry(0.006 * H, 0.03 * H, 0.012 * H), junta, this.torso, 0, y, r * p.profundidad * 0.97));
+      }
+      // espalda
+      for (let k = 0; k < 3; k++) {
+        const y = altoTorso * (0.3 + k * 0.22);
+        const r = radioEn((caderaY + y) / H);
+        malla(new THREE.BoxGeometry(0.1 * H, 0.05 * H, 0.016 * H), placa, this.torso, 0, y, -r * p.profundidad * 0.95);
+      }
+      // nuca: placa sobre el cuello (se agrieta al caer)
+      malla(elipsoide(0.04 * H, 0.035 * H, 0.012 * H), placa, this.cuello, 0, p.cuelloAlto * 0.7 * H, -0.05 * H);
+      for (let i = 0; i < 2; i++) {
+        // hombreras, brazo y antebrazo acorazados (el codo queda al aire)
+        malla(elipsoide(0.066 * H, 0.05 * H, 0.062 * H), placa, this.hombros[i], 0, 0.012 * H, 0);
+        malla(capsulaColgante(brazo * 0.78, p.radioBrazo * H * 1.28), placa, this.hombros[i], 0, -0.02 * H, 0);
+        malla(capsulaColgante(antebrazo * 0.72, p.radioBrazo * H * 1.16), placa, this.antebrazos[i], 0, -antebrazo * 0.18, 0);
+        // muslo y espinilla por delante (la corva, detrás de la rodilla, al aire)
+        malla(capsulaColgante(muslo * 0.8, p.radioPierna * H * 1.16), placa, this.caderas[i], 0, -0.02 * H, 0.008 * H);
+        const espin = malla(capsulaColgante(espinilla * 0.78, p.radioPierna * 0.8 * H * 1.12), placa, this.rodillas[i], 0, -espinilla * 0.12, 0.012 * H);
+        espin.scale.z = 0.8;
+        malla(elipsoide(0.036 * H, 0.03 * H, 0.03 * H), placa, this.rodillas[i], 0, 0.004 * H, 0.03 * H);
+      }
+      // máscara: placa sobre la cara con la frente marcada y rendijas oscuras para los ojos
+      const mascara = malla(new THREE.SphereGeometry(rc * 1.05, 26, 18, Math.PI / 2 - 0.95, 1.9, 0.5, 1.55), placa, this.cabeza);
+      mascara.scale.set(1, 1.12, 1.04);
+      malla(new THREE.BoxGeometry(rc * 1.3, rc * 0.14, rc * 0.25), placa, this.cabeza, 0, rc * 0.28, rc * 0.93);
+      for (const lado of [-1, 1]) sinSombra(malla(elipsoide(rc * 0.2, rc * 0.07, rc * 0.06), new THREE.MeshBasicMaterial({ color: '#1a120c' }), this.cabeza, lado * rc * 0.34, rc * 0.12, rc * 1.03));
+      // dientes acorazados en una boca sin labios
+      malla(new THREE.BoxGeometry(rc * 0.75, rc * 0.1, rc * 0.08), placa, this.cabeza, 0, -rc * 0.36, rc * 1.0);
+    } else if (e === 'colosal') {
+      const fibra = new THREE.MeshLambertMaterial({ color: '#6c241d' });
+      const tendon = new THREE.MeshLambertMaterial({ color: '#d79a86' });
+      const hueso = new THREE.MeshLambertMaterial({ color: '#efe3cc' });
+      const negro = new THREE.MeshBasicMaterial({ color: '#120606' });
+      // fibras del músculo a lo largo del torso (delante y detrás)
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        const yMedio = altoTorso * 0.55;
+        const r = radioEn((caderaY + yMedio) / H) * 1.005;
+        const f = sinSombra(malla(new THREE.BoxGeometry(0.004 * H, altoTorso * 0.7, 0.004 * H), fibra, this.torso, Math.sin(a) * r, yMedio, Math.cos(a) * r * p.profundidad));
+        f.rotation.y = a;
+      }
+      // costillas marcadas por delante
+      for (let k = 0; k < 5; k++) {
+        const y = altoTorso * (0.45 + k * 0.1);
+        const r = radioEn((caderaY + y) / H);
+        const costilla = malla(new THREE.TorusGeometry(r * 1.01, 0.006 * H, 5, 18, Math.PI * 0.8), tendon, this.torso, 0, y, 0);
+        costilla.rotation.set(Math.PI / 2, 0, Math.PI * 0.1);
+        costilla.scale.set(1, p.profundidad, 1);
+      }
+      // clavículas y esternón
+      for (const lado of [-1, 1]) {
+        const c = malla(new THREE.CylinderGeometry(0.008 * H, 0.008 * H, 0.1 * H, 6), tendon, this.torso, lado * 0.05 * H, altoTorso - 0.012 * H, 0.04 * H);
+        c.rotation.z = Math.PI / 2 + lado * 0.15;
+      }
+      malla(new THREE.BoxGeometry(0.012 * H, altoTorso * 0.3, 0.01 * H), tendon, this.torso, 0, altoTorso * 0.78, radioEn((caderaY + altoTorso * 0.78) / H) * p.profundidad);
+      // tendones claros en brazos y piernas
+      for (let i = 0; i < 2; i++) {
+        malla(capsulaColgante(brazo * 0.9, 0.006 * H), tendon, this.hombros[i], 0, 0, p.radioBrazo * H * 0.9);
+        malla(capsulaColgante(antebrazo * 0.9, 0.005 * H), tendon, this.antebrazos[i], 0, 0, p.radioBrazo * H * 0.8);
+        malla(capsulaColgante(muslo * 0.9, 0.007 * H), tendon, this.caderas[i], 0, 0, p.radioPierna * H * 0.95);
+        malla(capsulaColgante(espinilla * 0.9, 0.006 * H), tendon, this.rodillas[i], 0, 0, p.radioPierna * H * 0.75);
+        malla(elipsoide(0.04 * H, 0.03 * H, 0.04 * H), this.piel, this.hombros[i], 0, 0.006 * H, 0);
+      }
+      // cabeza: frente y pómulos marcados, cuencas hundidas con la pupila pálida, nariz sin carne
+      malla(new THREE.BoxGeometry(rc * 1.25, rc * 0.18, rc * 0.3), fibra, this.cabeza, 0, rc * 0.35, rc * 0.82);
+      for (const lado of [-1, 1]) {
+        sinSombra(malla(elipsoide(rc * 0.22, rc * 0.2, rc * 0.12), negro, this.cabeza, lado * rc * 0.36, rc * 0.12, rc * 0.92));
+        sinSombra(malla(new THREE.SphereGeometry(rc * 0.06, 8, 6), new THREE.MeshBasicMaterial({ color: '#e9dfc8' }), this.cabeza, lado * rc * 0.36, rc * 0.12, rc * 1.02));
+        malla(elipsoide(rc * 0.18, rc * 0.12, rc * 0.14), fibra, this.cabeza, lado * rc * 0.5, -rc * 0.12, rc * 0.78);
+        // las mejillas sin carne: hueco oscuro a cada lado de la dentadura
+        sinSombra(malla(elipsoide(rc * 0.14, rc * 0.16, rc * 0.08), negro, this.cabeza, lado * rc * 0.52, -rc * 0.4, rc * 0.82));
+      }
+      sinSombra(malla(new THREE.ConeGeometry(rc * 0.09, rc * 0.18, 3), negro, this.cabeza, 0, -rc * 0.05, rc * 1.04)).rotation.x = Math.PI;
+      // dentadura completa, sin labios: dos filas de dientes de muela a muela
+      for (const fila of [-1, 1]) {
+        for (let k = 0; k < 12; k++) {
+          const a = ((k + 0.5) / 12 - 0.5) * 2.2;
+          const d = malla(new THREE.BoxGeometry(rc * 0.11, rc * 0.17, rc * 0.08), hueso, this.cabeza, Math.sin(a) * rc * 0.72, -rc * 0.36 + fila * rc * 0.09, Math.cos(a) * rc * 0.84);
+          d.rotation.y = a;
+        }
+      }
+    } else if (e === 'bestia') {
+      const pelaje = new THREE.MeshLambertMaterial({ color: '#6e5c48' });
+      const pelajeOscuro = new THREE.MeshLambertMaterial({ color: '#4f4234' });
+      // capa de pelo sobre el tronco: el mismo torno, algo más ancho
+      const capa = malla(new THREE.LatheGeometry(p.perfil.slice(0, -1).map(([r, y]) => new THREE.Vector2(r * H * 1.07, (y - p.cadera) * H)), 22), pelaje, this.torso);
+      capa.scale.z = p.profundidad;
+      // mechones largos en hombros, espalda y antebrazos
+      const mechon = (padre: THREE.Object3D, x: number, y: number, z: number, largo: number, rx: number, rz: number, mat = pelaje) => {
+        const c = malla(new THREE.ConeGeometry(largo * 0.28, largo, 5), mat, padre, x, y, z);
+        c.rotation.set(rx, 0, rz);
+      };
+      for (let k = 0; k < 14; k++) {
+        const a = (k / 14) * Math.PI * 2;
+        const y = altoTorso * (0.55 + 0.4 * ((k * 7) % 5) / 5);
+        const r = radioEn((caderaY + y) / H) * 1.06;
+        mechon(this.torso, Math.sin(a) * r, y, Math.cos(a) * r * p.profundidad, 0.07 * H, Math.cos(a) * 1.9, -Math.sin(a) * 1.9, k % 3 ? pelaje : pelajeOscuro);
+      }
+      // melena alrededor del cuello y barba
+      for (let k = 0; k < 10; k++) {
+        const a = (k / 10) * Math.PI * 2;
+        mechon(this.cuello, Math.sin(a) * 0.06 * H, 0.02 * H, Math.cos(a) * 0.05 * H, 0.06 * H, Math.cos(a) * 2.3, -Math.sin(a) * 2.3, pelajeOscuro);
+      }
+      malla(elipsoide(rc * 0.55, rc * 0.45, rc * 0.35), pelajeOscuro, this.cabeza, 0, -rc * 0.72, rc * 0.62);
+      for (const lado of [-1, 1]) malla(elipsoide(rc * 0.18, rc * 0.32, rc * 0.08), pelaje, this.cabeza, lado * rc * 0.95, rc * 0.25, -rc * 0.05);
+      for (let i = 0; i < 2; i++) {
+        const lado = i === 0 ? 1 : -1;
+        malla(capsulaColgante(brazo * 0.95, p.radioBrazo * H * 1.22), pelaje, this.hombros[i]);
+        malla(capsulaColgante(antebrazo * 0.85, p.radioBrazo * 0.88 * H * 1.2), pelaje, this.antebrazos[i]);
+        malla(capsulaColgante(muslo * 0.95, p.radioPierna * H * 1.14), pelaje, this.caderas[i]);
+        malla(capsulaColgante(espinilla * 0.8, p.radioPierna * 0.8 * H * 1.12), pelaje, this.rodillas[i]);
+        malla(elipsoide(0.07 * H, 0.06 * H, 0.068 * H), pelajeOscuro, this.hombros[i]);
+        for (let k = 0; k < 3; k++) mechon(this.antebrazos[i], lado * p.radioBrazo * H, -antebrazo * (0.2 + k * 0.25), 0, 0.045 * H, 0, -lado * 1.7);
+      }
+    }
   }
 
   /**

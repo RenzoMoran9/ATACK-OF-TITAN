@@ -105,7 +105,7 @@ export interface ResultadoCorte {
 }
 
 /** Cambiantes con comportamiento propio. */
-export type EspecialTitan = 'acorazado' | 'hembra';
+export type EspecialTitan = 'acorazado' | 'hembra' | 'colosal' | 'bestia';
 
 export interface TitanAPI {
   readonly id: number;

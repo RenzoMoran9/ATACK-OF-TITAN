@@ -29,7 +29,8 @@ import {
   velocidadCuadrupedo,
   velocidadPersecucion,
 } from './ia';
-import { COMPLEXION_CAMBIANTE, COMPLEXIONES, ModeloTitan, poseReposo, variarProporciones, type PoseTitan } from './modelo';
+import { aguanteNuca, regenEspecial, ritmoEspecial } from './especiales';
+import { COMPLEXION_BESTIA, COMPLEXION_CAMBIANTE, COMPLEXION_COLOSAL, COMPLEXIONES, ModeloTitan, poseReposo, variarProporciones, type PoseTitan } from './modelo';
 
 /** Ventana antes del cierre de la mano en la que un impulso o un cambio de ancla esquiva el agarre. */
 export const VENTANA_ESQUIVA = 0.25;
@@ -151,6 +152,15 @@ export class Titan implements TitanAPI {
   private tEsperaEndurecer = 0;
   /** Marcha hacia un pueblo (ataques). */
   private marcha: THREE.Vector3 | null = null;
+  /**
+   * Asalto de un cambiante (lo maneja quien lo lanza): `soloMarcha` = no busca humanos, solo
+   * camina hacia su meta; `plantado` = se queda quieto mirando ese punto; `accion` = golpe en curso
+   * (patada a la puerta, embestida, lanzar una roca) con su tiempo y duración.
+   */
+  soloMarcha = false;
+  plantado: THREE.Vector3 | null = null;
+  accion: { tipo: 'patada' | 'embestida' | 'lanzar'; t: number; dur: number; blanco: THREE.Vector3 } | null = null;
+  private tVaporCuerpo = 0;
   /** Enredado en el alambre de un campamento. */
   private tEnredo = 0;
   private factorEnredo = 1;
@@ -190,7 +200,7 @@ export class Titan implements TitanAPI {
     this.anormal = (o.anormal ?? false) || this.cuadrupedo || this.especial !== null;
     this.posicion = o.posicion.clone().setY(0);
     this.rumbo = o.rumbo ?? rng.rango(-Math.PI, Math.PI);
-    this.factorRegen = rng.rango(0.7, 1.3) * (this.anormal ? 0.8 : 1);
+    this.factorRegen = rng.rango(0.7, 1.3) * (this.anormal ? 0.8 : 1) * regenEspecial(this.especial);
     this.radioNav = Math.max(0.6, 0.17 * this.altura);
     this.ignoraSueltos = this.anormal && !this.cuadrupedo && !this.especial && rng.siguiente() < 0.7;
     this.tPercepcion = rng.rango(0, 0.25);
@@ -198,14 +208,20 @@ export class Titan implements TitanAPI {
 
     // los cuadrúpedos, larguiruchos: patas largas y aspecto más inquietante
     const complexion = this.cuadrupedo ? 0 : this.altura <= 5 ? (rng.siguiente() < 0.6 ? 1 : 0) : rng.siguiente() < 0.65 ? 0 : 1;
-    const prop = this.especial ? COMPLEXION_CAMBIANTE : variarProporciones(COMPLEXIONES[complexion], this.azar);
+    const prop =
+      this.especial === 'colosal' ? COMPLEXION_COLOSAL : this.especial === 'bestia' ? COMPLEXION_BESTIA : this.especial ? COMPLEXION_CAMBIANTE : variarProporciones(COMPLEXIONES[complexion], this.azar);
     // el Acorazado, con placas color hueso; la Hembra, con el músculo a la vista y pelo rubio
+    // la Bestia, cubierta de pelo pardo; el Colosal, sin piel: músculo rojo a la vista
     const aspecto =
       this.especial === 'acorazado'
-        ? { piel: '#cdbf9f', pelo: '#d8c58a', cara: 1 as const }
+        ? { piel: '#b07a64', pelo: '#d8c58a', cara: 1 as const, especial: this.especial }
         : this.especial === 'hembra'
-          ? { piel: '#d4917c', pelo: '#e6cf7a', cara: 0 as const }
-          : { piel: rng.elegir(PIELES), pelo: rng.siguiente() < 0.55 ? rng.elegir(PELOS) : null, cara: (rng.siguiente() < 0.5 ? 0 : 1) as 0 | 1 };
+          ? { piel: '#d4917c', pelo: '#e6cf7a', cara: 0 as const, especial: this.especial }
+          : this.especial === 'colosal'
+            ? { piel: '#a3443a', pelo: null, cara: 0 as const, especial: this.especial }
+            : this.especial === 'bestia'
+              ? { piel: '#c9a084', pelo: '#6e5c48', cara: 1 as const, especial: this.especial }
+              : { piel: rng.elegir(PIELES), pelo: rng.siguiente() < 0.55 ? rng.elegir(PELOS) : null, cara: (rng.siguiente() < 0.5 ? 0 : 1) as 0 | 1 };
     this.modelo = new ModeloTitan(this.altura, prop, aspecto);
     ctx.escena.add(this.modelo.raiz);
     this.colocarRaiz();
@@ -312,7 +328,7 @@ export class Titan implements TitanAPI {
     const p = this.puntos.find((x) => x.zona === zona);
     if (!this.vivo || !p || !p.activo) return { zona, efecto: 'nada', danio };
     if (danio <= 0) return { zona, efecto: 'rebote', danio };
-    const U = umbralNuca(this.altura) * (this.especial === 'acorazado' ? 1.3 : this.especial === 'hembra' ? 1.4 : 1);
+    const U = umbralNuca(this.altura) * aguanteNuca(this.especial);
     const ef = this.ctx.efectos;
 
     // Coraza: la hoja rebota (el combate la mella mucho)
@@ -320,7 +336,7 @@ export class Titan implements TitanAPI {
       ef.vapor(p.centro, 2, 0.3 + this.altura * 0.02, 1.5);
       return { zona, efecto: 'coraza', danio };
     }
-    if (this.especial === 'hembra' && zona === 'nuca' && this.tEndurecida > 0) return { zona, efecto: 'coraza', danio };
+    if ((this.especial === 'hembra' || this.especial === 'colosal') && zona === 'nuca' && this.tEndurecida > 0) return { zona, efecto: 'coraza', danio };
 
     if (zona === 'nuca') {
       this.danioNuca += danio;
@@ -466,6 +482,20 @@ export class Titan implements TitanAPI {
       this.separarDeTitanes();
     }
     this.mantenerAgarre(dt);
+    if (this.accion) {
+      this.accion.t += dt;
+      if (this.accion.t >= this.accion.dur || this.estado === 'derribado' || this.estado === 'cegado') this.accion = null;
+    }
+    // el Colosal humea siempre
+    if (this.especial === 'colosal') {
+      this.tVaporCuerpo -= dt;
+      if (this.tVaporCuerpo <= 0) {
+        this.tVaporCuerpo = this.tEndurecida > 0 ? 0.08 : 0.35;
+        const p = this.modelo.torso.getWorldPosition(this.tmp2).clone();
+        p.y += (this.azar() - 0.3) * this.altura * 0.3;
+        this.ctx.efectos.vapor(p, this.tEndurecida > 0 ? 6 : 2, this.altura * (this.tEndurecida > 0 ? 0.12 : 0.06), this.tEndurecida > 0 ? 9 : 3);
+      }
+    }
     this.animar(dt, this.velocidad);
     this.finPaso(dt);
   }
@@ -517,6 +547,11 @@ export class Titan implements TitanAPI {
       this.distraccion.t -= dt;
       if (this.distraccion.t <= 0 || !this.distraccion.h.vivo) this.distraccion = null;
     }
+  }
+
+  /** Protege la nuca unos segundos (el vapor del Colosal): los tajos rebotan como en la coraza. */
+  protegerNuca(segundos: number): void {
+    this.tEndurecida = Math.max(this.tEndurecida, segundos);
   }
 
   /** Hembra: si el jugador se lanza hacia su nuca, la endurece (1,3 s; luego tarda 5 s en poder repetir). */
@@ -603,6 +638,10 @@ export class Titan implements TitanAPI {
   }
 
   private percibir(): void {
+    if (this.soloMarcha) {
+      this.objetivo = null;
+      return;
+    }
     const ctx = this.ctx;
     const H = this.altura;
     const cabeza = this.cabeza();
@@ -879,12 +918,18 @@ export class Titan implements TitanAPI {
     let velObjetivo = 0;
     let meta: THREE.Vector3 | null = null;
     this.asediando = false;
+    // plantado (pateando la puerta, lanzando rocas): no anda, solo se encara
+    if (this.plantado && this.estado !== 'derribado' && this.estado !== 'cegado' && !this.agarre) {
+      this.velocidad += (0 - this.velocidad) * Math.min(1, dt / 0.6);
+      this.encarar(this.plantado, dt);
+      return;
+    }
 
     const quieto = this.estado === 'derribado' || this.estado === 'cegado' || this.estado === 'apagado' || this.estado === 'alerta' || this.tTambaleo > 0 || (this.agarre && this.agarre.fase !== 'recuperar');
     if (!quieto) {
       if (this.estado === 'perseguir' && this.objetivo) {
         meta = this.objetivo.posicion.clone().setY(0);
-        velObjetivo = this.cuadrupedo ? velocidadCuadrupedo(H) : velocidadPersecucion(H) * (this.especial === 'hembra' ? 1.35 : this.especial === 'acorazado' ? 1.2 : 1);
+        velObjetivo = this.cuadrupedo ? velocidadCuadrupedo(H) : velocidadPersecucion(H) * ritmoEspecial(this.especial);
         // ya lo tiene delante: frena y se encara en vez de pisarlo (el cuadrúpedo salta)
         const dh = meta.distanceTo(this.posicion);
         if (dh < 0.3 * H + 1 && !this.cuadrupedo) velObjetivo *= THREE.MathUtils.clamp((dh - 0.15 * H) / (0.15 * H + 1), 0, 1);
@@ -902,7 +947,7 @@ export class Titan implements TitanAPI {
         this.tDestino -= dt;
         if (!this.destino || this.tDestino <= 0 || this.destino.distanceTo(this.posicion) < 3) this.elegirDestino();
         meta = this.destino;
-        velObjetivo = this.cuadrupedo ? velocidadAndarCuadrupedo(H) : velocidadAndar(H);
+        velObjetivo = (this.cuadrupedo ? velocidadAndarCuadrupedo(H) : velocidadAndar(H)) * (this.especial === 'colosal' || this.especial === 'bestia' ? ritmoEspecial(this.especial) * 1.6 : 1);
       }
     }
 
@@ -1261,7 +1306,57 @@ export class Titan implements TitanAPI {
       p.boca = 0.1;
     }
 
+    this.poseEspecial(p);
     this.suavizar(p, dt);
+  }
+
+  /** Postura de la Bestia (encorvada, brazos colgando hasta el suelo) y los golpes de los cambiantes. */
+  private poseEspecial(p: PoseTitan): void {
+    const H = this.altura;
+    if (this.especial === 'bestia' && this.estado !== 'apagado' && this.estado !== 'derribado') {
+      // encorvada como un simio: el tronco muy echado hacia delante y la cabeza levantada
+      p.torsoX += 0.55;
+      p.cabezaX -= 0.45;
+      p.rodilla[0] += 0.25;
+      p.rodilla[1] += 0.25;
+      p.cadera[0] -= 0.2;
+      p.cadera[1] -= 0.2;
+      for (let i = 0; i < 2; i++) {
+        p.hombroX[i] = p.hombroX[i] * 0.6 - 0.25;
+        p.hombroZ[i] = (i === 0 ? 1 : -1) * 0.18;
+        p.codo[i] = -0.12;
+      }
+    }
+    if (this.especial === 'colosal') p.boca = Math.max(p.boca, 0.15);
+    const a = this.accion;
+    if (!a) return;
+    const u = THREE.MathUtils.clamp(a.t / a.dur, 0, 1);
+    const raiz = this.modelo.raiz;
+    if (a.tipo === 'patada') {
+      // levanta la pierna derecha, la echa atrás y la descarga contra la puerta
+      const golpe = u < 0.55 ? -0.6 * Math.sin((u / 0.55) * Math.PI * 0.5) : -0.6 + 2.2 * Math.sin(((u - 0.55) / 0.45) * Math.PI);
+      p.cadera[1] = -0.05 - golpe;
+      p.rodilla[1] = 0.2 + (u < 0.55 ? 0.9 * (u / 0.55) : 0.9 * (1 - (u - 0.55) / 0.45));
+      p.torsoX -= 0.18 * Math.sin(u * Math.PI);
+      p.hombroZ[0] = 0.6;
+      p.hombroZ[1] = -0.6;
+      p.boca = 0.6;
+    } else if (a.tipo === 'embestida') {
+      // carga de hombro: el tronco hacia delante y los brazos atrás
+      const k = Math.sin(u * Math.PI);
+      p.torsoX += 0.8 * k;
+      p.hombroX[0] = p.hombroX[1] = 0.5 * k;
+      p.cabezaX -= 0.4 * k;
+    } else if (a.tipo === 'lanzar') {
+      // la roca: brazo derecho atrás y arriba, y el lanzamiento por encima de la cabeza
+      const atras = new THREE.Vector3(-0.22 * H, 0.95 * H, -0.45 * H);
+      const delante = new THREE.Vector3(-0.15 * H, 0.85 * H, 0.55 * H);
+      const k = u < 0.6 ? 0 : Math.min(1, (u - 0.6) / 0.25);
+      p.ikMano[1] = raiz.localToWorld(atras.lerp(delante, k));
+      p.torsoX -= 0.25 * (1 - k) - 0.2 * k;
+      p.torsoY = 0.35 * (1 - k) - 0.25 * k;
+      p.boca = 0.4;
+    }
   }
 
   /**

@@ -210,6 +210,18 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   charlan por parejas en la plaza (frente a frente, gesticulando) y los niños corretean; de noche vuelven a la puerta
   de su casa. Terminado, el pueblo **vive en paz**: sus cajas de la plaza recargan gas, cuchillas y bengalas, y puedes descansar y
   reaparecer allí.
+- **Asaltos a la muralla de Trost** (cada 13–20 min si andas a menos de 1,3 km de Trost): por turnos, el **Titán
+  Colosal**, el **Acorazado** o el **Titán Bestia** avanzan hacia la puerta sur con una escolta. La puerta tiene vida
+  (barra arriba en pantalla, con la distancia al cambiante); si llega a cero se rompe, los titanes entran en la
+  ciudad y no se repara hasta que no queda ningún cambiante y pasan dos minutos.
+  - **Colosal** (60 m, sin piel: músculo rojo, costillas y la dentadura al aire): camina despacio hasta la puerta y la
+    patea (tres patadas la rompen). Cada 14 s suelta vapor: 4,5 s con la nuca protegida (los tajos rebotan) y quien
+    esté pegado a él se abrasa y sale despedido. Su nuca aguanta cuatro veces más: hay que volver varias veces.
+  - **Acorazado** (15 m, placas color hueso y máscara): embiste la puerta una y otra vez; si te acercas a menos de
+    45 m, se vuelve contra ti. Solo corvas y codos; con una corva cortada cae y se le agrieta la nuca.
+  - **Bestia** (17 m, simiesca y peluda, brazos hasta el suelo): se planta a 150 m y lanza rocas a ti (a 260 m), a tus
+    soldados o a la puerta; cada roca revienta en 7 m. Si te le echas encima, pelea cuerpo a cuerpo. Se regenera
+    rápido y su nuca aguanta más del doble.
 - **Ataques**: cada pocas horas, de día, un grupo de titanes marcha hacia un pueblo habitado (más cuantos más días
   llevas; desde el día 3, a veces con un cambiante al frente). Cuando entran, **los propios aldeanos dan la alarma**:
   repica la campana, gritan, y una bengala roja sube sobre la plaza (se ve y se oye desde lejos; la brújula y el mapa lo

@@ -1,4 +1,5 @@
 import type { ContextoJuego } from '../core/contexto';
+import { nombreCorto } from '../titans/especiales';
 import type { GestorPueblos } from '../missions/pueblos';
 import { depositoMasCercano } from '../world/mundo';
 
@@ -96,7 +97,7 @@ export class Brujula {
     for (const s of ctx.escuadron.soldados) if (s.vivo) m.push({ clase: 'soldado', x: s.posicion.x, z: s.posicion.z });
     // pueblos atacados (con su campana), cambiantes a la vista y tu caballo
     for (const p of this.pueblos?.()?.lista ?? []) if (p.enAlarma) m.push({ clase: 'alarma', x: p.centro.x, z: p.centro.z, texto: `¡${p.nombre}!` });
-    for (const t of ctx.poblacion.titanesCerca(j, 1500)) if (t.vivo && t.especial) m.push({ clase: 'jefe', x: t.posicion.x, z: t.posicion.z, texto: t.especial === 'acorazado' ? 'Acorazado' : 'Hembra' });
+    for (const t of ctx.poblacion.titanesCerca(j, 1500)) if (t.vivo && t.especial) m.push({ clase: 'jefe', x: t.posicion.x, z: t.posicion.z, texto: nombreCorto(t.especial) });
     const camp = this.campamento?.();
     if (camp) m.push({ clase: 'campamento', x: camp.centro.x, z: camp.centro.z, texto: 'Campamento' });
     const caballo = (ctx.jugador as { caballo?: { pos: { x: number; z: number }; montado: boolean; grupo: { visible: boolean } } | null }).caballo;

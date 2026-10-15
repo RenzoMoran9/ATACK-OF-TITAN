@@ -274,7 +274,9 @@ export class SonidosJuego {
       // rugido al empezar a perseguir (no siempre, y no muy seguido)
       if (t.estado === 'perseguir' && r.estado !== 'perseguir' && r.estado !== 'agarrar' && this.t - r.ultimoRugido > 12 && Math.random() < 0.65) {
         r.ultimoRugido = this.t;
-        if (t.especial) s.tocar(t.especial, { pos: this.cabeza(t), alcance: 60, volumen: 1.2, variacion: 0.05 });
+        if (t.especial === 'acorazado' || t.especial === 'hembra') s.tocar(t.especial, { pos: this.cabeza(t), alcance: 60, volumen: 1.2, variacion: 0.05 });
+        // el Colosal y la Bestia: rugido muy grave, que se oye desde lejos
+        else if (t.especial) s.tocar('rugido', { pos: this.cabeza(t), alcance: 120, volumen: 1.6, tono: t.especial === 'colosal' ? 0.45 : 0.62, variacion: 0.05 });
         else s.tocar('rugido', { pos: this.cabeza(t), alcance: 15 + t.altura * 3, volumen: 0.6 + t.altura / 30, tono: this.tonoTitan(t), variacion: 0.1 });
       }
       r.estado = t.estado;

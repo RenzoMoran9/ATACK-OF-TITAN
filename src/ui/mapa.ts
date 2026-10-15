@@ -1,4 +1,5 @@
 import type { ContextoJuego } from '../core/contexto';
+import { nombreCorto } from '../titans/especiales';
 import type { GestorPueblos } from '../missions/pueblos';
 import { contorno } from '../world/formas';
 import { REGION } from '../world/region';
@@ -196,7 +197,7 @@ export class Mapa {
       g.arc(this.px(t.posicion.x), this.pz(t.posicion.z), 6, 0, Math.PI * 2);
       g.fill();
       g.stroke();
-      g.fillText(t.especial === 'acorazado' ? 'Acorazado' : 'Hembra', this.px(t.posicion.x), this.pz(t.posicion.z) - 9);
+      g.fillText(nombreCorto(t.especial), this.px(t.posicion.x), this.pz(t.posicion.z) - 9);
     }
     // Tu caballo
     const caballo = (ctx.jugador as { caballo?: { pos: { x: number; z: number }; montado: boolean; grupo: { visible: boolean } } | null }).caballo;
