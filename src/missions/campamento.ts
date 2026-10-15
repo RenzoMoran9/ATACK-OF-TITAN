@@ -700,7 +700,8 @@ export class Campamento implements FuerteAPI {
         this.ctx.eventos.emit({ tipo: 'alambre', pos: t.posicion.clone().setY(1) });
       }
       // cada 1,6 s, una estaca le atraviesa una pierna (tendón o corva: cojea o cae de rodillas)
-      if (t.estado !== 'derribado' && this.t - (this.heridas.get(t.id) ?? -9) > 1.6) {
+      // al Acorazado las estacas le rebotan en la coraza: solo lo frenan
+      if (t.especial !== 'acorazado' && t.estado !== 'derribado' && this.t - (this.heridas.get(t.id) ?? -9) > 1.6) {
         const zonas = PIERNAS.filter((z) => t.puntosDebiles.some((p) => p.zona === z && p.activo));
         if (zonas.length) {
           this.heridas.set(t.id, this.t);
