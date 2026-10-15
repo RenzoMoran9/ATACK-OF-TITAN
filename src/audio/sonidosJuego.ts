@@ -63,11 +63,6 @@ export class SonidosJuego {
       this.s.tocar('brecha', { volumen: 1.3, tono: 0.85 });
       this.s.tocar('campana', { volumen: 0.6, retraso: 2.5 });
     });
-    ev.on('canon', (e) => {
-      this.s.tocar('brecha', { pos: e.pos, alcance: 40, volumen: 1.1, tono: 1.5 });
-      this.s.tocar('golpe', { pos: e.pos, alcance: 40, volumen: 1 });
-    });
-    ev.on('puertaFuerte', (e) => this.s.tocar('golpe', { pos: e.pos, alcance: 20, volumen: 0.7, tono: 0.7 }));
     ev.on('recarga', (e) => {
       if (e.quien === jugador) this.s.tocar('recarga', { volumen: 0.8 });
     });

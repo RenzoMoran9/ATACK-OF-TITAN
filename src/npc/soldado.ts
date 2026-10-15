@@ -330,14 +330,8 @@ export class Soldado implements Humano {
     }
   }
 
-  /** A dónde quiere ir ahora: la meta de la misión, cruzando antes la puerta del campamento si hace falta. */
+  /** A dónde quiere ir ahora según la misión. */
   private metaActual(): THREE.Vector3 {
-    const meta = this.metaMision();
-    return this.ctx.carpa?.desvio(this.posicion, meta) ?? meta;
-  }
-
-  /** A dónde lleva la misión. */
-  private metaMision(): THREE.Vector3 {
     const m = this.mision;
     const titan = m.titan && m.titan.vivo ? m.titan : null;
     if (titan && (m.tipo === 'atacar' || m.tipo === 'rescatar')) {

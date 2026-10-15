@@ -332,14 +332,13 @@ export class Escuadron implements EscuadronAPI {
     // Los heridos se apartan a un resguardo y esperan al intendente
     const heridos = libres.filter((s) => !asignados.has(s) && this.debeResguardarse(s));
     if (heridos.length > 0) {
-      const fuerte = ctx.carpa.armada && ctx.carpa.dentro(j.posicion);
-      const sitio = fuerte ? j.posicion : this.puntoResguardo();
+      const sitio = this.puntoResguardo();
       heridos.forEach((s, i) => {
         if (s.mision.tipo !== 'resguardo') {
           s.ultimaFrase = -99;
           s.decir('Estoy herido: me aparto. ¡Cuidado!');
         }
-        s.mision = { tipo: 'resguardo', destino: fuerte ? ctx.carpa.puesto(i, heridos.length) : this.puestoJunto(sitio, i, heridos.length) };
+        s.mision = { tipo: 'resguardo', destino: this.puestoJunto(sitio, i, heridos.length) };
         asignados.add(s);
       });
     } else this.resguardo = null;
@@ -359,7 +358,7 @@ export class Escuadron implements EscuadronAPI {
 
     // 2. Reabastecerse: poco gas o sin cuchillas, y sin combate cerca
     for (const s of libres) {
-      if (asignados.has(s) || s.orden.tipo === 'retirada' || ctx.carpa.dentro(s.posicion)) continue;
+      if (asignados.has(s) || s.orden.tipo === 'retirada') continue;
       if (this.combateCerca(s.posicion)) {
         if (s.mision.tipo === 'recargar') s.mision = { tipo: 'seguir' };
         continue;
@@ -407,12 +406,6 @@ export class Escuadron implements EscuadronAPI {
     let centroCiviles: THREE.Vector3 | null | undefined;
     let huecoJugador = 0;
     let huecoCiviles = 0;
-    // campamento: los que no tienen orden de atacar se quedan dentro, repartidos por el recinto
-    const dentro = libres.filter((s) => !asignados.has(s) && this.quedaDentro(s));
-    dentro.forEach((s, i) => {
-      s.mision = { tipo: 'mantener', destino: ctx.carpa.puesto(i, dentro.length) };
-      asignados.add(s);
-    });
     for (const s of libres) {
       if (asignados.has(s)) continue;
       if (s.rol === 'intendente') {
@@ -475,21 +468,6 @@ export class Escuadron implements EscuadronAPI {
   }
 
   /** El titán al que va un soldado según su orden (los que comparten criterio comparten cálculo). */
-  /**
-   * ¿Debe estar este soldado dentro del campamento? Si hay uno armado: quien tiene orden de
-   * retirada (si está a menos de 150 m) y, mientras tú estés dentro, quien te sigue o protege.
-   * Los que tienen orden de atacar, esperar o ir a otro sitio siguen su orden.
-   */
-  private quedaDentro(s: Soldado): boolean {
-    const carpa = this.ctx.carpa;
-    if (!carpa.armada || !s.vivo) return false;
-    const dentroJ = carpa.dentro(this.ctx.jugador.posicion);
-    if (s.rol === 'intendente') return dentroJ;
-    const o = s.orden.tipo;
-    if (o === 'retirada') return dentroJ || carpa.puesto(0, 1).distanceTo(s.posicion) < 150;
-    return dentroJ && (o === 'seguir' || o === 'proteger');
-  }
-
   /** ¿Quedan otros soldados (aparte del intendente) en pie? */
   private quedanCombatientes(): boolean {
     return this.soldados.some((x) => x.vivo && x.rol !== 'intendente');
@@ -590,8 +568,6 @@ export class Escuadron implements EscuadronAPI {
   }
 
   private titanPara(s: Soldado, memo: Map<unknown, TitanAPI | null>): TitanAPI | null {
-    // dentro del campamento nadie sale a pelear salvo que se lo ordenes (atacad, a ese titán)
-    if (this.quedaDentro(s)) return null;
     // el intendente no se mete en la pelea: cuida de las bombonas… salvo que mueran todos los demás
     if (s.rol === 'intendente') {
       if (this.quedanCombatientes()) return null;

@@ -336,11 +336,6 @@ async function iniciar(): Promise<void> {
       const texto = ctx.carpa.alternar(rig.dir);
       if (texto) ctx.eventos.emit({ tipo: 'mensaje', texto, segundos: 3 });
     }
-    // X: disparar los cañones del campamento (apuntan solos, los disparas tú)
-    if (entrada.consumir('KeyX') && jugador.vivo) {
-      const texto = ctx.carpa.disparar();
-      if (texto) ctx.eventos.emit({ tipo: 'mensaje', texto, segundos: 2 });
-    }
     // G: recoger el equipo de un caído o, si no hay ninguno al lado, pedir gas a un compañero
     if (entrada.consumir('KeyG') && jugador.vivo) {
       const recogido = ctx.suministros.recoger();
