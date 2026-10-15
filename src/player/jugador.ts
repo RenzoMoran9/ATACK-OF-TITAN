@@ -89,12 +89,6 @@ export class Jugador implements JugadorAPI {
     this.combate?.cuchillas.rellenar();
     this.aguante.rellenar();
   }
-  curar(cantidad: number): void {
-    if (this.vivo) this.salud = Math.min(this.saludMax, this.salud + cantidad);
-  }
-  rellenarCuchillas(): void {
-    this.combate?.cuchillas.rellenar();
-  }
   recogerEquipo(gas: number, pares: number): void {
     this.gas.recargar(gas);
     const c = this.combate?.cuchillas;

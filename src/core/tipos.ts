@@ -259,8 +259,6 @@ export interface InfoSoldado {
   actividad: string;
   /** Gas 0–100. */
   gas: number;
-  /** Vida 0–100. */
-  vida: number;
   /** Filo del par montado (0–1) y pares de repuesto. */
   filo: number;
   repuesto: number;
@@ -327,10 +325,6 @@ export interface JugadorAPI extends Humano {
   reabastecer(): void;
   /** Vuelve a la vida en `pies` con salud llena (tras ser devorado). */
   revivir(pies: THREE.Vector3, rumbo?: number): void;
-  /** Suma vida (sin pasar del máximo). */
-  curar(cantidad: number): void;
-  /** Par montado nuevo y vainas llenas (sin tocar el gas). */
-  rellenarCuchillas(): void;
   /** Recoge gas y pares de cuchillas del equipo de un soldado caído. */
   recogerEquipo(gas: number, pares: number): void;
 }

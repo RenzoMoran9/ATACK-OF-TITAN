@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { calcularDanio, desgaste, umbralZona } from '../combat/corte';
+import { calcularDanio, desgaste } from '../combat/corte';
 import { Cuchillas } from '../combat/cuchillas';
 import type { ContextoJuego } from '../core/contexto';
 import { nuevoId } from '../core/poblacion';
@@ -22,7 +22,7 @@ import { DetectorAtasco, enLod } from './logicaOrdenes';
  * rayos, sin cables ni nombre y sin animar si no se ve).
  */
 
-export type TipoMision = 'seguir' | 'atacar' | 'rescatar' | 'proteger' | 'retirada' | 'darGas' | 'mantener' | 'patrullar' | 'recargar' | 'resguardo';
+export type TipoMision = 'seguir' | 'atacar' | 'rescatar' | 'proteger' | 'retirada' | 'darGas' | 'mantener' | 'patrullar' | 'recargar';
 
 export interface Mision {
   tipo: TipoMision;
@@ -90,10 +90,7 @@ export class Soldado implements Humano {
   readonly velocidad = new THREE.Vector3();
   vivo = true;
   agarradoPor: TitanAPI | null = null;
-  /** Vida: el apretón de un titán la gasta; descansando o con el intendente se recupera. */
-  salud = 100;
-  readonly saludMax = 100;
-  /** Gas máximo: 120 (el intendente lleva 400 en bombonas de repuesto y nunca se le acaba). */
+  /** Gas máximo: 120 (el intendente lleva 400 en bombonas de repuesto). */
   readonly gasMax: number;
   gas: number;
   readonly cuchillas = new Cuchillas();
@@ -109,10 +106,6 @@ export class Soldado implements Humano {
   /** No intentar recargar antes de este tiempo de juego (tras rendirse con un depósito). */
   vetoRecarga = 0;
 
-  private brazoAgarre: 'brazoIzq' | 'brazoDer' = 'brazoDer';
-  private tAgarrado = 0;
-  private tIntento = 0;
-  private tSinDanio = 99;
   private enSuelo = true;
   private rumbo = 0;
   /** [gancho izquierdo, gancho derecho]. */
@@ -182,12 +175,8 @@ export class Soldado implements Humano {
 
   // ─────────────────────────── Humano ───────────────────────────
 
-  alSerAgarrado(titan: TitanAPI, brazo: 'brazoIzq' | 'brazoDer' = 'brazoDer'): void {
+  alSerAgarrado(titan: TitanAPI): void {
     this.agarradoPor = titan;
-    this.brazoAgarre = brazo;
-    this.tAgarrado = 0;
-    this.tIntento = 0;
-    this.tSinDanio = 0;
     this.soltarAncla();
     this.velocidad.set(0, 0, 0);
     this.decir(['¡Suéltame!', '¡Ayuda!', '¡No…!'][Math.floor(Math.random() * 3)]);
@@ -195,8 +184,6 @@ export class Soldado implements Humano {
 
   alSerSoltado(): void {
     this.agarradoPor = null;
-    this.tSinDanio = 0;
-    this.salud = Math.max(10, this.salud - 20);
     this.enSuelo = false;
     this.lod = false;
     this.velocidad.set((Math.random() - 0.5) * 4, 2, (Math.random() - 0.5) * 4);
@@ -220,14 +207,7 @@ export class Soldado implements Humano {
   paso(dt: number): void {
     this.posPrevia.copy(this.posicion);
     this.velPrevia.copy(this.velocidad);
-    if (!this.vivo) return;
-    if (this.agarradoPor) {
-      this.pasoAgarrado(dt);
-      return;
-    }
-    this.tSinDanio += dt;
-    if (this.tSinDanio > 10) this.salud = Math.min(this.saludMax, this.salud + 1.5 * dt);
-    if (this.rol === 'intendente') this.gas = this.gasMax;
+    if (!this.vivo || this.agarradoPor) return;
     this.cuchillas.actualizar(dt);
     if (this.cuchillas.rota && this.cuchillas.repuesto > 0 && this.cuchillas.cambiando <= 0) this.cuchillas.empezarCambio();
     this.tEvalLod -= dt;
@@ -269,41 +249,6 @@ export class Soldado implements Humano {
     if (this.impulsando && this.tBocanada <= 0) {
       this.tBocanada = 0.07;
       this.bocanada(1);
-    }
-  }
-
-  /** Poca vida: ya no pelea, se aparta a resguardarse (lo decide el escuadrón). */
-  get herido(): boolean {
-    return this.salud < this.saludMax * 0.4;
-  }
-
-  /** Curación del intendente. */
-  curar(cantidad: number): void {
-    this.salud = Math.min(this.saludMax, this.salud + cantidad);
-  }
-
-  /**
-   * En la mano de un titán: el apretón le gasta vida (sin matarle; eso lo hace el mordisco) y,
-   * si aún tiene hojas, intenta cortarle los dedos él mismo antes de que se lo coma.
-   */
-  private pasoAgarrado(dt: number): void {
-    const titan = this.agarradoPor;
-    if (!titan) return;
-    this.tAgarrado += dt;
-    this.salud = Math.max(8, this.salud - 9 * dt);
-    this.cuchillas.actualizar(dt);
-    if (this.tAgarrado < 1 || !this.cuchillas.puedeCortar) return;
-    this.tIntento -= dt;
-    if (this.tIntento > 0) return;
-    this.tIntento = 0.7;
-    if (Math.random() > Math.min(0.8, 0.35 * this.habilidad)) return;
-    const zona: ZonaTitan = this.brazoAgarre === 'brazoIzq' ? 'manoIzq' : 'manoDer';
-    const res = titan.recibirCorte(zona, umbralZona(zona, titan.altura) * 1.5, this);
-    this.cuchillas.desgastar(0.12);
-    this.ctx.eventos.emit({ tipo: 'corte', titan, resultado: res, por: this });
-    if (res.efecto === 'liberacion') {
-      this.ultimaFrase = -99;
-      this.decir('¡Me he soltado yo solo!');
     }
   }
 
@@ -371,7 +316,7 @@ export class Soldado implements Humano {
     }
     const amenaza = titan ?? this.ctx.poblacion.titanMasCercano(this.posicion, 30);
     if (!amenaza || amenaza.objetivo !== this || amenaza.estado !== 'agarrar') return;
-    if (Math.random() > Math.min(0.95, 0.7 * this.habilidad)) {
+    if (Math.random() > Math.min(0.92, 0.55 * this.habilidad)) {
       this.tEsquiva = 1.5;
       return;
     }
@@ -726,8 +671,7 @@ export class Soldado implements Humano {
 
   /** Pasa gas a otro (como Armin con Mikasa en Trost). Devuelve lo que ha dado. */
   darGas(cantidad: number): number {
-    if (this.rol === 'intendente') return Math.max(0, cantidad);
-    const reserva = 15;
+    const reserva = this.rol === 'intendente' ? 40 : 15;
     const dado = Math.max(0, Math.min(cantidad, this.gas - reserva));
     this.gas -= dado;
     return dado;
@@ -745,12 +689,10 @@ export class Soldado implements Humano {
     if (this.agarradoPor) return '¡agarrado!';
     const m = this.mision;
     switch (m.tipo) {
-      case 'resguardo':
-        return 'herido: a resguardo';
       case 'recargar':
         return 'recargando';
       case 'darGas':
-        return 'te lleva suministros';
+        return 'te lleva gas';
       case 'rescatar':
         return 'rescatando';
       case 'atacar':

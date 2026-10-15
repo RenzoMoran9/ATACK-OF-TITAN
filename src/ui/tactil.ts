@@ -74,7 +74,6 @@ export class ControlesTactiles {
         <button class="t-btn mini" data-k="KeyL" title="Linterna">☀<small>Luz</small></button>
         <button class="t-btn mini" data-k="KeyM" title="Mapa">⌖<small>Mapa</small></button>
         <button class="t-btn mini" data-k="KeyG" title="Recoger equipo / pedir gas">✚<small>G</small></button>
-        <button class="t-btn mini" data-k="KeyT" title="Armar o recoger la carpa">⛺<small>Carpa</small></button>
         <button class="t-btn mini" data-accion="ordenes" title="Órdenes al escuadrón">⚑<small>Órdenes</small></button>
         <button class="t-btn mini" data-k="KeyN" title="Sonido">♪<small>Sonido</small></button>
         <button class="t-btn mini" data-accion="pantalla" title="Pantalla completa">⛶<small>Pantalla</small></button>

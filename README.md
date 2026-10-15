@@ -40,8 +40,7 @@ npm run dev                       # http://localhost:5173
 | **Shift** (mantener) | **Correr** a pie; gasta la barra de **aguante**, que se recupera al parar (vacía, te agotas y andas más lento). Shift o Espacio justo antes de tocar el suelo: **rodada** (evita el daño por caída) |
 | **WASD** | Mover en el suelo. En el aire sin cables ni gas: dirige el salto hacia donde pulsas sin perder impulso, y la tecla contraria frena (para caer justo sobre una rama) |
 | **R** | Cambiar de par de cuchillas (4 de repuesto) |
-| **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, llamar a Moblit: te trae gas, hojas nuevas y un vendaje |
-| **T** | **Carpa de campaña**: se arma delante de ti a cualquier hora (día, atardecer o noche) en suelo firme y sin titanes cerca. A su lado recuperas vida, gas, hojas y aguante, y los compañeros que descansen allí también. T junto a ella la recoge |
+| **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, pedir gas a un compañero |
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
 | **5 / 6 / 7 / 8** | Esperad aquí (mantienen la posición y la defienden) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
 | **Tab** | A quién mandas: todo el escuadrón → cada soldado → todos. Los demás conservan su orden (Todos + 5 = te vas solo; Tab hasta Mikasa + 1 = te la llevas) |
@@ -85,12 +84,6 @@ La calidad se adapta sola (`src/core/calidad.ts`): en el celular empieza en **Me
 de dibujado, sin antialias, pocas antorchas con luz) y, si no llega a ~45 imágenes por segundo, baja la resolución
 interna y luego pasa a **Fluida** (sin sombras, niebla más cerca). En la pausa, el botón **Gráficos** permite elegir
 Auto, Alta, Media o Fluida. Cada soldado se dibuja con ~25 piezas fundidas (antes 63) y los titanes con ~20.
-
-### El escuadrón en combate
-
-- **Vida de los soldados**: el apretón de un titán se la gasta. Si tienen hojas, intentan **cortarle los dedos ellos solos** antes de que se los coma, y esquivan los agarres con más frecuencia.
-- **Heridos a resguardo**: con menos del 40 % de vida dejan de pelear y se **reúnen a un lado**, a unos 45 m de ti y del lado más lejano a los titanes, hasta recuperarse (80 %). Ignoran las órdenes mientras tanto.
-- **Moblit, el intendente**: **gas infinito**, reparte gas, **hojas nuevas y vendajes** sin que se lo pidan (a ti primero, luego a los heridos). Siempre anda cerca, a cubierto, al otro lado de ti respecto a los titanes, y **nunca entra en la pelea salvo que mueran todos los demás**.
 
 ## Sonido
 
