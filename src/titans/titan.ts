@@ -660,7 +660,7 @@ export class Titan implements TitanAPI {
       return;
     }
     const obj = this.objetivo;
-    if (!obj || this.tTambaleo > 0) return;
+    if (!obj || this.tTambaleo > 0 || this.ctx.fuerte?.protege(obj.posicion)) return;
     const H = this.altura;
     // brazo del lado del objetivo, si está útil
     const local = this.modelo.raiz.worldToLocal(obj.posicion.clone());
@@ -685,7 +685,7 @@ export class Titan implements TitanAPI {
   /** Cuadrúpedo: delante y a tiro, se agazapa (aviso) y salta a morder. */
   private intentarSalto(): void {
     const obj = this.objetivo;
-    if (!obj || this.tTambaleo > 0) return;
+    if (!obj || this.tTambaleo > 0 || this.ctx.fuerte?.protege(obj.posicion)) return;
     const H = this.altura;
     const cabeza = this.cabeza();
     const dx = obj.posicion.x - cabeza.x;
@@ -952,11 +952,14 @@ export class Titan implements TitanAPI {
     const avance = new THREE.Vector3(Math.sin(this.rumbo), 0, Math.cos(this.rumbo)).multiplyScalar(this.velocidad * dt);
     const nueva = this.posicion.clone().add(avance);
     const nav = this.ctx.nav;
-    if (nav.libre(nueva.x, nueva.z, this.radioNav * 0.7) || !nav.libre(this.posicion.x, this.posicion.z, this.radioNav * 0.7)) {
+    const r = this.radioNav * 0.7;
+    // la empalizada del campamento es maciza para los titanes aunque la puerta esté abierta
+    const libre = (x: number, z: number) => nav.libre(x, z, r) && !this.ctx.fuerte?.bloquea(x, z, r);
+    if (libre(nueva.x, nueva.z) || !libre(this.posicion.x, this.posicion.z)) {
       this.posicion.copy(nueva);
-    } else if (nav.libre(nueva.x, this.posicion.z, this.radioNav * 0.7)) {
+    } else if (libre(nueva.x, this.posicion.z)) {
       this.posicion.x = nueva.x;
-    } else if (nav.libre(this.posicion.x, nueva.z, this.radioNav * 0.7)) {
+    } else if (libre(this.posicion.x, nueva.z)) {
       this.posicion.z = nueva.z;
     } else {
       this.ruta = null; // atascado: recalcular
@@ -984,7 +987,7 @@ export class Titan implements TitanAPI {
       const m = (minimo - d) * 0.5;
       const nx = this.posicion.x + ux * m;
       const nz = this.posicion.z + uz * m;
-      if (nav.libre(nx, nz, this.radioNav * 0.7)) {
+      if (nav.libre(nx, nz, this.radioNav * 0.7) && !this.ctx.fuerte?.bloquea(nx, nz, this.radioNav * 0.7)) {
         this.posicion.x = nx;
         this.posicion.z = nz;
       }
@@ -999,7 +1002,7 @@ export class Titan implements TitanAPI {
   /** Siguiente punto de la ruta A* (recalcula cada ~1 s o si la meta se mueve). */
   private siguientePunto(meta: THREE.Vector3, dt: number): THREE.Vector3 {
     this.tRuta -= dt;
-    if (!this.ruta || this.tRuta <= 0 || meta.distanceTo(this.metaRuta) > 4 + this.altura * 0.3) {
+    if (this.tRuta <= 0 || meta.distanceTo(this.metaRuta) > 4 + this.altura * 0.3) {
       this.ruta = this.ctx.nav.ruta(this.posicion, meta, this.radioNav, 5000);
       this.metaRuta.copy(meta);
       this.tRuta = 0.8 + this.azar() * 0.5;

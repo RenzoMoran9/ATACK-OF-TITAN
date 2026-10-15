@@ -100,6 +100,11 @@ export class SonidosJuego {
     });
     // martillazos al montar el campamento y latas del alambre cuando un titán lo toca
     ev.on('martillazo', (e) => this.s.tocar('golpe', { pos: e.pos, alcance: 8, volumen: e.golpe === 'fallo' ? 0.4 : e.golpe === 'perfecto' ? 1.1 : 0.8, tono: e.golpe === 'perfecto' ? 0.8 : 1 }));
+    ev.on('canon', (e) => {
+      this.s.tocar('brecha', { pos: e.pos, alcance: 45, volumen: 1.1, tono: 1.6 });
+      this.s.tocar('golpe', { pos: e.pos, alcance: 45, volumen: 1 });
+    });
+    ev.on('puertaFuerte', (e) => this.s.tocar('golpe', { pos: e.pos, alcance: 20, volumen: 0.6, tono: 0.6 }));
     ev.on('alambre', (e) => this.s.tocar('coraza', { pos: e.pos, alcance: 40, volumen: 0.9, tono: 1.6, variacion: 0.15 }));
     for (const tipo of ['puebloDefendido', 'puebloLiberado', 'puebloEnPaz'] as const) {
       ev.on(tipo, (e) => this.s.tocar('vitores', { pos: e.pos.clone().setY(2), alcance: 90, volumen: 1, retraso: 0.8 }));

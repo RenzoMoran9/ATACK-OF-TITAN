@@ -7,7 +7,7 @@ import type { Lugar } from '../../world/lugares';
 import type { ApiCapitulo, Capitulo } from '../campana';
 import { borrarPartida, guardarPartida, leerPartida, type PartidaGuardada } from '../guardado';
 import { Campamento } from '../campamento';
-import { RADIO_CARPAS, RADIO_CERCO, puntosCerco } from '../logicaCampamento';
+import { NUM_POSTES, RADIO_CARPAS, RADIO_CERCO, puntosCerco } from '../logicaCampamento';
 import { GestorPueblos } from '../pueblos';
 
 /**
@@ -166,9 +166,12 @@ export class CapMundo implements Capitulo {
     this.caballo?.actualizar(dt);
     this.pueblos?.actualizar(dt, Math.max(0, horas), !ciclo.noche, factorNoche(ciclo.hora), ciclo.dia);
     this.campamento?.actualizar(dt);
+    this.campamento?.dibujar(dt);
     this.pasoDescanso();
     if (ctx.entrada.consumir('KeyH')) this.alternarDescanso();
     if (ctx.entrada.consumir('KeyK')) this.armarCampamento();
+    // T: cañones del campamento (apuntan solos; los disparas tú desde dentro)
+    if (ctx.entrada.consumir('KeyT')) this.api.mensaje(this.campamento ? this.campamento.disparar() : 'No tienes campamento: K para armar uno', 1.8);
     this.avistamientos();
     this.tGuardar -= dt;
     if (this.tGuardar <= 0) {
@@ -261,12 +264,16 @@ export class CapMundo implements Capitulo {
       const a = (i / 6) * Math.PI * 2 + 0.3;
       return { x: p.x + Math.cos(a) * RADIO_CARPAS, z: p.z + Math.sin(a) * RADIO_CARPAS };
     });
-    const sitios = [...puntosCerco(p.x, p.z), ...carpas, { x: p.x, z: p.z }];
+    // la empalizada, la corona de estacas y las carpas tienen que caber
+    const sitios = [...puntosCerco(p.x, p.z), ...puntosCerco(p.x, p.z, 24, RADIO_CERCO + 2), ...carpas, { x: p.x, z: p.z }];
     if (!sitios.every((s) => libre(s.x, s.z, 0.6)) || ctx.mundo.pueblos.some((x) => Math.hypot(x.centro.x - p.x, x.centro.z - p.z) < x.radio + RADIO_CERCO)) {
       return this.api.mensaje('Aquí no cabe: busca un claro', 1.5);
     }
     this.campamento?.eliminar();
-    this.campamento = new Campamento(ctx, p.clone().setY(0));
+    // la puerta mira hacia donde mira el jugador
+    const r = ctx.jugador.rumbo ?? 0;
+    const mirada = Math.atan2(Math.cos(r), Math.sin(r));
+    this.campamento = new Campamento(ctx, p.clone().setY(0), undefined, mirada - Math.PI / NUM_POSTES);
     this.api.mensaje('¡A montar el campamento!', 2);
   }
 

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { calcularDanio, desgaste } from '../combat/corte';
+import { calcularDanio, desgaste, umbralZona } from '../combat/corte';
 import { Cuchillas } from '../combat/cuchillas';
 import { empujeFuera, RADIO_PERSONA } from '../core/colision';
 import { config } from '../core/config';
@@ -56,6 +56,8 @@ export interface OrdenAsignada {
   titan?: TitanAPI;
   /** Orden a la que vuelve cuando muere el titán señalado. */
   previa?: OrdenAsignada;
+  /** Espera dentro del campamento fortificado: no sale a pelear salvo que le mandes atacar. */
+  campamento?: boolean;
   /** Trabajando en el campamento: sin banderín y con su propia actividad en el panel. */
   trabajo?: boolean;
   /**
@@ -141,6 +143,9 @@ export class Soldado implements Humano {
   private enfriamiento = 0;
   private tDistraer = 0;
   private tEsquiva = 0;
+  private brazoAgarre: 'brazoIzq' | 'brazoDer' = 'brazoDer';
+  private tAgarrado = 0;
+  private tIntento = 0;
   private tAterrizaje: number | null = null;
   private impacto = 0;
   private tLod = 0;
@@ -198,9 +203,12 @@ export class Soldado implements Humano {
 
   // ─────────────────────────── Humano ───────────────────────────
 
-  alSerAgarrado(titan: TitanAPI): void {
+  alSerAgarrado(titan: TitanAPI, brazo: 'brazoIzq' | 'brazoDer' = 'brazoDer'): void {
     this.desmontar();
     this.agarradoPor = titan;
+    this.brazoAgarre = brazo;
+    this.tAgarrado = 0;
+    this.tIntento = 0;
     this.soltarAncla();
     this.velocidad.set(0, 0, 0);
     this.decir(['¡Suéltame!', '¡Ayuda!', '¡No…!'][Math.floor(Math.random() * 3)]);
@@ -282,8 +290,11 @@ export class Soldado implements Humano {
     // en la mano de un titán se le va la vida apretando
     if (this.agarradoPor) {
       this.herir(DANIO_AGARRE * dt);
+      this.cortarseLibre(dt);
       return;
     }
+    // el intendente lleva bombonas de sobra: su gas no se acaba nunca
+    if (this.rol === 'intendente') this.gas = this.gasMax;
     this.cuchillas.actualizar(dt);
     if (this.cuchillas.rota && this.cuchillas.repuesto > 0 && this.cuchillas.cambiando <= 0) this.cuchillas.empezarCambio();
     // a caballo: el caballo lo lleva, sin ODM ni cables
@@ -374,8 +385,20 @@ export class Soldado implements Humano {
     }
   }
 
-  /** A dónde quiere ir ahora según la misión. */
+  /**
+   * A dónde quiere ir ahora: la meta de la misión, pasando antes por la puerta del campamento si
+   * la meta está al otro lado de la empalizada (a caballo no se cruza: baja ante la puerta).
+   */
   private metaActual(): THREE.Vector3 {
+    const meta = this.metaMision();
+    const paso = this.ctx.fuerte?.desvio(this.posicion, meta);
+    if (!paso) return meta;
+    if (this.montado && Math.hypot(paso.x - this.posicion.x, paso.z - this.posicion.z) < 12) this.desmontar();
+    return paso;
+  }
+
+  /** A dónde lleva la misión. */
+  private metaMision(): THREE.Vector3 {
     const m = this.mision;
     const titan = m.titan && m.titan.vivo ? m.titan : null;
     if (titan && (m.tipo === 'atacar' || m.tipo === 'rescatar')) {
@@ -408,6 +431,30 @@ export class Soldado implements Humano {
     return titan.puntosDebiles.find((x) => x.zona === zona && x.activo) ?? null;
   }
 
+  /**
+   * En la mano de un titán, si aún tiene hojas, intenta cortarle los dedos él mismo (cada 0,7 s,
+   * más a menudo cuanto más hábil) antes de que se lo lleve a la boca.
+   */
+  private cortarseLibre(dt: number): void {
+    const titan = this.agarradoPor;
+    if (!titan || !this.vivo) return;
+    this.tAgarrado += dt;
+    this.cuchillas.actualizar(dt);
+    if (this.tAgarrado < 1 || !this.cuchillas.puedeCortar) return;
+    this.tIntento -= dt;
+    if (this.tIntento > 0) return;
+    this.tIntento = 0.7;
+    if (Math.random() > Math.min(0.8, 0.35 * this.habilidad)) return;
+    const zona: ZonaTitan = this.brazoAgarre === 'brazoIzq' ? 'manoIzq' : 'manoDer';
+    const res = titan.recibirCorte(zona, umbralZona(zona, titan.altura) * 1.5, this);
+    this.cuchillas.desgastar(0.12);
+    this.ctx.eventos.emit({ tipo: 'corte', titan, resultado: res, por: this });
+    if (res.efecto === 'liberacion') {
+      this.ultimaFrase = -99;
+      this.decir('¡Me he soltado yo solo!');
+    }
+  }
+
   /** Si el titán que tiene delante va a agarrarle, un impulso lateral (según su habilidad). */
   private esquivar(titan: TitanAPI | null, dt: number): void {
     if (this.tEsquiva > 0) {
@@ -416,7 +463,7 @@ export class Soldado implements Humano {
     }
     const amenaza = titan ?? this.ctx.poblacion.titanMasCercano(this.posicion, 30);
     if (!amenaza || amenaza.objetivo !== this || amenaza.estado !== 'agarrar') return;
-    if (Math.random() > Math.min(0.92, 0.55 * this.habilidad)) {
+    if (Math.random() > Math.min(0.95, 0.7 * this.habilidad)) {
       this.tEsquiva = 1.5;
       return;
     }
@@ -790,7 +837,8 @@ export class Soldado implements Humano {
 
   /** Pasa gas a otro (como Armin con Mikasa en Trost). Devuelve lo que ha dado. */
   darGas(cantidad: number): number {
-    const reserva = this.rol === 'intendente' ? 40 : 15;
+    if (this.rol === 'intendente') return Math.max(0, cantidad); // gas infinito
+    const reserva = 15;
     const dado = Math.max(0, Math.min(cantidad, this.gas - reserva));
     this.gas -= dado;
     return dado;

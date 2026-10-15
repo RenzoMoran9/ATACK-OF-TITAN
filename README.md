@@ -45,7 +45,8 @@ npm run dev                       # http://localhost:5173
 | **Ataque directo** (TAJO con una parte fijada, lejos) | Un toque en **TAJO** engancha los ganchos al punto marcado, los **sostiene sin tener el botón pulsado** y corta solo al llegar a ~3 m. Si no hay dónde clavarse, avisa «No llego al punto» |
 | **C** | **Caballo**: al lado, montar; montado, bajar; lejos, silbar (viene al galope). Montado: WASD lo dirige, Shift galope, Espacio salta de la silla, y si clavas un gancho sales volando de ella |
 | **V** | **Acelerar a caballo** (montado, mantenido): un galope más rápido que gasta el aliento (la barra ALIENTO); vuelve despacio al soltar |
-| **K** | **Armar un campamento** donde estés (en un claro): cerco de alambre con latas y seis carpas alrededor de una hoguera. El escuadrón se reparte las obras y tú ayudas con el martillo |
+| **K** | **Armar un campamento fortificado** donde estés (en un claro, a cualquier hora): empalizada de troncos con adarve, atalaya, puerta automática, estacas, cuatro cañones y seis carpas alrededor de una hoguera. El escuadrón se reparte las obras y tú ayudas con el martillo |
+| **T** | Disparar los **cañones** del campamento (desde dentro): apuntan solos a las rodillas del titán en pie o a la nuca del caído; 5 s de recarga cada uno |
 | **G** junto a una obra | **Martillazo**: pulsa cuando la aguja pase por la zona verde. En el centro, el poste entra de una vez; bien, en tres golpes; fuera, apenas avanza |
 | **H** | Descansar hasta el amanecer (de noche, en un refugio: Trost, un puesto, el campamento de la Legión, tu campamento o un pueblo en paz) |
 | **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, pedir gas a un compañero |
@@ -220,11 +221,21 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   velocidad. El cuerpo bota según el andar, cabecea al galope y se inclina en las curvas; gira con inercia (cuanto más
   rápido, más abierto), frena para dar media vuelta y, cuando lo llamas, llega frenando poco a poco. Parado y girando,
   da pasitos. Los cascos suenan al ritmo de la marcha.
-- **Campamento** (K): donde quieras, en un claro fuera de Trost. Cada soldado va a su poste o a su carpa y la monta
-  en unos segundos; tú clavas postes con el martillo. Entre cada dos postes clavados se tiende el alambre. Un titán
-  que se mete en él se **enreda** (va a un cuarto de su velocidad), las latas suenan y lo va rompiendo poco a poco.
-  Terminado, el escuadrón se queda dentro defendiéndolo, se enciende la hoguera y es un refugio: duermes en las carpas
-  (H) y reapareces allí. Solo hay uno: armar otro desmonta el anterior.
+- **Campamento fortificado** (K): donde quieras, a cualquier hora, en un claro fuera de Trost. La puerta mira hacia
+  donde miras al armarlo. Cada soldado va a su tramo de empalizada, a su carpa o a la atalaya y lo levanta en unos
+  segundos; tú ayudas con el martillo. Terminado:
+  - **Empalizada maciza** de troncos afilados (3,4 m): ni tú, ni los soldados, ni los titanes la atraviesan. Por arriba
+    está abierta: desde el **adarve** (pasarela a 2,2 m, con dos escaleras) ves por encima del muro, y desde la
+    **atalaya** (8,5 m) todo el contorno.
+  - **Puerta automática**: la hoja se hunde en el suelo cuando tú o un soldado os acercáis y sube cuando os alejáis.
+    Los titanes no la abren, no pisan el recinto y **no pueden agarrar a nadie dentro**.
+  - **Estacas** cruzadas alrededor: el titán que llega a la empalizada se enreda, **se hiere las piernas** (cojea o cae
+    de rodillas) y suenan las latas de alarma. Las estacas se van rompiendo; la empalizada aguanta.
+  - **Vigías**: cada titán que se acerca se anuncia con su tamaño y su dirección, y una bengala roja desde la atalaya.
+  - **Cuatro cañones** sobre el adarve que apuntan solos; los disparas tú con **T** desde dentro.
+  - El escuadrón **se queda dentro** (y también quien te sigue mientras estás dentro): solo sale si le ordenas atacar
+    (2), atacar a un titán (7), ir a otro sitio o explorar. Los heridos se refugian dentro.
+  - Es un refugio: duermes en las carpas (H) y reapareces allí. Solo hay uno: armar otro desmonta el anterior.
 - **Guardar partida**: botón en la pausa (y además se guarda sola cada 30 s, al pausar y al cambiar de pestaña).
   Se guarda **dónde estás exactamente** (aunque sea en un tejado), tu gas, cuchillas y bengalas, dónde está tu
   caballo, tu campamento, el día y la hora, los pueblos, los lugares descubiertos y las estadísticas. En el menú,

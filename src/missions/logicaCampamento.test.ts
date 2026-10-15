@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ANCHO_ZONA, NUM_POSTES, RADIO_CERCO, aguja, avanceGolpe, calidadGolpe, enAlambre, nuevaZona, puntosCerco, repartirObras } from './logicaCampamento';
+import { ANCHO_ZONA, NUM_POSTES, RADIO_CERCO, aguja, anguloTramo, avanceGolpe, calidadGolpe, dentroEmpalizada, desvioPorPuerta, enAlambre, nuevaZona, puntosCerco, repartirObras, tramoDe } from './logicaCampamento';
+
+const R = RADIO_CERCO;
 
 describe('martillo', () => {
   it('la aguja va y viene entre 0 y 1', () => {
@@ -58,5 +60,42 @@ describe('reparto del trabajo', () => {
     expect(repartirObras([{ x: 1, z: 0 }, { x: 2, z: 0 }], obras)).toEqual([0, 1]);
     expect(repartirObras([{ x: 1, z: 0 }], obras, 0)).toEqual([1]);
     expect(repartirObras([{ x: 1, z: 0 }, { x: 1, z: 0 }, { x: 1, z: 0 }], obras)).toEqual([0, 1, -1]);
+  });
+});
+
+describe('empalizada', () => {
+  it('el tramo de un punto coincide con su ángulo central', () => {
+    for (let i = 0; i < 12; i++) {
+      const a = anguloTramo(i, 0.7);
+      expect(tramoDe(Math.cos(a) * 10, Math.sin(a) * 10, 0, 0, 0.7)).toBe(i);
+    }
+  });
+
+  it('dentro y fuera', () => {
+    expect(dentroEmpalizada(0, 0, 0, 0)).toBe(true);
+    expect(dentroEmpalizada(0, 0, R - 2, 0)).toBe(true);
+    expect(dentroEmpalizada(0, 0, R + 1, 0)).toBe(false);
+  });
+
+  it('sin cruzar el muro no hay desvío', () => {
+    expect(desvioPorPuerta(0, 0, 0, { x: 30, z: 30 }, { x: 40, z: 0 })).toBeNull();
+    expect(desvioPorPuerta(0, 0, 0, { x: 1, z: 1 }, { x: -3, z: 2 })).toBeNull();
+  });
+
+  it('desde fuera se alinea ante la puerta y luego entra', () => {
+    const a = anguloTramo(0, 0);
+    const fuera = { x: -30, z: 5 };
+    const p1 = desvioPorPuerta(0, 0, 0, fuera, { x: 0, z: 0 })!;
+    expect(Math.hypot(p1.x, p1.z)).toBeGreaterThan(R);
+    expect(Math.atan2(p1.z, p1.x)).toBeCloseTo(a, 3);
+    const p2 = desvioPorPuerta(0, 0, 0, p1, { x: 0, z: 0 })!;
+    expect(dentroEmpalizada(0, 0, p2.x, p2.z)).toBe(true);
+  });
+
+  it('desde dentro se alinea con la puerta y sale', () => {
+    const p1 = desvioPorPuerta(0, 0, 0, { x: -5, z: -3 }, { x: 80, z: 80 })!;
+    expect(dentroEmpalizada(0, 0, p1.x, p1.z)).toBe(true);
+    const p2 = desvioPorPuerta(0, 0, 0, p1, { x: 80, z: 80 })!;
+    expect(dentroEmpalizada(0, 0, p2.x, p2.z)).toBe(false);
   });
 });

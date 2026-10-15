@@ -182,7 +182,7 @@ export class Escuadron implements EscuadronAPI {
       s.orden = { tipo: 'irA', punto: p, puesto: p.clone().setY(0.9), trabajo: true, dada: true };
     } else if (descanso) {
       const p = descanso.clone().setY(0);
-      s.orden = { tipo: 'esperar', punto: p, puesto: this.puestoJunto(p, this.soldados.indexOf(s), this.soldados.length), dada: true };
+      s.orden = { tipo: 'esperar', punto: p, puesto: this.puestoJunto(p, this.soldados.indexOf(s), this.soldados.length), dada: true, campamento: true };
     } else s.orden = { tipo: 'seguir' };
     this.tCoordinar = 0;
   }
@@ -273,13 +273,37 @@ export class Escuadron implements EscuadronAPI {
       else if (receptor && s.posicion.distanceTo(receptor.posicion) < 5.5) {
         const companero = receptor instanceof Soldado ? receptor : null;
         const falta = companero ? companero.gasMax - companero.gas : j.gas.capacidad - j.gas.nivel;
-        const dado = s.darGas(Math.min(falta, s.rol === 'intendente' ? 300 : 100));
+        const intendente = s.rol === 'intendente';
+        const dado = s.darGas(intendente ? falta : Math.min(falta, 100));
         if (companero) companero.gas = Math.min(companero.gasMax, companero.gas + dado);
         else j.gas.nivel = Math.min(j.gas.capacidad, j.gas.nivel + dado);
+        // el intendente además cambia las hojas y venda las heridas
+        let extra = '';
+        if (intendente) {
+          if (companero) {
+            if (companero.cuchillas.repuesto < 4 || companero.cuchillas.filo < 1) {
+              companero.cuchillas.rellenar();
+              extra += ', hojas nuevas';
+            }
+            if (companero.salud < companero.saludMax - 5) {
+              companero.curar(60);
+              extra += ' y un vendaje';
+            }
+          } else {
+            if (j.paresRepuesto < 4 || j.filo < 1) {
+              j.reabastecer();
+              extra += ', hojas nuevas';
+            }
+            if (j.salud < j.saludMax - 5) {
+              j.curar(60);
+              extra += ' y un vendaje';
+            }
+          }
+        }
         s.ultimaFrase = -99;
         const a = companero ? `${companero.nombre}, toma` : 'Toma';
-        s.decir(dado > 0 ? `${a}: gas de repuesto (+${Math.round(dado)})` : 'Ya no me queda gas…');
-        if (dado > 0 && !companero) this.ctx.eventos.emit({ tipo: 'recarga', quien: j });
+        s.decir(dado > 0 || extra ? `${a}: gas${dado > 0 ? ` (+${Math.round(dado)})` : ''}${extra}` : 'Ya no me queda gas…');
+        if ((dado > 0 || extra) && !companero) this.ctx.eventos.emit({ tipo: 'recarga', quien: j });
         s.mision = { tipo: 'seguir' };
       }
       // recarga en el depósito
@@ -340,13 +364,13 @@ export class Escuadron implements EscuadronAPI {
 
     // El intendente reparte gas sin que se lo pidan: a ti primero, luego al que vaya más justo
     for (const s of libres) {
-      if (s.rol !== 'intendente' || asignados.has(s) || s.gas < s.gasMax * 0.15 || s.orden.dada) continue;
+      if (s.rol !== 'intendente' || asignados.has(s) || (s.orden.dada && !s.orden.campamento)) continue;
       const quien = this.necesitaGas(s);
       if (!quien) continue;
       if (!(s.mision.tipo === 'darGas' && s.mision.humano === quien)) {
         s.mision = { tipo: 'darGas', humano: quien };
         s.ultimaFrase = -99;
-        s.decir(quien === j ? '¡Vas justo de gas, te llevo una bombona!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, te llevo gas!`);
+        s.decir(quien === j ? '¡Voy, te llevo gas, hojas y vendas!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, aguanta, te llevo suministros!`);
       }
       asignados.add(s);
     }
@@ -410,7 +434,13 @@ export class Escuadron implements EscuadronAPI {
       for (const s of equipo) asignados.add(s);
     }
 
-    // 4. El resto cumple su orden
+    // 4. El resto cumple su orden. En el campamento terminado, quien espera allí (o te sigue
+    // mientras tú estás dentro) se queda dentro, repartido alrededor de la hoguera
+    const enFuerte = libres.filter((s) => !asignados.has(s) && this.enFuerte(s));
+    enFuerte.forEach((s, i) => {
+      s.mision = { tipo: 'mantener', destino: ctx.fuerte!.puesto(i, enFuerte.length) };
+      asignados.add(s);
+    });
     const v = j.velocidad;
     if (Math.hypot(v.x, v.z) > 2) this.rumboFormacion.set(v.x, 0, v.z).normalize();
     const f = this.rumboFormacion;
@@ -451,7 +481,7 @@ export class Escuadron implements EscuadronAPI {
     for (const s of libres) {
       const combate = s.mision.tipo === 'atacar' || s.mision.tipo === 'rescatar';
       if (combate && s.montado) s.desmontar();
-      else if (!combate && !s.montado && s.rol === 'medico') this.subirAlCaballo(s);
+      else if (!combate && !s.montado && s.rol === 'medico' && !this.ctx.fuerte?.dentro(s.posicion) && !this.enFuerte(s)) this.subirAlCaballo(s);
     }
 
     // 5. Vigías
@@ -486,6 +516,11 @@ export class Escuadron implements EscuadronAPI {
       // con una orden tuya no huye por su cuenta: la retirada (4) lo manda a tu espalda, a caballo si está lejos
       if (s.orden.dada) {
         s.huyendo = false;
+        // en el campamento la retirada es quedarse dentro (lo coloca el paso 4)
+        if (this.enFuerte(s)) {
+          if (s.montado && s.rol !== 'medico') s.desmontar();
+          continue;
+        }
         const espalda = this.traseraJugador();
         if (s.orden.tipo === 'retirada' && Math.hypot(espalda.x - s.posicion.x, espalda.z - s.posicion.z) > LLEGADA_REFUGIO + 3) {
           asignados.add(s);
@@ -521,6 +556,9 @@ export class Escuadron implements EscuadronAPI {
 
   /** Adónde se retira por sus heridas o por el peligro: junto al médico (si no es él) o a tu espalda. */
   private refugioPara(s: Soldado, medico: Soldado | null): THREE.Vector3 {
+    // con el campamento terminado cerca, los heridos se juntan dentro de la empalizada
+    const f = this.ctx.fuerte;
+    if (f?.listo && f.centro.distanceTo(s.posicion) < 300) return f.puesto(this.soldados.indexOf(s), this.soldados.length);
     if (medico && medico !== s) return medico.posicion.clone();
     return this.traseraJugador();
   }
@@ -603,20 +641,50 @@ export class Escuadron implements EscuadronAPI {
   /** A quién le hace falta gas (para el intendente): el jugador por debajo del 35 %, o el compañero más justo. */
   private necesitaGas(intendente: Soldado): Humano | null {
     const j = this.ctx.jugador;
-    if (j.vivo && !j.agarradoPor && j.gas.nivel < j.gas.capacidad * 0.35) return j;
+    // nunca se mete bajo las manos de un titán para llegar a nadie
+    const seguro = (h: Humano) => !this.ctx.poblacion.titanesCerca(h.posicion, 14).some(esAmenaza);
+    if (j.vivo && !j.agarradoPor && seguro(j) && (j.gas.nivel < j.gas.capacidad * 0.35 || j.salud < j.saludMax * 0.6 || j.paresRepuesto < 2 || j.filo < 0.3)) return j;
     let peor: Soldado | null = null;
+    let nota = 0;
     for (const s of this.soldados) {
       if (s === intendente || !s.vivo || s.agarradoPor || s.mision.tipo === 'recargar') continue;
-      if (s.gas > s.gasMax * 0.3 || s.posicion.distanceTo(intendente.posicion) > 400) continue;
-      if (!peor || s.gas < peor.gas) peor = s;
+      if (s.posicion.distanceTo(intendente.posicion) > 400 || !seguro(s)) continue;
+      const gas = s.gas < s.gasMax * 0.3 ? 1 - s.gas / s.gasMax : 0;
+      const vida = s.salud < s.saludMax * 0.7 ? 1 - s.salud / s.saludMax : 0;
+      const hojas = s.cuchillas.repuesto === 0 && s.cuchillas.filo < 0.3 ? 0.5 : 0;
+      const n = gas + vida + hojas;
+      if (n > nota) {
+        nota = n;
+        peor = s;
+      }
     }
     return peor;
   }
 
+  /**
+   * ¿Se queda dentro del campamento fortificado? Con la empalizada terminada: quien tiene la orden
+   * de esperar allí y, mientras tú estás dentro, quien te sigue, protege o se retira. Solo sale si
+   * le ordenas atacar (2), atacar a un titán (7), ir a otro sitio o explorar.
+   */
+  private enFuerte(s: Soldado): boolean {
+    const f = this.ctx.fuerte;
+    if (!f?.listo || !s.vivo) return false;
+    const o = s.orden;
+    if (o.tipo === 'esperar' && o.campamento) return true;
+    return f.dentro(this.ctx.jugador.posicion) && (o.tipo === 'seguir' || o.tipo === 'proteger' || o.tipo === 'retirada');
+  }
+
   private titanPara(s: Soldado, memo: Map<unknown, TitanAPI | null>): TitanAPI | null {
-    // el intendente y el médico no pelean por su cuenta: solo si les mandas luchar (no seguirte ni retirarse)
+    // dentro del campamento nadie sale a pelear sin que se lo mandes
+    if (this.enFuerte(s)) return null;
+    // el intendente nunca pelea, salvo que hayan caído todos los demás
+    if (s.rol === 'intendente') {
+      if (this.soldados.some((x) => x !== s && x.vivo)) return null;
+      return this.elegirTitan('seguir') ?? this.amenazaDirecta(s, 35);
+    }
+    // el médico no pelea por su cuenta: solo si le mandas luchar (no seguirte ni retirarse)
     const luchan = s.orden.dada && s.orden.tipo !== 'seguir' && s.orden.tipo !== 'retirada';
-    if ((s.rol === 'intendente' || s.rol === 'medico') && !luchan) return null;
+    if (s.rol === 'medico' && !luchan) return null;
     const o = s.orden;
     const calcular = (clave: unknown, f: () => TitanAPI | null): TitanAPI | null => {
       if (!memo.has(clave)) memo.set(clave, f());

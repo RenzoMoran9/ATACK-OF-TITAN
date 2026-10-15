@@ -46,10 +46,10 @@ export function nuevaZona(azar: () => number): number {
   return ANCHO_ZONA / 2 + azar() * (1 - ANCHO_ZONA);
 }
 
-/** Posiciones (x, z) de los postes alrededor de un centro. */
-export function puntosCerco(cx: number, cz: number, n = NUM_POSTES, r = RADIO_CERCO): { x: number; z: number }[] {
+/** Posiciones (x, z) de los postes alrededor de un centro (`giro`: rad, todo el campamento rota). */
+export function puntosCerco(cx: number, cz: number, n = NUM_POSTES, r = RADIO_CERCO, giro = 0): { x: number; z: number }[] {
   return Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2;
+    const a = giro + (i / n) * Math.PI * 2;
     return { x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r };
   });
 }
@@ -91,4 +91,51 @@ export function repartirObras(
     if (mejor >= 0) tomadas.add(mejor);
     return mejor;
   });
+}
+
+// ───────────── Empalizada ─────────────
+
+/** Altura de la empalizada, del adarve (pasarela interior) y de la puerta (m). */
+export const ALTO_MURO = 3.4;
+export const ALTO_ADARVE = 2.2;
+export const ANCHO_PUERTA = 4.2;
+/** Lo que se aleja de la empalizada el interior que cuenta como «dentro». */
+const MARGEN_DENTRO = 0.6;
+
+/** Ángulo central del tramo `i` de la empalizada (el tramo 0 es la puerta). Convención: x = cos a, z = sin a. */
+export function anguloTramo(i: number, giro: number, n = NUM_POSTES): number {
+  return giro + ((i + 0.5) / n) * Math.PI * 2;
+}
+
+/** Tramo de la empalizada en el que cae el ángulo de (x, z) respecto al centro. */
+export function tramoDe(x: number, z: number, cx: number, cz: number, giro: number, n = NUM_POSTES): number {
+  const paso = (Math.PI * 2) / n;
+  const a = Math.atan2(z - cz, x - cx) - giro;
+  return ((Math.floor(a / paso) % n) + n) % n;
+}
+
+/** ¿Está (x, z) dentro de la empalizada? */
+export function dentroEmpalizada(cx: number, cz: number, x: number, z: number, r = RADIO_CERCO): boolean {
+  return Math.hypot(x - cx, z - cz) < r * Math.cos(Math.PI / NUM_POSTES) - MARGEN_DENTRO;
+}
+
+/**
+ * Punto de paso para cruzar la puerta (tramo 0) de la empalizada: quien está fuera y va dentro
+ * (o al revés) primero se alinea ante la puerta y luego la cruza. null si no hay que cruzar.
+ */
+export function desvioPorPuerta(cx: number, cz: number, giro: number, desde: { x: number; z: number }, meta: { x: number; z: number }, r = RADIO_CERCO): { x: number; z: number } | null {
+  const dDentro = dentroEmpalizada(cx, cz, desde.x, desde.z, r);
+  if (dDentro === dentroEmpalizada(cx, cz, meta.x, meta.z, r)) return null;
+  const a = anguloTramo(0, giro);
+  const fx = Math.cos(a);
+  const fz = Math.sin(a);
+  const apotema = r * Math.cos(Math.PI / NUM_POSTES);
+  const px = cx + fx * apotema;
+  const pz = cz + fz * apotema;
+  const along = (desde.x - px) * fx + (desde.z - pz) * fz;
+  const lat = (desde.x - px) * -fz + (desde.z - pz) * fx;
+  const punto = (d: number) => ({ x: px + fx * d, z: pz + fz * d });
+  const alineado = Math.abs(lat) < ANCHO_PUERTA / 2 - 0.6;
+  if (!dDentro) return alineado && along < 7 ? punto(-4) : punto(6);
+  return alineado && along > -7 ? punto(6) : punto(-5);
 }

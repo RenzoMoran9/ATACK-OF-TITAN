@@ -164,6 +164,8 @@ export type EventoJuego =
   | { tipo: 'alarmaPueblo'; nombre: string; pos: THREE.Vector3 }
   | { tipo: 'martillazo'; pos: THREE.Vector3; golpe: 'perfecto' | 'bueno' | 'fallo' }
   | { tipo: 'alambre'; pos: THREE.Vector3 }
+  | { tipo: 'canon'; pos: THREE.Vector3 }
+  | { tipo: 'puertaFuerte'; pos: THREE.Vector3 }
   | { tipo: 'puebloLiberado'; nombre: string; pos: THREE.Vector3 }
   | { tipo: 'puebloDefendido'; nombre: string; pos: THREE.Vector3 }
   | { tipo: 'puebloCaido'; nombre: string; pos: THREE.Vector3 }
@@ -384,4 +386,23 @@ export interface JugadorAPI extends Humano {
   recogerEquipo(gas: number, pares: number): void;
   /** Lo cura el médico (sin pasarse de la salud máxima). */
   curar(cantidad: number): void;
+}
+
+// ───────────────────────── Campamento fortificado ─────────────────────────
+
+/** Lo que los titanes y el escuadrón necesitan saber del campamento (empalizada) del jugador. */
+export interface FuerteAPI {
+  readonly centro: THREE.Vector3;
+  /** La empalizada está terminada. */
+  readonly listo: boolean;
+  /** ¿Está este punto dentro del recinto (en el suelo, el adarve o la atalaya)? */
+  dentro(p: THREE.Vector3): boolean;
+  /** Dentro y con la empalizada terminada: ningún titán puede agarrarlo. */
+  protege(p: THREE.Vector3): boolean;
+  /** Un titán de radio `r` no puede pisar aquí (empalizada y estacas). */
+  bloquea(x: number, z: number, r: number): boolean;
+  /** Punto de paso para cruzar la puerta si `desde` y `meta` están a distinto lado del muro. */
+  desvio(desde: THREE.Vector3, meta: THREE.Vector3): THREE.Vector3 | null;
+  /** Puesto `i` de `n` dentro del recinto (a la altura del cuerpo). */
+  puesto(i: number, n: number): THREE.Vector3;
 }

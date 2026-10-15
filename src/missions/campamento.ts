@@ -1,8 +1,14 @@
+import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { umbralNuca, umbralZona } from '../combat/corte';
 import type { ContextoJuego } from '../core/contexto';
-import type { Humano } from '../core/tipos';
+import type { FuerteAPI, Humano, TitanAPI, ZonaTitan } from '../core/tipos';
+import { COLOR_AVISO, textoAviso } from '../npc/logicaOrdenes';
 import { texturaParticula } from '../world/texturas';
 import {
+  ALTO_ADARVE,
+  ALTO_MURO,
+  ANCHO_PUERTA,
   DESGASTE_ALAMBRE,
   FRENO_ALAMBRE,
   NUM_POSTES,
@@ -11,92 +17,242 @@ import {
   RADIO_CERCO,
   VIDA_ALAMBRE,
   aguja,
+  anguloTramo,
   avanceGolpe,
   calidadGolpe,
-  enAlambre,
+  dentroEmpalizada,
+  desvioPorPuerta,
   nuevaZona,
   puntosCerco,
   repartirObras,
+  tramoDe,
   type Golpe,
 } from './logicaCampamento';
+import { Silueta } from './silueta';
 
 /**
- * Campamento de la Legión que montas donde quieras (K): un cerco de alambre de espino con
- * latas colgando y un corro de carpas alrededor de una hoguera.
+ * Campamento fortificado de la Legión que montas donde quieras (K), a cualquier hora: una
+ * empalizada redonda de troncos afilados con su adarve (pasarela interior a 2,2 m desde la que se
+ * ve por encima del muro), dos escaleras, una atalaya junto a la puerta, cuatro cañones sobre el
+ * adarve, una corona de estacas por fuera y, dentro, un corro de carpas alrededor de la hoguera.
  *
- * Al armarlo, el escuadrón se reparte las obras (cada soldado va a su poste o a su carpa y la
- * monta en unos segundos) y tú ayudas con el martillo: G (o el botón MARTILLO) cuando la aguja
- * pasa por la zona verde. Entre cada dos postes clavados se tiende el alambre. Terminado, es un
- * refugio: puedes dormir en las carpas (H) y reaparecer allí. Un titán que se mete en el
- * alambre se enreda (va a un cuarto de su velocidad) y las latas suenan; cada uno lo va
- * rompiendo poco a poco.
+ * Al armarlo, el escuadrón se reparte las obras (cada tramo de empalizada, cada carpa y la atalaya)
+ * y tú ayudas con el martillo: G (o el botón MARTILLO) cuando la aguja pasa por la zona verde.
+ *
+ * Terminado:
+ * - La empalizada es maciza (colisionadores reales): nadie la atraviesa. Se entra por la puerta,
+ *   que se abre sola (la hoja se hunde en el suelo) cuando tú o un soldado os acercáis y se
+ *   cierra cuando os alejáis. Los titanes no la abren, no pisan el recinto y no pueden agarrar a
+ *   nadie dentro. Por arriba está abierta: ves todo alrededor desde el adarve o la atalaya.
+ * - El titán que llega a la empalizada se clava las estacas: se enreda, se hiere las piernas y las
+ *   latas de alarma suenan. Las estacas se van rompiendo con cada titán.
+ * - Los vigías avisan de cada titán que se acerca (dirección y tamaño) con una bengala roja.
+ * - Cañones con apuntado automático (rodillas del titán en pie, nuca del caído) que disparas tú
+ *   con T desde dentro. Cada uno tarda 5 s en recargarse.
+ * - Es un refugio: puedes dormir (H) y reaparecer allí. El escuadrón espera dentro y solo sale a
+ *   pelear si le ordenas atacar.
  */
+
+type TipoObra = 'tramo' | 'carpa' | 'torre';
 
 interface Obra {
   pos: THREE.Vector3;
   rot: number;
   progreso: number;
   malla: THREE.Object3D;
-  tipo: 'poste' | 'carpa';
+  tipo: TipoObra;
+  /** Índice del tramo de empalizada (solo tramos). */
+  tramo?: number;
 }
 
 export interface EstadoGuardadoCampamento {
   x: number;
   z: number;
+  /** Progreso de cada tramo de empalizada (antes, postes del cerco). */
   postes: number[];
   carpas: number[];
+  /** Vida de las estacas (antes, del alambre). */
   alambre: number;
+  /** Orientación del campamento (rad): hacia dónde mira la puerta. */
+  giro?: number;
+  torre?: number;
+}
+
+interface Canon {
+  tramo: number;
+  pivote: THREE.Group;
+  tubo: THREE.Mesh;
+  boca: THREE.Object3D;
+  rumbo: number;
+  recarga: number;
+}
+
+interface Bala {
+  malla: THREE.Mesh;
+  desde: THREE.Vector3;
+  hasta: THREE.Vector3;
+  t: number;
 }
 
 const MADERA = new THREE.MeshLambertMaterial({ color: '#6b4c30' });
+const TRONCO = new THREE.MeshLambertMaterial({ color: '#5a4029' });
+const PUNTA = new THREE.MeshLambertMaterial({ color: '#8a6a45' });
+const TABLA = new THREE.MeshLambertMaterial({ color: '#80603f' });
+const HIERRO = new THREE.MeshLambertMaterial({ color: '#2e3034' });
 const LONA = new THREE.MeshLambertMaterial({ color: '#d9cfb2', side: THREE.DoubleSide });
 const LONA_VERDE = new THREE.MeshLambertMaterial({ color: '#5d6e4a', side: THREE.DoubleSide });
+const ESTANDARTE = new THREE.MeshLambertMaterial({ color: '#2f4a2a', side: THREE.DoubleSide });
 const LATA = new THREE.MeshLambertMaterial({ color: '#9aa0a6' });
 const PIEDRA = new THREE.MeshLambertMaterial({ color: '#8f8a80' });
+const BALA = new THREE.MeshBasicMaterial({ color: '#1d1d1d' });
 
-export class Campamento {
+const N = NUM_POSTES;
+const PASO = (Math.PI * 2) / N;
+const APOTEMA = RADIO_CERCO * Math.cos(PASO / 2);
+const CUERDA = 2 * RADIO_CERCO * Math.sin(PASO / 2);
+/** Adarve: centro y anchura de la pasarela (por dentro del muro). */
+const ANCHO_ADARVE = 1.4;
+const R_ADARVE = APOTEMA - 0.3 - ANCHO_ADARVE / 2;
+const R_ESTACAS = RADIO_CERCO + 1.9;
+const TRAMOS_ESCALERA = [4, 8];
+const TRAMOS_CANON = [2, 5, 7, 10];
+const TRAMO_TORRE = 11;
+const ALTO_TORRE = 8.5;
+const ALTO_PUERTA = 3.2;
+/** Un aliado a esta distancia de la puerta la abre. */
+const ALCANCE_PUERTA = 8;
+const RECARGA_CANON = 5;
+const ALCANCE_CANON = 170;
+const ARCO_CANON = (75 * Math.PI) / 180;
+const RADIO_AVISO = 180;
+const PIERNAS: ZonaTitan[] = ['corvaIzq', 'corvaDer', 'tendonIzq', 'tendonDer'];
+
+/** Giro en Y para que el eje X local de una pieza quede tangente al muro en el ángulo `a`. */
+const giroTangente = (a: number) => -a - Math.PI / 2;
+
+export class Campamento implements FuerteAPI {
   readonly centro: THREE.Vector3;
   readonly grupo = new THREE.Group();
   readonly obras: Obra[] = [];
-  /** Vida del alambre (0 = roto). */
+  /** Vida de las estacas (0 = rotas). */
   alambre = VIDA_ALAMBRE;
   /** Martillo: zona verde actual y tiempo de la aguja. */
   zona = 0.5;
   tAguja = 0;
   /** Obra junto a la que está el jugador (o −1). */
   obraJugador = -1;
-  private readonly lineas: THREE.LineSegments;
+  /** Orientación: el tramo 0 (la puerta) está en `anguloTramo(0, giro)`. */
+  readonly giro: number;
+
+  private readonly troncos: THREE.InstancedMesh;
+  private readonly puntas: THREE.InstancedMesh;
+  private readonly datosTroncos: { x: number; z: number; tramo: number; alto: number; giro: number }[] = [];
+  private readonly estacas: THREE.InstancedMesh;
+  private readonly datosEstacas: { m: THREE.Matrix4; tramo: number }[] = [];
   private readonly latas: THREE.InstancedMesh;
+  private readonly piezasTramo = new Map<number, THREE.Object3D[]>();
+  private readonly collidersTramo = new Map<number, RAPIER.Collider[]>();
+  private collidersTorre: RAPIER.Collider[] = [];
   private readonly fuego: THREE.Sprite;
   private readonly asignadas = new Map<Humano, number>();
   private readonly tGolpes = new Map<Humano, number>();
+  private readonly heridas = new Map<number, number>();
+  private readonly avisados = new Set<number>();
+  private readonly canones: Canon[] = [];
+  private readonly balas: Bala[] = [];
+  private readonly geoBala = new THREE.SphereGeometry(0.3, 8, 6);
+  private puerta: { hoja: THREE.Group; base: THREE.Vector3; alza: number; collider: RAPIER.Collider | null; navCerrada: boolean } | null = null;
   private tLatas = 0;
+  private tAviso = -99;
+  private tHerida = -99;
   private listoAvisado = false;
   private hechosPrevios = '';
   private t = 0;
 
-  constructor(private readonly ctx: ContextoJuego, centro: THREE.Vector3, guardado?: EstadoGuardadoCampamento) {
+  constructor(
+    private readonly ctx: ContextoJuego,
+    centro: THREE.Vector3,
+    guardado?: EstadoGuardadoCampamento,
+    giro = 0,
+  ) {
     this.centro = centro.clone().setY(0);
-    // postes en anillo
-    puntosCerco(this.centro.x, this.centro.z).forEach((p, i) => {
+    this.giro = guardado?.giro ?? giro;
+    const c = this.centro;
+    const postes = puntosCerco(c.x, c.z, N, RADIO_CERCO, this.giro);
+
+    // ── Empalizada: troncos afilados (instanciados) en cada tramo; el tramo 0 lleva la puerta ──
+    for (let i = 0; i < N; i++) {
+      const a = postes[i];
+      const b = postes[(i + 1) % N];
+      const n = Math.floor(CUERDA / 0.36);
+      for (let k = 0; k < n; k++) {
+        const u = (k + 0.5) / n;
+        const lateral = (u - 0.5) * CUERDA;
+        if (i === 0 && Math.abs(lateral) < ANCHO_PUERTA / 2 + 0.45) continue; // hueco de la puerta
+        this.datosTroncos.push({ x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u, tramo: i, alto: ALTO_MURO + (Math.random() - 0.5) * 0.3, giro: Math.random() * Math.PI });
+      }
+      const ang = anguloTramo(i, this.giro);
+      const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+      // a pie de obra: por dentro del tramo
+      const pos = c.clone().addScaledVector(dir, APOTEMA);
       const g = new THREE.Group();
-      const poste = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 2.2, 7), MADERA);
-      poste.position.y = 1.1;
-      poste.castShadow = true;
-      g.add(poste);
-      g.position.set(p.x, 0, p.z);
       this.grupo.add(g);
-      this.obras.push({ pos: new THREE.Vector3(p.x, 0, p.z), rot: 0, progreso: guardado?.postes[i] ?? 0, malla: g, tipo: 'poste' });
-    });
-    // carpas en corro, con la entrada hacia la hoguera
+      this.obras.push({ pos, rot: giroTangente(ang), progreso: guardado?.postes[i] ?? 0, malla: g, tipo: 'tramo', tramo: i });
+      this.piezasTramo.set(i, []);
+    }
+    const geoTronco = new THREE.CylinderGeometry(0.18, 0.2, 1, 7).translate(0, 0.5, 0);
+    const geoPunta = new THREE.ConeGeometry(0.18, 0.55, 7).translate(0, 0.27, 0);
+    this.troncos = new THREE.InstancedMesh(geoTronco, TRONCO, this.datosTroncos.length);
+    this.puntas = new THREE.InstancedMesh(geoPunta, PUNTA, this.datosTroncos.length);
+    for (const m of [this.troncos, this.puntas]) {
+      m.castShadow = true;
+      m.receiveShadow = true;
+      m.frustumCulled = false;
+      this.grupo.add(m);
+    }
+
+    // ── Adarve, escaleras, cañones y puerta: piezas de cada tramo (visibles al terminarlo) ──
+    for (let i = 0; i < N; i++) this.construirTramo(i);
+
+    // ── Corona de estacas cruzadas por fuera (instanciadas) y latas de alarma ──
+    const geoEstaca = new THREE.ConeGeometry(0.12, 2.6, 5).translate(0, 1.3, 0);
+    const nEstacas = 44;
+    const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
+    for (let k = 0; k < nEstacas; k++) {
+      const a = this.giro + (k / nEstacas) * Math.PI * 2;
+      const tramo = tramoDe(c.x + Math.cos(a), c.z + Math.sin(a), c.x, c.z, this.giro);
+      // nada delante de la puerta
+      let dPuerta = a - anguloTramo(0, this.giro);
+      dPuerta = Math.atan2(Math.sin(dPuerta), Math.cos(dPuerta));
+      if (Math.abs(dPuerta) * R_ESTACAS < ANCHO_PUERTA / 2 + 1.5) continue;
+      for (const lado of [-1, 1]) {
+        // dos estacas en aspa, inclinadas hacia fuera
+        e.set(0, giroTangente(a), 0, 'YXZ');
+        q.setFromEuler(e);
+        const inclina = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), lado * 0.45);
+        const fuera = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -0.75);
+        q.multiply(fuera).multiply(inclina);
+        const m = new THREE.Matrix4().compose(new THREE.Vector3(c.x + Math.cos(a) * R_ESTACAS, 0, c.z + Math.sin(a) * R_ESTACAS), q.clone(), new THREE.Vector3(1, 1, 1));
+        this.datosEstacas.push({ m, tramo });
+      }
+    }
+    this.estacas = new THREE.InstancedMesh(geoEstaca, PUNTA, this.datosEstacas.length);
+    this.estacas.castShadow = true;
+    this.estacas.frustumCulled = false;
+    this.grupo.add(this.estacas);
+    this.latas = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.06, 0.14, 6), LATA, N);
+    this.latas.count = 0;
+    this.latas.frustumCulled = false;
+    this.grupo.add(this.latas);
+
+    // ── Carpas en corro (con la entrada hacia la hoguera), dejando libre el paso desde la puerta ──
     const nCarpas = 6;
     for (let i = 0; i < nCarpas; i++) {
-      const a = (i / nCarpas) * Math.PI * 2 + 0.3;
-      const pos = new THREE.Vector3(this.centro.x + Math.cos(a) * RADIO_CARPAS, 0, this.centro.z + Math.sin(a) * RADIO_CARPAS);
+      const a = anguloTramo(0, this.giro) + ((i + 1) / (nCarpas + 1)) * Math.PI * 2;
+      const pos = new THREE.Vector3(c.x + Math.cos(a) * RADIO_CARPAS, 0, c.z + Math.sin(a) * RADIO_CARPAS);
       const g = new THREE.Group();
-      // prisma de lona: cilindro de 3 lados tumbado
       const lona = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 2.8, 3, 1, true), i % 2 ? LONA : LONA_VERDE);
-      // el vértice del prisma, arriba; el largo, de la entrada (hacia la hoguera) al fondo
       lona.rotation.x = -Math.PI / 2;
       lona.position.y = 0.625;
       lona.castShadow = true;
@@ -105,43 +261,45 @@ export class Campamento {
       palo.position.set(0, 0.95, 1.35);
       g.add(palo);
       g.position.copy(pos);
-      g.rotation.y = Math.atan2(this.centro.x - pos.x, this.centro.z - pos.z);
+      g.rotation.y = Math.atan2(c.x - pos.x, c.z - pos.z);
       this.grupo.add(g);
       this.obras.push({ pos, rot: g.rotation.y, progreso: guardado?.carpas[i] ?? 0, malla: g, tipo: 'carpa' });
     }
-    // hoguera: piedras en corro, troncos y una llama (sprite aditivo, sin luz real)
+
+    // ── Atalaya junto a la puerta ──
+    this.construirTorre(guardado?.torre ?? 0);
+
+    // ── Hoguera: piedras en corro, troncos y una llama (sprite aditivo, sin luz real) ──
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
       const piedra = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.35), PIEDRA);
-      piedra.position.set(this.centro.x + Math.cos(a) * 0.9, 0.12, this.centro.z + Math.sin(a) * 0.9);
+      piedra.position.set(c.x + Math.cos(a) * 0.9, 0.12, c.z + Math.sin(a) * 0.9);
       piedra.rotation.y = a;
       this.grupo.add(piedra);
     }
     for (let k = 0; k < 3; k++) {
       const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.2, 6), MADERA);
       tronco.rotation.set(Math.PI / 2, (k * Math.PI) / 3, 0.25);
-      tronco.position.set(this.centro.x, 0.15, this.centro.z);
+      tronco.position.set(c.x, 0.15, c.z);
       this.grupo.add(tronco);
     }
     this.fuego = new THREE.Sprite(new THREE.SpriteMaterial({ map: texturaParticula(), color: '#ffab4a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    this.fuego.position.set(this.centro.x, 0.7, this.centro.z);
+    this.fuego.position.set(c.x, 0.7, c.z);
     this.grupo.add(this.fuego);
-    // alambre: tres hilos entre postes clavados (se rehace al clavar uno) y latas colgando
-    this.lineas = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#5b5f63' }));
-    this.grupo.add(this.lineas);
-    this.latas = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.06, 0.06, 0.14, 6), LATA, NUM_POSTES);
-    this.latas.count = 0;
-    this.latas.frustumCulled = false;
-    this.grupo.add(this.latas);
+
     this.alambre = guardado?.alambre ?? VIDA_ALAMBRE;
     this.listoAvisado = this.listo;
     ctx.escena.add(this.grupo);
+    ctx.fuerte = this;
     this.zona = nuevaZona(Math.random);
     this.dibujarObras();
   }
 
+  // ─────────────────────────── Estado ───────────────────────────
+
+  /** Tramos de empalizada terminados (en orden). */
   get postesHechos(): boolean[] {
-    return this.obras.filter((o) => o.tipo === 'poste').map((o) => o.progreso >= 1);
+    return this.obras.filter((o) => o.tipo === 'tramo').map((o) => o.progreso >= 1);
   }
 
   get listo(): boolean {
@@ -153,15 +311,52 @@ export class Campamento {
     return this.obras.reduce((n, o) => n + Math.min(1, o.progreso), 0) / this.obras.length;
   }
 
-  /** ¿Está `p` dentro del cerco? */
-  dentro(p: THREE.Vector3, margen = 0): boolean {
-    return Math.hypot(p.x - this.centro.x, p.z - this.centro.z) < RADIO_CERCO + margen;
-  }
-
   /** Aguja del martillo (0–1) ahora mismo. */
   get aguja(): number {
     return aguja(this.tAguja);
   }
+
+  // ─────────────────────────── FuerteAPI ───────────────────────────
+
+  dentro(p: THREE.Vector3): boolean {
+    return dentroEmpalizada(this.centro.x, this.centro.z, p.x, p.z) && p.y < ALTO_TORRE + 5;
+  }
+
+  protege(p: THREE.Vector3): boolean {
+    return this.empalizadaCerrada && this.dentro(p);
+  }
+
+  bloquea(x: number, z: number, r: number): boolean {
+    const d = Math.hypot(x - this.centro.x, z - this.centro.z);
+    // la empalizada y la corona de estacas: los titanes se quedan fuera
+    if (d > R_ESTACAS + 0.6 + r) return false;
+    if (this.empalizadaCerrada) return true;
+    if (d < APOTEMA - 0.6 - r) return false;
+    const i = tramoDe(x, z, this.centro.x, this.centro.z, this.giro);
+    return i !== 0 && this.obras[i].progreso >= 1;
+  }
+
+  desvio(desde: THREE.Vector3, meta: THREE.Vector3): THREE.Vector3 | null {
+    if (!this.tramoHecho(0)) return null;
+    const d = desvioPorPuerta(this.centro.x, this.centro.z, this.giro, desde, meta);
+    return d ? new THREE.Vector3(d.x, Math.max(desde.y, 0.9), d.z) : null;
+  }
+
+  puesto(i: number, n: number): THREE.Vector3 {
+    const a = anguloTramo(0, this.giro) + Math.PI + ((i + 0.5) / Math.max(1, n)) * Math.PI * 2;
+    return new THREE.Vector3(this.centro.x + Math.cos(a) * 3.6, 0.9, this.centro.z + Math.sin(a) * 3.6);
+  }
+
+  /** Todos los tramos de empalizada en pie (la puerta incluida). */
+  private get empalizadaCerrada(): boolean {
+    return this.postesHechos.every(Boolean);
+  }
+
+  private tramoHecho(i: number): boolean {
+    return this.obras[i].progreso >= 1;
+  }
+
+  // ─────────────────────────── Acciones ───────────────────────────
 
   /** Martillazo del jugador sobre la obra que tiene al lado. Devuelve la calidad o null si no hay obra. */
   martillazo(): Golpe | null {
@@ -176,13 +371,37 @@ export class Campamento {
     return g;
   }
 
+  /** T: dispara los cañones cargados que tengan un titán a tiro (solo desde dentro). Devuelve el mensaje. */
+  disparar(): string {
+    const j = this.ctx.jugador;
+    if (!this.dentro(j.posicion)) return 'Los cañones se disparan desde dentro del campamento';
+    const listos = this.canones.filter((k) => this.tramoHecho(k.tramo));
+    if (listos.length === 0) return 'Aún no hay cañones montados';
+    const usados = new Set<TitanAPI>();
+    let disparos = 0;
+    let hayObjetivo = false;
+    for (const k of listos) {
+      const t = this.objetivoDe(k, usados);
+      if (!t) continue;
+      hayObjetivo = true;
+      if (k.recarga > 0) continue;
+      usados.add(t);
+      this.dispararCanon(k, t);
+      disparos++;
+    }
+    if (disparos > 0) return `¡Fuego! (${disparos} ${disparos === 1 ? 'cañón' : 'cañones'})`;
+    return hayObjetivo ? 'Los cañones se están recargando' : 'Ningún titán a tiro de los cañones';
+  }
+
+  // ─────────────────────────── Paso de juego ───────────────────────────
+
   actualizar(dt: number): void {
     this.t += dt;
     this.tAguja += dt;
     const j = this.ctx.jugador;
     // obra junto al jugador (a pie)
     this.obraJugador = -1;
-    let dMin = 2.8;
+    let dMin = 3.2;
     this.obras.forEach((o, i) => {
       if (o.progreso >= 1) return;
       const d = Math.hypot(o.pos.x - j.posicion.x, o.pos.z - j.posicion.z);
@@ -192,15 +411,40 @@ export class Campamento {
       }
     });
     this.trabajoEscuadron(dt);
-    this.cerco(dt);
+    this.puertaAutomatica(dt);
+    this.estacasAtacadas(dt);
+    this.vigias();
+    for (const k of this.canones) k.recarga = Math.max(0, k.recarga - dt);
     // la hoguera crepita
     const f = 1 + 0.18 * Math.sin(this.t * 13) * Math.sin(this.t * 7.3);
     this.fuego.scale.set(1.3 * f, 1.8 * f, 1);
     this.fuego.visible = this.listo;
     if (this.listo && !this.listoAvisado) {
       this.listoAvisado = true;
-      this.ctx.eventos.emit({ tipo: 'mensaje', texto: 'Campamento listo', segundos: 2 });
+      this.ctx.eventos.emit({ tipo: 'mensaje', texto: 'Campamento listo: sube al adarve o a la atalaya para vigilar; T dispara los cañones', segundos: 4 });
       this.liberarEscuadron();
+    }
+  }
+
+  /** Cada fotograma: cañones hacia su blanco y balas en vuelo. */
+  dibujar(dt: number): void {
+    const usados = new Set<TitanAPI>();
+    for (const k of this.canones) {
+      if (!this.tramoHecho(k.tramo)) continue;
+      const t = this.objetivoDe(k, usados);
+      if (t) usados.add(t);
+      const destino = t ? this.puntoDeTiro(t) : k.pivote.position.clone().add(new THREE.Vector3(Math.cos(k.rumbo), -0.15, Math.sin(k.rumbo)).multiplyScalar(10));
+      k.pivote.lookAt(destino);
+      (k.tubo.material as THREE.MeshLambertMaterial).color.setRGB(0.17 + 0.45 * Math.min(1, k.recarga / RECARGA_CANON), 0.17, 0.18);
+    }
+    for (let i = this.balas.length - 1; i >= 0; i--) {
+      const b = this.balas[i];
+      b.t += dt / 0.25;
+      b.malla.position.lerpVectors(b.desde, b.hasta, Math.min(1, b.t));
+      if (b.t >= 1) {
+        b.malla.removeFromParent();
+        this.balas.splice(i, 1);
+      }
     }
   }
 
@@ -209,13 +453,11 @@ export class Campamento {
     const esc = this.ctx.escuadron;
     const vivos = esc.soldados.filter((s) => s.vivo && !s.agarradoPor && s.posicion.distanceTo(this.centro) < 150);
     if (this.listo || vivos.length === 0) return;
-    // reparto cada vez que alguien termina (o al empezar)
     const libres = vivos.filter((s) => {
       const i = this.asignadas.get(s);
       return i === undefined || this.obras[i].progreso >= 1 || i === this.obraJugador;
     });
     if (libres.length) {
-      // las obras de quien sigue trabajando no se reparten otra vez
       const ocupadas = new Set<number>();
       for (const [h, i] of this.asignadas) if (h.vivo && !libres.includes(h)) ocupadas.add(i);
       const obras = this.obras.map((o, i) => ({ x: o.pos.x, z: o.pos.z, hecha: o.progreso >= 1 || ocupadas.has(i) }));
@@ -229,10 +471,10 @@ export class Campamento {
         }
         if (this.asignadas.get(s) === i) return;
         this.asignadas.set(s, i);
-        // a pie de obra, por fuera del poste o delante de la carpa
+        // a pie de obra, siempre por dentro (hacia la hoguera)
         const o = this.obras[i];
-        const fuera = o.pos.clone().sub(this.centro).setY(0).normalize().multiplyScalar(o.tipo === 'poste' ? -1.2 : -1.8);
-        esc.trabajarEn(s, o.pos.clone().add(fuera), this.centro);
+        const dentro = this.centro.clone().sub(o.pos).setY(0).normalize().multiplyScalar(o.tipo === 'tramo' ? 1.8 : 1.8);
+        esc.trabajarEn(s, o.pos.clone().add(dentro), this.centro);
       });
     }
     let cambio = false;
@@ -240,7 +482,7 @@ export class Campamento {
       const i = this.asignadas.get(s);
       if (i === undefined) continue;
       const o = this.obras[i];
-      if (o.progreso >= 1 || Math.hypot(o.pos.x - s.posicion.x, o.pos.z - s.posicion.z) > 3.2 || s.posicion.y > 2.5) continue;
+      if (o.progreso >= 1 || Math.hypot(o.pos.x - s.posicion.x, o.pos.z - s.posicion.z) > 3.5 || s.posicion.y > 2.5) continue;
       o.progreso = Math.min(1, o.progreso + dt / OBRA_SOLDADO);
       cambio = true;
       const tg = (this.tGolpes.get(s) ?? 0) - dt;
@@ -252,68 +494,456 @@ export class Campamento {
     if (cambio) this.dibujarObras();
   }
 
-  /** Terminado: el escuadrón espera dentro del campamento (y lo defiende). */
+  /** Terminado: el escuadrón espera dentro del campamento (y solo sale si le mandas atacar). */
   private liberarEscuadron(): void {
     for (const s of this.ctx.escuadron.soldados) this.ctx.escuadron.trabajarEn(s, null, this.centro);
     this.asignadas.clear();
   }
 
-  /** Titanes en el alambre: se enredan, las latas suenan y el alambre se va rompiendo. */
-  private cerco(dt: number): void {
+  /** La puerta se abre sola con un aliado cerca y se cierra sin él. Los titanes no la abren. */
+  private puertaAutomatica(dt: number): void {
+    const p = this.puerta;
+    if (!p || !this.tramoHecho(0)) return;
+    const aliado = (h: Humano) => h.vivo && !h.agarradoPor && Math.hypot(h.posicion.x - p.base.x, h.posicion.z - p.base.z) < ALCANCE_PUERTA && h.posicion.y < 6;
+    const abrir = aliado(this.ctx.jugador) || this.ctx.escuadron.soldados.some(aliado);
+    const antes = p.alza;
+    p.alza = THREE.MathUtils.clamp(p.alza + (abrir ? 1 : -1) * dt * 1.6, 0, 1);
+    p.hoja.position.y = -p.alza * (ALTO_PUERTA - 0.08);
+    if (p.alza > 0.5 && p.collider) {
+      this.ctx.fisica.eliminarCollider(p.collider);
+      p.collider = null;
+    } else if (p.alza <= 0 && !p.collider) p.collider = this.colliderPuerta();
+    // en la rejilla de navegación la puerta solo cuenta como paso mientras está abierta
+    const cerrada = p.alza < 0.5;
+    if (cerrada !== p.navCerrada) {
+      p.navCerrada = cerrada;
+      this.marcarNavTramo(0, cerrada ? 1 : 0);
+    }
+    if ((antes === 0) !== (p.alza === 0)) this.ctx.eventos.emit({ tipo: 'puertaFuerte', pos: p.base.clone().setY(1.5) });
+  }
+
+  /** El titán que llega a la empalizada se clava las estacas: se enreda, se hiere las piernas y las latas suenan. */
+  private estacasAtacadas(dt: number): void {
     if (this.alambre <= 0) return;
-    const hechos = this.postesHechos;
+    const c = this.centro;
     this.tLatas -= dt;
-    for (const t of this.ctx.poblacion.titanesCerca(this.centro, RADIO_CERCO + 6)) {
-      if (!t.vivo) continue;
-      if (!enAlambre(t.posicion.x, t.posicion.z, this.centro.x, this.centro.z, hechos, 2.2 + t.altura * 0.08)) continue;
+    for (const t of this.ctx.poblacion.titanesCerca(c, R_ESTACAS + 12)) {
+      if (!t.vivo || t instanceof Silueta) continue;
+      const d = Math.hypot(t.posicion.x - c.x, t.posicion.z - c.z);
+      if (d > R_ESTACAS + 1.5 + t.altura * 0.12) continue;
+      const tramo = tramoDe(t.posicion.x, t.posicion.z, c.x, c.z, this.giro);
+      if (!this.tramoHecho(tramo)) continue;
       t.enredar?.(1.2, FRENO_ALAMBRE);
-      this.alambre -= DESGASTE_ALAMBRE * dt;
+      this.alambre -= DESGASTE_ALAMBRE * 0.35 * dt;
       if (this.tLatas <= 0) {
         this.tLatas = 1.2;
         this.ctx.eventos.emit({ tipo: 'alambre', pos: t.posicion.clone().setY(1) });
       }
+      // cada 1,6 s, una estaca le atraviesa una pierna (tendón o corva: cojea o cae de rodillas)
+      if (t.estado !== 'derribado' && this.t - (this.heridas.get(t.id) ?? -9) > 1.6) {
+        const zonas = PIERNAS.filter((z) => t.puntosDebiles.some((p) => p.zona === z && p.activo));
+        if (zonas.length) {
+          this.heridas.set(t.id, this.t);
+          const z = zonas[Math.floor(Math.random() * zonas.length)];
+          t.recibirCorte(z, umbralZona(z, t.altura) * 1.15, null);
+          const p = t.puntosDebiles.find((x) => x.zona === z);
+          if (p) this.ctx.efectos.sangre(p.centro.clone(), new THREE.Vector3(0, 1, 0), 10);
+          if (this.t - this.tHerida > 5) {
+            this.tHerida = this.t;
+            this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Un titán se clava las estacas de la empalizada!', segundos: 2.5 });
+          }
+        }
+      }
       if (this.alambre <= 0) {
-        this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Han roto el alambre!', segundos: 1.5 });
+        this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Han roto las estacas! La empalizada aguanta', segundos: 2.5 });
+        this.hechosPrevios = '';
         this.dibujarObras();
         return;
       }
     }
   }
 
-  /** Postes que salen del suelo según avanzan, carpas que se despliegan y el alambre entre postes clavados. */
-  private dibujarObras(): void {
-    for (const o of this.obras) {
-      // sin empezar, el poste es una estaca de 30 cm que marca dónde va
-      const k = Math.max(o.tipo === 'poste' ? 0.15 : 0.04, Math.min(1, o.progreso));
-      if (o.tipo === 'poste') {
-        o.malla.scale.set(1, k, 1);
-        o.malla.position.y = 0;
-      } else {
-        o.malla.scale.set(1, k, 0.4 + 0.6 * k);
+  /** Los vigías avisan de cada titán que se acerca (dirección respecto a ti) con una bengala roja. */
+  private vigias(): void {
+    if (!this.listo || this.t - this.tAviso < 2.5) return;
+    const j = this.ctx.jugador.posicion;
+    if (Math.hypot(j.x - this.centro.x, j.z - this.centro.z) > 90) return;
+    for (const t of this.ctx.poblacion.titanesCerca(this.centro, RADIO_AVISO)) {
+      if (!t.vivo || t instanceof Silueta || this.avisados.has(t.id)) continue;
+      this.avisados.add(t.id);
+      this.tAviso = this.t;
+      this.ctx.eventos.emit({ tipo: 'mensaje', texto: textoAviso('Vigía', t, t.posicion.x - j.x, t.posicion.z - j.z), segundos: 3.5 });
+      const ang = anguloTramo(TRAMO_TORRE, this.giro);
+      this.ctx.efectos.bengala(this.centro.clone().add(new THREE.Vector3(Math.cos(ang) * 9.5, ALTO_TORRE + 2, Math.sin(ang) * 9.5)), COLOR_AVISO);
+      return;
+    }
+  }
+
+  // ─────────────────────────── Cañones ───────────────────────────
+
+  private objetivoDe(k: Canon, evitar: Set<TitanAPI>): TitanAPI | null {
+    let mejor: TitanAPI | null = null;
+    let dMejor = ALCANCE_CANON;
+    const p = k.pivote.position;
+    for (const t of this.ctx.poblacion.titanesCerca(p, ALCANCE_CANON)) {
+      if (!t.vivo || t instanceof Silueta || evitar.has(t)) continue;
+      const dx = t.posicion.x - p.x;
+      const dz = t.posicion.z - p.z;
+      let da = Math.atan2(dz, dx) - k.rumbo;
+      da = Math.atan2(Math.sin(da), Math.cos(da));
+      if (Math.abs(da) > ARCO_CANON) continue;
+      const d = Math.hypot(dx, dz);
+      if (d < dMejor) {
+        dMejor = d;
+        mejor = t;
       }
-      o.malla.visible = o.progreso > 0 || o.tipo === 'poste';
+    }
+    return mejor;
+  }
+
+  /** Nuca del titán caído; rodillas del que está en pie. */
+  private zonaDeTiro(t: TitanAPI): ZonaTitan {
+    const tumbado = t.estado === 'derribado' || t.estado === 'cegado';
+    if (tumbado && t.puntosDebiles.some((p) => p.zona === 'nuca' && p.activo)) return 'nuca';
+    return PIERNAS.find((z) => t.puntosDebiles.some((p) => p.zona === z && p.activo)) ?? 'cuerpo';
+  }
+
+  private puntoDeTiro(t: TitanAPI): THREE.Vector3 {
+    const z = this.zonaDeTiro(t);
+    return t.puntosDebiles.find((p) => p.zona === z)?.centro.clone() ?? t.posicion.clone().setY(t.altura * 0.4);
+  }
+
+  private dispararCanon(k: Canon, t: TitanAPI): void {
+    k.recarga = RECARGA_CANON;
+    const zona = this.zonaDeTiro(t);
+    const blanco = this.puntoDeTiro(t);
+    k.pivote.lookAt(blanco);
+    k.pivote.updateMatrixWorld(true);
+    const boca = k.boca.getWorldPosition(new THREE.Vector3());
+    const bala = new THREE.Mesh(this.geoBala, BALA);
+    bala.position.copy(boca);
+    this.ctx.escena.add(bala);
+    this.balas.push({ malla: bala, desde: boca, hasta: blanco.clone(), t: 0 });
+    this.ctx.efectos.vapor(boca, 16, 1.3, 4);
+    this.ctx.eventos.emit({ tipo: 'canon', pos: boca });
+    const danio = zona === 'nuca' ? umbralNuca(t.altura) * 0.55 : zona === 'cuerpo' ? 1 : umbralZona(zona, t.altura) * 1.3;
+    const res = t.recibirCorte(zona, danio, this.ctx.jugador);
+    this.ctx.efectos.vapor(blanco, 8, 0.8 + t.altura * 0.05, 3);
+    if (res.efecto !== 'nada' && res.efecto !== 'superficial') this.ctx.efectos.sangre(blanco.clone(), blanco.clone().sub(boca).normalize(), 12);
+  }
+
+  // ─────────────────────────── Construcción ───────────────────────────
+
+  /** Adarve, escalera, cañón y puerta del tramo `i` (invisibles hasta terminarlo). */
+  private construirTramo(i: number): void {
+    const c = this.centro;
+    const a = anguloTramo(i, this.giro);
+    const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    const rot = giroTangente(a);
+    const piezas = this.piezasTramo.get(i)!;
+    const pieza = (m: THREE.Object3D) => {
+      m.visible = false;
+      this.grupo.add(m);
+      piezas.push(m);
+      return m;
+    };
+    const en = (r: number, y: number, lat = 0) => c.clone().addScaledVector(dir, r).add(new THREE.Vector3(-Math.sin(a) * lat, y, Math.cos(a) * lat));
+    // largueros que atan los troncos por dentro
+    for (const y of [0.8, ALTO_MURO - 0.6]) {
+      if (i === 0) continue;
+      const larguero = new THREE.Mesh(new THREE.BoxGeometry(CUERDA, 0.16, 0.12), MADERA);
+      larguero.position.copy(en(APOTEMA - 0.25, y));
+      larguero.rotation.y = rot;
+      pieza(larguero);
+    }
+    if (i === 0) {
+      this.construirPuerta(a, dir, rot);
+      return;
+    }
+    // adarve: tablas sobre pies derechos, con barandilla por dentro
+    const largo = CUERDA * (R_ADARVE / APOTEMA) + 0.05;
+    const tablas = new THREE.Mesh(new THREE.BoxGeometry(largo, 0.16, ANCHO_ADARVE), TABLA);
+    tablas.position.copy(en(R_ADARVE, ALTO_ADARVE - 0.08));
+    tablas.rotation.y = rot;
+    tablas.receiveShadow = true;
+    pieza(tablas);
+    for (const lat of [-largo / 2 + 0.2, largo / 2 - 0.2]) {
+      const pie = new THREE.Mesh(new THREE.BoxGeometry(0.18, ALTO_ADARVE, 0.18), MADERA);
+      pie.position.copy(en(R_ADARVE - ANCHO_ADARVE / 2 + 0.1, ALTO_ADARVE / 2, lat));
+      pieza(pie);
+      const poste = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1, 0.08), MADERA);
+      poste.position.copy(en(R_ADARVE - ANCHO_ADARVE / 2 + 0.05, ALTO_ADARVE + 0.5, lat));
+      pieza(poste);
+    }
+    const baranda = new THREE.Mesh(new THREE.BoxGeometry(largo, 0.08, 0.08), MADERA);
+    baranda.position.copy(en(R_ADARVE - ANCHO_ADARVE / 2 + 0.05, ALTO_ADARVE + 0.95, 0));
+    baranda.rotation.y = rot;
+    pieza(baranda);
+    // escalera de bloques hasta el adarve
+    if (TRAMOS_ESCALERA.includes(i)) {
+      const rIn = R_ADARVE - ANCHO_ADARVE / 2;
+      for (let k = 0; k < 5; k++) {
+        const r0 = rIn - (5 - k) * 0.68;
+        const alto = (k + 1) * (ALTO_ADARVE / 5);
+        const peldaño = new THREE.Mesh(new THREE.BoxGeometry(1.3, alto, rIn - r0), TABLA);
+        peldaño.position.copy(en((r0 + rIn) / 2, alto / 2));
+        peldaño.rotation.y = rot;
+        pieza(peldaño);
+      }
+    }
+    // cañón sobre su cureña, asomando por encima de la empalizada
+    if (TRAMOS_CANON.includes(i)) {
+      const cureña = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.3, 1.1), MADERA);
+      cureña.position.copy(en(R_ADARVE + 0.1, ALTO_ADARVE + 0.65));
+      cureña.rotation.y = rot;
+      pieza(cureña);
+      for (const lat of [-0.6, 0.6]) {
+        const rueda = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.12, 12), MADERA);
+        rueda.position.copy(en(R_ADARVE + 0.1, ALTO_ADARVE + 0.45, lat));
+        rueda.rotation.set(0, rot, Math.PI / 2, 'YXZ');
+        pieza(rueda);
+      }
+      const pivote = new THREE.Group();
+      pivote.position.copy(en(R_ADARVE + 0.1, ALTO_ADARVE + 1.55));
+      const tubo = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.26, 2.6, 12), new THREE.MeshLambertMaterial({ color: '#2b2c2f' }));
+      tubo.rotation.x = Math.PI / 2;
+      tubo.position.z = 1.0;
+      pivote.add(tubo);
+      const brocal = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.05, 6, 12), HIERRO);
+      brocal.position.z = 2.3;
+      pivote.add(brocal);
+      const boca = new THREE.Object3D();
+      boca.position.z = 2.35;
+      pivote.add(boca);
+      pivote.lookAt(pivote.position.clone().addScaledVector(dir, 10));
+      pieza(pivote);
+      this.canones.push({ tramo: i, pivote, tubo, boca, rumbo: a, recarga: 0 });
+    }
+  }
+
+  /** Marco de la puerta con su travesaño y el estandarte, y la hoja (madera con flejes y tranca). */
+  private construirPuerta(a: number, dir: THREE.Vector3, rot: number): void {
+    const c = this.centro;
+    const piezas = this.piezasTramo.get(0)!;
+    const lat = (l: number) => new THREE.Vector3(-Math.sin(a) * l, 0, Math.cos(a) * l);
+    const base = c.clone().addScaledVector(dir, APOTEMA);
+    for (const s of [-1, 1]) {
+      const jamba = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.8, 0.5), TRONCO);
+      jamba.position.copy(base).add(lat(s * (ANCHO_PUERTA / 2 + 0.25))).setY(2.4);
+      jamba.rotation.y = rot;
+      jamba.castShadow = true;
+      piezas.push(jamba);
+    }
+    const dintel = new THREE.Mesh(new THREE.BoxGeometry(ANCHO_PUERTA + 1.2, 0.45, 0.5), TRONCO);
+    dintel.position.copy(base).setY(4.45);
+    dintel.rotation.y = rot;
+    piezas.push(dintel);
+    const estandarte = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.1), ESTANDARTE);
+    estandarte.position.copy(base).addScaledVector(dir, 0.3).setY(3.75);
+    estandarte.rotation.y = rot;
+    piezas.push(estandarte);
+    // hoja: un grupo para poder hundirla entera en el suelo
+    const hoja = new THREE.Group();
+    const tablero = new THREE.Mesh(new THREE.BoxGeometry(ANCHO_PUERTA, ALTO_PUERTA, 0.28), TABLA);
+    tablero.position.y = ALTO_PUERTA / 2;
+    tablero.castShadow = true;
+    hoja.add(tablero);
+    for (const y of [0.5, ALTO_PUERTA / 2, ALTO_PUERTA - 0.5]) {
+      const fleje = new THREE.Mesh(new THREE.BoxGeometry(ANCHO_PUERTA + 0.04, 0.16, 0.32), HIERRO);
+      fleje.position.y = y;
+      hoja.add(fleje);
+    }
+    const tranca = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(ANCHO_PUERTA, ALTO_PUERTA) - 0.4, 0.2, 0.3), MADERA);
+    tranca.position.y = ALTO_PUERTA / 2;
+    tranca.rotation.z = Math.atan2(ALTO_PUERTA, ANCHO_PUERTA);
+    hoja.add(tranca);
+    const marco = new THREE.Group();
+    marco.position.copy(base);
+    marco.rotation.y = rot;
+    marco.add(hoja);
+    piezas.push(marco);
+    for (const p of piezas) {
+      p.visible = false;
+      this.grupo.add(p);
+    }
+    this.puerta = { hoja, base, alza: 0, collider: null, navCerrada: false };
+  }
+
+  /** Atalaya de cuatro pies derechos con plataforma, barandilla, escala y tejadillo. */
+  private construirTorre(progreso: number): void {
+    const c = this.centro;
+    const a = anguloTramo(TRAMO_TORRE, this.giro);
+    const pos = new THREE.Vector3(c.x + Math.cos(a) * 9.4, 0, c.z + Math.sin(a) * 9.4);
+    const g = new THREE.Group();
+    g.position.copy(pos);
+    g.rotation.y = giroTangente(a);
+    const L = 1.4;
+    for (const [x, z] of [[-L, -L], [L, -L], [-L, L], [L, L]]) {
+      const pie = new THREE.Mesh(new THREE.BoxGeometry(0.24, ALTO_TORRE + 2.6, 0.24), TRONCO);
+      pie.position.set(x, (ALTO_TORRE + 2.6) / 2, z);
+      pie.castShadow = true;
+      g.add(pie);
+    }
+    // aspas de refuerzo en dos alturas
+    for (const y of [2.5, 5.8]) {
+      for (const [x, z, ry] of [[0, -L, 0], [0, L, 0], [-L, 0, Math.PI / 2], [L, 0, Math.PI / 2]] as const) {
+        for (const s of [-1, 1]) {
+          const aspa = new THREE.Mesh(new THREE.BoxGeometry(Math.hypot(2 * L, 3), 0.1, 0.1), MADERA);
+          aspa.position.set(x, y, z);
+          aspa.rotation.set(0, ry, s * Math.atan2(3, 2 * L), 'YXZ');
+          g.add(aspa);
+        }
+      }
+    }
+    const plataforma = new THREE.Mesh(new THREE.BoxGeometry(2 * L + 0.6, 0.2, 2 * L + 0.6), TABLA);
+    plataforma.position.y = ALTO_TORRE;
+    plataforma.castShadow = true;
+    g.add(plataforma);
+    for (const [x, z, ry] of [[0, -L - 0.3, 0], [0, L + 0.3, 0], [-L - 0.3, 0, Math.PI / 2], [L + 0.3, 0, Math.PI / 2]] as const) {
+      const baranda = new THREE.Mesh(new THREE.BoxGeometry(2 * L + 0.6, 0.9, 0.06), TABLA);
+      baranda.position.set(x, ALTO_TORRE + 0.55, z);
+      baranda.rotation.y = ry;
+      g.add(baranda);
+    }
+    const tejadillo = new THREE.Mesh(new THREE.ConeGeometry(2.4, 1.4, 4), LONA_VERDE);
+    tejadillo.position.y = ALTO_TORRE + 3.3;
+    tejadillo.rotation.y = Math.PI / 4;
+    tejadillo.castShadow = true;
+    g.add(tejadillo);
+    // escala por la cara de dentro
+    for (const x of [-0.35, 0.35]) {
+      const larguero = new THREE.Mesh(new THREE.BoxGeometry(0.07, ALTO_TORRE, 0.07), MADERA);
+      larguero.position.set(x, ALTO_TORRE / 2, L + 0.15);
+      g.add(larguero);
+    }
+    for (let y = 0.4; y < ALTO_TORRE; y += 0.45) {
+      const peldaño = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.05, 0.05), MADERA);
+      peldaño.position.set(0, y, L + 0.15);
+      g.add(peldaño);
+    }
+    this.grupo.add(g);
+    this.obras.push({ pos: pos.clone(), rot: g.rotation.y, progreso, malla: g, tipo: 'torre' });
+  }
+
+  private colliderPuerta(): RAPIER.Collider {
+    const a = anguloTramo(0, this.giro);
+    const b = this.puerta!.base;
+    return this.ctx.fisica.caja({ x: b.x, y: ALTO_PUERTA / 2, z: b.z }, { x: ANCHO_PUERTA / 2, y: ALTO_PUERTA / 2, z: 0.2 }, 'puerta', giroTangente(a));
+  }
+
+  /** Colisionadores del tramo terminado: muro, adarve, escalera (y jambas en la puerta). */
+  private ponerColliders(i: number): void {
+    if (this.collidersTramo.has(i)) return;
+    const f = this.ctx.fisica;
+    const c = this.centro;
+    const a = anguloTramo(i, this.giro);
+    const rot = giroTangente(a);
+    const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    const en = (r: number, y: number, lat = 0) => c.clone().addScaledVector(dir, r).add(new THREE.Vector3(-Math.sin(a) * lat, y, Math.cos(a) * lat));
+    const lista: RAPIER.Collider[] = [];
+    if (i === 0) {
+      const ladoLargo = (CUERDA - ANCHO_PUERTA) / 2;
+      for (const s of [-1, 1]) {
+        const p = en(APOTEMA, ALTO_MURO / 2, s * (ANCHO_PUERTA / 2 + ladoLargo / 2));
+        lista.push(f.caja(p, { x: ladoLargo / 2 + 0.1, y: ALTO_MURO / 2, z: 0.24 }, 'edificio', rot));
+        const j = en(APOTEMA, 2.4, s * (ANCHO_PUERTA / 2 + 0.25));
+        lista.push(f.caja(j, { x: 0.25, y: 2.4, z: 0.25 }, 'edificio', rot));
+      }
+      const d = en(APOTEMA, 4.45);
+      lista.push(f.caja(d, { x: ANCHO_PUERTA / 2 + 0.6, y: 0.22, z: 0.25 }, 'edificio', rot));
+      if (this.puerta && !this.puerta.collider && this.puerta.alza <= 0) this.puerta.collider = this.colliderPuerta();
+    } else {
+      const p = en(APOTEMA, ALTO_MURO / 2);
+      lista.push(f.caja(p, { x: CUERDA / 2 + 0.12, y: ALTO_MURO / 2, z: 0.24 }, 'edificio', rot));
+      const largo = CUERDA * (R_ADARVE / APOTEMA) + 0.05;
+      lista.push(f.caja(en(R_ADARVE, ALTO_ADARVE - 0.08), { x: largo / 2, y: 0.08, z: ANCHO_ADARVE / 2 }, 'tejado', rot));
+      if (TRAMOS_ESCALERA.includes(i)) {
+        const rIn = R_ADARVE - ANCHO_ADARVE / 2;
+        for (let k = 0; k < 5; k++) {
+          const r0 = rIn - (5 - k) * 0.68;
+          const alto = (k + 1) * (ALTO_ADARVE / 5);
+          lista.push(f.caja(en((r0 + rIn) / 2, alto / 2), { x: 0.65, y: alto / 2, z: (rIn - r0) / 2 }, 'tejado', rot));
+        }
+      }
+    }
+    this.collidersTramo.set(i, lista);
+    this.marcarNavTramo(i, 1);
+    if (i === 0 && this.puerta) this.puerta.navCerrada = true;
+  }
+
+  private ponerCollidersTorre(): void {
+    if (this.collidersTorre.length) return;
+    const o = this.obras.find((x) => x.tipo === 'torre')!;
+    const f = this.ctx.fisica;
+    const g = o.malla;
+    const L = 1.4;
+    for (const [x, z] of [[-L, -L], [L, -L], [-L, L], [L, L]]) {
+      const p = g.localToWorld(new THREE.Vector3(x, (ALTO_TORRE + 2.6) / 2, z));
+      this.collidersTorre.push(f.caja(p, { x: 0.12, y: (ALTO_TORRE + 2.6) / 2, z: 0.12 }, 'edificio', o.rot));
+    }
+    const p = g.localToWorld(new THREE.Vector3(0, ALTO_TORRE, 0));
+    this.collidersTorre.push(f.caja(p, { x: L + 0.3, y: 0.1, z: L + 0.3 }, 'tejado', o.rot));
+  }
+
+  /** Bloquea (1) o libera (0) en la rejilla de navegación el sector de muro del tramo `i`. */
+  private marcarNavTramo(i: number, valor: number): void {
+    const a = anguloTramo(i, this.giro);
+    this.ctx.nav.bloquearSectorEn(this.centro.x, this.centro.z, APOTEMA - 0.4, RADIO_CERCO + 0.4, a - PASO / 2, a + PASO / 2, valor);
+  }
+
+  /** Troncos que suben según avanza cada tramo, piezas y colisionadores al terminarlo, carpas que se despliegan. */
+  private dibujarObras(): void {
+    const m = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
+    const pos = new THREE.Vector3();
+    const esc = new THREE.Vector3();
+    this.datosTroncos.forEach((d, k) => {
+      const prog = this.obras[d.tramo].progreso;
+      const h = d.alto * Math.max(0.06, Math.min(1, prog));
+      q.setFromEuler(e.set(0, d.giro, 0));
+      m.compose(pos.set(d.x, 0, d.z), q, esc.set(1, h, 1));
+      this.troncos.setMatrixAt(k, m);
+      m.compose(pos.set(d.x, h, d.z), q, esc.setScalar(prog >= 0.3 ? 1 : 0.001));
+      this.puntas.setMatrixAt(k, m);
+    });
+    this.troncos.instanceMatrix.needsUpdate = true;
+    this.puntas.instanceMatrix.needsUpdate = true;
+    for (const o of this.obras) {
+      const hecho = o.progreso >= 1;
+      if (o.tipo === 'tramo') {
+        for (const p of this.piezasTramo.get(o.tramo!) ?? []) p.visible = hecho;
+        if (hecho) this.ponerColliders(o.tramo!);
+      } else if (o.tipo === 'carpa') {
+        const k = Math.max(0.04, Math.min(1, o.progreso));
+        o.malla.scale.set(1, k, 0.4 + 0.6 * k);
+        o.malla.visible = o.progreso > 0;
+      } else {
+        // la atalaya crece desde el suelo
+        const k = Math.max(0.02, Math.min(1, o.progreso));
+        o.malla.scale.set(1, k, 1);
+        o.malla.visible = o.progreso > 0;
+        if (hecho) this.ponerCollidersTorre();
+      }
     }
     const hechos = this.postesHechos;
     const clave = hechos.map((h) => (h ? 1 : 0)).join('') + (this.alambre > 0 ? 'a' : 'r');
     if (clave === this.hechosPrevios) return;
     this.hechosPrevios = clave;
-    const pos: number[] = [];
-    const postes = this.obras.filter((o) => o.tipo === 'poste');
+    // estacas de los tramos terminados (si no las han roto) y una lata de alarma por tramo
+    let n = 0;
+    for (const d of this.datosEstacas) if (hechos[d.tramo] && this.alambre > 0) this.estacas.setMatrixAt(n++, d.m);
+    this.estacas.count = n;
+    this.estacas.instanceMatrix.needsUpdate = true;
     let latas = 0;
-    const m = new THREE.Matrix4();
     if (this.alambre > 0) {
-      for (let i = 0; i < postes.length; i++) {
-        const a = postes[i];
-        const b = postes[(i + 1) % postes.length];
-        if (!hechos[i] || !hechos[(i + 1) % postes.length]) continue;
-        for (const y of [0.55, 1.1, 1.65]) pos.push(a.pos.x, y, a.pos.z, b.pos.x, y - 0.06, b.pos.z);
-        // una lata en medio de cada tramo: suenan al tocar el alambre
-        m.makeTranslation((a.pos.x + b.pos.x) / 2, 1.0, (a.pos.z + b.pos.z) / 2);
+      for (let i = 1; i < N; i++) {
+        if (!hechos[i]) continue;
+        const a = anguloTramo(i, this.giro);
+        m.makeTranslation(this.centro.x + Math.cos(a) * (R_ESTACAS - 0.4), 1.2, this.centro.z + Math.sin(a) * (R_ESTACAS - 0.4));
         this.latas.setMatrixAt(latas++, m);
       }
     }
-    this.lineas.geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    this.lineas.geometry.computeBoundingSphere();
     this.latas.count = latas;
     this.latas.instanceMatrix.needsUpdate = true;
   }
@@ -322,18 +952,34 @@ export class Campamento {
     return {
       x: this.centro.x,
       z: this.centro.z,
-      postes: this.obras.filter((o) => o.tipo === 'poste').map((o) => o.progreso),
+      postes: this.obras.filter((o) => o.tipo === 'tramo').map((o) => o.progreso),
       carpas: this.obras.filter((o) => o.tipo === 'carpa').map((o) => o.progreso),
+      torre: this.obras.find((o) => o.tipo === 'torre')?.progreso ?? 0,
       alambre: this.alambre,
+      giro: this.giro,
     };
   }
 
   /** Desmonta el campamento (al armar otro o al salir). */
   eliminar(): void {
+    const f = this.ctx.fisica;
+    for (const [i, lista] of this.collidersTramo) {
+      for (const col of lista) f.eliminarCollider(col);
+      this.marcarNavTramo(i, 0);
+    }
+    this.collidersTramo.clear();
+    for (const col of this.collidersTorre) f.eliminarCollider(col);
+    this.collidersTorre = [];
+    if (this.puerta?.collider) f.eliminarCollider(this.puerta.collider);
+    for (const b of this.balas) b.malla.removeFromParent();
+    this.balas.length = 0;
     this.ctx.escena.remove(this.grupo);
     this.grupo.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.LineSegments) o.geometry.dispose();
     });
+    for (const k of this.canones) (k.tubo.material as THREE.Material).dispose();
+    this.geoBala.dispose();
+    if (this.ctx.fuerte === this) this.ctx.fuerte = null;
     if (!this.listo) for (const s of this.ctx.escuadron.soldados) this.ctx.escuadron.trabajarEn(s, null);
   }
 }

@@ -11,6 +11,7 @@ import { nuevoId, type Poblacion } from './poblacion';
 import type {
   CivilesAPI,
   EscuadronAPI,
+  FuerteAPI,
   EstadoTitan,
   GestorTitanesAPI,
   Humano,
@@ -53,6 +54,8 @@ export interface ContextoJuego {
   civiles: CivilesAPI;
   /** Equipos de soldados caídos y cajas de suministros que se pueden recoger. */
   suministros: Suministros;
+  /** El campamento fortificado del jugador, si hay uno armado (lo pone el mundo abierto). */
+  fuerte?: FuerteAPI | null;
   /** Dónde reaparece el jugador si lo devoran (lo mueven las misiones). */
   puntoReaparicion: THREE.Vector3;
   esDeNoche(): boolean;

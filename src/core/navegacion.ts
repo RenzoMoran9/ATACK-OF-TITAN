@@ -190,6 +190,29 @@ export class Navegacion {
     this.marcar(-r1, r1, -r1, r1);
   }
 
+  /**
+   * Sector de anillo alrededor de (cx, cz): radios r0–r1 y ángulos a0–a1 (rad, convención
+   * x = cos a, z = sin a). Con `valor = 0` lo libera. Para la empalizada del campamento.
+   */
+  bloquearSectorEn(cx: number, cz: number, r0: number, r1: number, a0: number, a1: number, valor = 1): void {
+    const medio = (a0 + a1) / 2;
+    const semi = Math.abs(a1 - a0) / 2;
+    for (let j = this.iz(cz - r1); j <= this.iz(cz + r1); j++) {
+      for (let i = this.ix(cx - r1); i <= this.ix(cx + r1); i++) {
+        if (!this.dentro(i, j)) continue;
+        const x = this.cx(i) - cx;
+        const z = this.cz(j) - cz;
+        const r = Math.hypot(x, z);
+        if (r < r0 - this.celda * 0.5 || r > r1 + this.celda * 0.5) continue;
+        let d = Math.atan2(z, x) - medio;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        if (Math.abs(d) * Math.max(r, 1) > semi * Math.max(r, 1) + this.celda * 0.5) continue;
+        this.ocupado[j * this.ancho + i] = valor;
+      }
+    }
+    this.marcar(cx - r1, cx + r1, cz - r1, cz + r1);
+  }
+
   /** Marca o libera el arco de la puerta (para abrir la brecha). */
   ponerArco(r0: number, r1: number, angulo: number, ancho: number, valor: number): void {
     for (let j = this.iz(-r1); j <= this.iz(r1); j++) {

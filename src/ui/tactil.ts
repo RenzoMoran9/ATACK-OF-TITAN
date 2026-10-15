@@ -78,6 +78,7 @@ export class ControlesTactiles {
         <button class="t-btn mini" data-k="KeyC" title="Caballo: montar, bajar o silbar">♞<small>Caballo</small></button>
         <button class="t-btn mini" data-k="KeyK" title="Armar campamento aquí">⛺<small>Acampar</small></button>
         <button class="t-btn mini" data-k="KeyH" title="Descansar hasta el amanecer">☾<small>Dormir</small></button>
+        <button class="t-btn mini" data-k="KeyT" title="Disparar los cañones del campamento">✹<small>Cañones</small></button>
         <button class="t-btn mini" data-k="KeyL" title="Linterna">☀<small>Luz</small></button>
         <button class="t-btn mini" data-k="KeyM" title="Mapa">⌖<small>Mapa</small></button>
         <button class="t-btn mini" data-k="KeyG" title="Recoger equipo / pedir gas">✚<small>G</small></button>
