@@ -6,6 +6,7 @@ import { CivilesNulos, EscuadronNulo, TitanesNulos, type ContextoJuego, type Rel
 import { GestorTitanes } from './titans/gestor';
 import { Escuadron } from './npc/escuadron';
 import { Suministros } from './combat/suministros';
+import { Carpa } from './player/carpa';
 import { LaboratorioPoses } from './player/laboratorio';
 import { Entrada } from './core/entrada';
 import { Eventos } from './core/eventos';
@@ -122,6 +123,7 @@ async function iniciar(): Promise<void> {
     escuadron: new EscuadronNulo(),
     civiles: new CivilesNulos(),
     suministros: null as unknown as Suministros,
+    carpa: null as unknown as Carpa,
     puntoReaparicion: mundo.inicio.clone(),
     esDeNoche: () => cielo.esDeNoche,
     orientarCamara: (p) => rig.mirarA(p),
@@ -131,6 +133,7 @@ async function iniciar(): Promise<void> {
   const escuadron = new Escuadron(ctx);
   ctx.escuadron = escuadron;
   ctx.suministros = new Suministros(ctx);
+  ctx.carpa = new Carpa(ctx);
   jugador.conectar(ctx);
   const hud = new Hud(document.body, urlDepuracion.hud, ctx);
   // Orientación en el mundo abierto: brújula arriba y mapa con M
@@ -328,6 +331,11 @@ async function iniciar(): Promise<void> {
     if (entrada.consumir('KeyM')) mapa.alternar();
     if (entrada.consumir('KeyL')) alternarLinterna();
     if (entrada.consumir('KeyN')) alternarSonido();
+    // T: armar o recoger la carpa (a cualquier hora)
+    if (entrada.consumir('KeyT') && jugador.vivo) {
+      const texto = ctx.carpa.alternar(rig.dir);
+      if (texto) ctx.eventos.emit({ tipo: 'mensaje', texto, segundos: 3 });
+    }
     // G: recoger el equipo de un caído o, si no hay ninguno al lado, pedir gas a un compañero
     if (entrada.consumir('KeyG') && jugador.vivo) {
       const recogido = ctx.suministros.recoger();
@@ -357,11 +365,12 @@ async function iniciar(): Promise<void> {
     ctx.escuadron.actualizar(dt);
     ctx.civiles.actualizar(dt);
     campana?.actualizar(dt);
+    ctx.carpa.actualizar(dt);
     fisica.paso(dt);
     // Recarga de gas y cuchillas junto a un depósito (plaza o puestos de avanzada)
     const dep = depositoMasCercano(mundo, jugador.pos);
     const enDeposito = dep.distancia < config.gas.radioRecarga && jugador.pos.y < dep.deposito.pos.y + 3;
-    jugador.recargarEnDeposito(dt, enDeposito && (campana?.depositoDisponible() ?? true));
+    jugador.recargarEnDeposito(dt, (enDeposito && (campana?.depositoDisponible() ?? true)) || ctx.carpa.cubre(jugador.pos));
     pasosEnFotograma++;
   };
 
@@ -401,6 +410,7 @@ async function iniciar(): Promise<void> {
     mapa.actualizar(ctx, rig.yaw);
     ctx.civiles.dibujar(dt, tiempo);
     ctx.suministros.dibujar(tiempo);
+    ctx.carpa.dibujar(dt);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
     hud.actualizar(dt, ctx, jugador, campana, window.innerWidth, window.innerHeight);
     if (controlesTactiles) controlesTactiles.visible = !(pantallas?.bloqueaJuego ?? false) || controlesTactiles.editando;

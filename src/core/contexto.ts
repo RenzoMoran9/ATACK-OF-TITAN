@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Efectos } from '../combat/efectos';
 import type { Suministros } from '../combat/suministros';
+import type { Carpa } from '../player/carpa';
 import type { Mundo } from '../world/mundo';
 import type { Entrada } from './entrada';
 import type { Eventos } from './eventos';
@@ -52,6 +53,8 @@ export interface ContextoJuego {
   civiles: CivilesAPI;
   /** Equipos de soldados caídos y cajas de suministros que se pueden recoger. */
   suministros: Suministros;
+  /** La carpa de campaña del jugador (T): descanso a cualquier hora. */
+  carpa: Carpa;
   /** Dónde reaparece el jugador si lo devoran (lo mueven las misiones). */
   puntoReaparicion: THREE.Vector3;
   esDeNoche(): boolean;

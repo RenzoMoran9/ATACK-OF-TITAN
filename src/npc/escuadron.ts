@@ -18,6 +18,9 @@ import { Soldado, type OrdenAsignada } from './soldado';
  *    los que se acercan a su puesto...) y los que coinciden hacen la táctica del anime: el cebo
  *    lo distrae delante de la cara, el apoyo le corta tendones y corvas y el rematador va a la
  *    nuca cuando el titán no le mira.
+ *    Quien tiene poca vida no pelea: se aparta a un resguardo, a un lado del jugador y lejos de
+ *    los titanes, y espera allí a que el intendente lo cure. El intendente (gas infinito) reparte
+ *    gas, hojas y vida; siempre anda cerca, a cubierto, y solo pelea si caen todos los demás.
  * 4. El resto cumple su orden: formación detrás del jugador, junto a los civiles, mantener un
  *    puesto (esperar, id allí) o patrullar alrededor de un punto. Solo quien sigue al jugador o
  *    se retira reaparece a su espalda si se queda muy atrás.
@@ -61,6 +64,11 @@ const CENTRO = 0.85;
 /** Radio que defiende quien espera o mantiene un puesto. */
 const RADIO_DEFENSA = 60;
 const RADIO_PATRULLA = 120;
+/** A qué distancia del jugador se reúnen los heridos, y lo que se alejan de los titanes. */
+const DIST_RESGUARDO = 45;
+const SEGURIDAD_RESGUARDO = 70;
+/** Vida (fracción) a la que un herido vuelve a la pelea. */
+const VIDA_RECUPERADO = 0.8;
 /** Hasta dónde avisan los vigías de un titán. */
 const RADIO_AVISO = 90;
 
@@ -91,6 +99,9 @@ export class Escuadron implements EscuadronAPI {
   /** Titanes de los que ya avisaron los vigías (por id). */
   private readonly avisados = new Set<number>();
   private tAviso = -99;
+  /** Dónde se reúnen los heridos (en la superficie) y de qué lado del jugador. */
+  private resguardo: THREE.Vector3 | null = null;
+  private ladoResguardo: 1 | -1 = 1;
   private readonly chorros: Particulas;
   private readonly frustum = new THREE.Frustum();
   private readonly matriz = new THREE.Matrix4();
@@ -163,6 +174,7 @@ export class Escuadron implements EscuadronAPI {
       orden: s.orden.tipo,
       actividad: s.vivo ? s.actividad() : '',
       gas: (s.gas / s.gasMax) * 100,
+      vida: (s.salud / s.saludMax) * 100,
       filo: s.cuchillas.filo,
       repuesto: s.cuchillas.repuesto,
       punto: s.orden.punto,
@@ -177,6 +189,7 @@ export class Escuadron implements EscuadronAPI {
     }
     this.soldados.length = 0;
     this.seleccion = null;
+    this.resguardo = null;
     this.avisados.clear();
   }
 
@@ -229,14 +242,32 @@ export class Escuadron implements EscuadronAPI {
       if (receptor && (!receptor.vivo || receptor.agarradoPor)) s.mision = { tipo: 'seguir' };
       else if (receptor && s.posicion.distanceTo(receptor.posicion) < 5.5) {
         const companero = receptor instanceof Soldado ? receptor : null;
+        const intendente = s.rol === 'intendente';
         const falta = companero ? companero.gasMax - companero.gas : j.gas.capacidad - j.gas.nivel;
-        const dado = s.darGas(Math.min(falta, s.rol === 'intendente' ? 150 : 50));
+        const dado = s.darGas(Math.min(falta, intendente ? falta : 50));
         if (companero) companero.gas = Math.min(companero.gasMax, companero.gas + dado);
         else j.gas.nivel = Math.min(j.gas.capacidad, j.gas.nivel + dado);
+        // el intendente además cambia las hojas y cura las heridas
+        let extra = '';
+        if (intendente) {
+          const hojas = companero ? companero.cuchillas : null;
+          const faltanHojas = companero ? !!hojas && (hojas.repuesto < 4 || hojas.filo < 1) : j.paresRepuesto < 4 || j.filo < 1;
+          if (faltanHojas) {
+            if (companero) companero.cuchillas.rellenar();
+            else j.rellenarCuchillas();
+            extra += ' + hojas nuevas';
+          }
+          const herido = companero ? companero.salud < companero.saludMax - 5 : j.salud < j.saludMax - 5;
+          if (herido) {
+            if (companero) companero.curar(70);
+            else j.curar(70);
+            extra += ' + vendaje';
+          }
+        }
         s.ultimaFrase = -99;
         const a = companero ? `${companero.nombre}, toma` : 'Toma';
-        s.decir(dado > 0 ? `${a}: gas de repuesto (+${Math.round(dado)})` : 'Ya no me queda gas…');
-        if (dado > 0 && !companero) this.ctx.eventos.emit({ tipo: 'recarga', quien: j });
+        s.decir(dado > 0 || extra ? `${a}: gas${dado > 0 ? ` (+${Math.round(dado)})` : ''}${extra}` : 'Ya no me queda gas…');
+        if ((dado > 0 || extra) && !companero) this.ctx.eventos.emit({ tipo: 'recarga', quien: j });
         s.mision = { tipo: 'seguir' };
       }
       // recarga en el depósito
@@ -285,18 +316,32 @@ export class Escuadron implements EscuadronAPI {
     // Quien lleva gas termina su entrega
     for (const s of libres) if (s.mision.tipo === 'darGas') asignados.add(s);
 
-    // El intendente reparte gas sin que se lo pidan: a ti primero, luego al que vaya más justo
+    // El intendente reparte gas, hojas y vendajes sin que se lo pidan: a ti primero, luego al más justo
     for (const s of libres) {
-      if (s.rol !== 'intendente' || asignados.has(s) || s.gas < 60) continue;
-      const quien = this.necesitaGas(s);
+      if (s.rol !== 'intendente' || asignados.has(s)) continue;
+      const quien = this.necesitaApoyo(s);
       if (!quien) continue;
       if (!(s.mision.tipo === 'darGas' && s.mision.humano === quien)) {
         s.mision = { tipo: 'darGas', humano: quien };
         s.ultimaFrase = -99;
-        s.decir(quien === j ? '¡Vas justo de gas, te llevo una bombona!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, te llevo gas!`);
+        s.decir(quien === j ? '¡Voy a por ti, te traigo suministros!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, aguanta, te curo!`);
       }
       asignados.add(s);
     }
+
+    // Los heridos se apartan a un resguardo y esperan al intendente
+    const heridos = libres.filter((s) => !asignados.has(s) && this.debeResguardarse(s));
+    if (heridos.length > 0) {
+      const sitio = this.puntoResguardo();
+      heridos.forEach((s, i) => {
+        if (s.mision.tipo !== 'resguardo') {
+          s.ultimaFrase = -99;
+          s.decir('Estoy herido: me aparto. ¡Cuidado!');
+        }
+        s.mision = { tipo: 'resguardo', destino: this.puestoJunto(sitio, i, heridos.length) };
+        asignados.add(s);
+      });
+    } else this.resguardo = null;
 
     // 1. Rescates: alguien en la mano de un titán (no quien está en retirada)
     for (const h of ctx.poblacion.humanos) {
@@ -304,7 +349,7 @@ export class Escuadron implements EscuadronAPI {
       if (!h.vivo || !titan || !titan.vivo) continue;
       const zona = titan.puntosDebiles.find((p) => p.activo && MANOS.includes(p.zona))?.zona;
       if (!zona) continue;
-      const s = this.masCercano(libres, asignados, h.posicion, (x) => x.cuchillas.puedeCortar && x.orden.tipo !== 'retirada');
+      const s = this.masCercano(libres, asignados, h.posicion, (x) => x.cuchillas.puedeCortar && x.orden.tipo !== 'retirada' && x.rol !== 'intendente');
       if (!s || s.posicion.distanceTo(h.posicion) > 180) continue;
       if (!(s.mision.tipo === 'rescatar' && s.mision.titan === titan && s.mision.zona === zona)) s.mision = { tipo: 'rescatar', titan, zona, humano: h };
       if (h === j) s.decir('¡Aguanta, voy a por ti!');
@@ -363,6 +408,12 @@ export class Escuadron implements EscuadronAPI {
     let huecoCiviles = 0;
     for (const s of libres) {
       if (asignados.has(s)) continue;
+      if (s.rol === 'intendente') {
+        // siempre cerca de ti, pero a cubierto de los titanes; ignora las órdenes de ir a otro sitio
+        s.mision = { tipo: 'seguir', destino: this.puestoIntendente(f, lado) };
+        if (s.posicion.distanceTo(j.posicion) > 170) s.teletransportar(s.mision.destino!.clone().setY(Math.max(s.mision.destino!.y, 1) + 6), j.velocidad.clone().multiplyScalar(0.8));
+        continue;
+      }
       const o = s.orden;
       if (o.tipo === 'esperar' || o.tipo === 'irA') {
         s.mision = { tipo: 'mantener', destino: o.puesto ?? (o.punto ?? s.posicion).clone().setY((o.punto ?? s.posicion).y + CENTRO) };
@@ -417,22 +468,111 @@ export class Escuadron implements EscuadronAPI {
   }
 
   /** El titán al que va un soldado según su orden (los que comparten criterio comparten cálculo). */
-  /** A quién le hace falta gas (para el intendente): el jugador por debajo del 35 %, o el compañero más justo. */
-  private necesitaGas(intendente: Soldado): Humano | null {
+  /** ¿Quedan otros soldados (aparte del intendente) en pie? */
+  private quedanCombatientes(): boolean {
+    return this.soldados.some((x) => x.vivo && x.rol !== 'intendente');
+  }
+
+  /** Poca vida (con histéresis: no vuelve a la pelea hasta recuperarse). */
+  private debeResguardarse(s: Soldado): boolean {
+    if (s.rol === 'intendente') return false;
+    return s.herido || (s.mision.tipo === 'resguardo' && s.salud < s.saludMax * VIDA_RECUPERADO);
+  }
+
+  /** ¿Hay un titán encima de este punto? (el intendente no se acerca ahí a menos que no quede otra) */
+  private peligroso(p: THREE.Vector3, radio: number): boolean {
+    return this.ctx.poblacion.titanesCerca(p, radio).some(esAmenaza);
+  }
+
+  /**
+   * A quién le hace falta ayuda (para el intendente): el jugador si va justo de gas, hojas o vida
+   * y, si no, el compañero más necesitado (los heridos primero). Nunca se mete bajo las manos
+   * de un titán para llegar a nadie.
+   */
+  private necesitaApoyo(intendente: Soldado): Humano | null {
     const j = this.ctx.jugador;
-    if (j.vivo && !j.agarradoPor && j.gas.nivel < j.gas.capacidad * 0.35) return j;
+    const sinPeligro = (h: Humano) => !this.peligroso(h.posicion, 12);
+    if (j.vivo && !j.agarradoPor && sinPeligro(j) && (j.gas.nivel < j.gas.capacidad * 0.4 || j.salud < j.saludMax * 0.6 || j.paresRepuesto < 2 || j.filo < 0.3)) return j;
     let peor: Soldado | null = null;
+    let nota = 0;
     for (const s of this.soldados) {
       if (s === intendente || !s.vivo || s.agarradoPor || s.mision.tipo === 'recargar') continue;
-      if (s.gas > s.gasMax * 0.3 || s.posicion.distanceTo(intendente.posicion) > 400) continue;
-      if (!peor || s.gas < peor.gas) peor = s;
+      if (s.posicion.distanceTo(intendente.posicion) > 400 || !sinPeligro(s)) continue;
+      const vida = 1 - s.salud / s.saludMax;
+      const gas = s.gas < s.gasMax * 0.3 ? 1 - s.gas / s.gasMax : 0;
+      const hojas = s.cuchillas.repuesto === 0 && s.cuchillas.filo < 0.3 ? 0.5 : 0;
+      const n = (s.herido ? 2 : vida > 0.2 ? vida : 0) + gas + hojas;
+      if (n > nota) {
+        nota = n;
+        peor = s;
+      }
     }
     return peor;
   }
 
+  /** Dónde espera el intendente: cerca del jugador y, si hay titanes, al otro lado de él. */
+  private puestoIntendente(f: THREE.Vector3, lado: THREE.Vector3): THREE.Vector3 {
+    const ctx = this.ctx;
+    const j = ctx.jugador.posicion;
+    const amenaza = ctx.poblacion.titanesCerca(j, 90).filter(esAmenaza).sort((a, b) => a.posicion.distanceToSquared(j) - b.posicion.distanceToSquared(j))[0];
+    const d = new THREE.Vector3();
+    if (amenaza) {
+      d.set(j.x - amenaza.posicion.x, 0, j.z - amenaza.posicion.z);
+      if (d.lengthSq() < 1) d.copy(f).negate();
+      d.setLength(Math.max(22, 30 - amenaza.posicion.distanceTo(j) * 0.2));
+    } else d.copy(f).multiplyScalar(-9).addScaledVector(lado, 5);
+    const destino = j.clone().add(d);
+    if (j.y > 3) destino.y = j.y + 1;
+    else {
+      const libre = ctx.nav.puntoLibreCercano(destino.x, destino.z, 1, 4);
+      if (libre) destino.set(libre.x, j.y, libre.z);
+    }
+    return destino;
+  }
+
+  /**
+   * Resguardo de los heridos: a un lado del jugador, a ~45 m, y del lado que quede más lejos de
+   * los titanes. Se mantiene en el mismo sitio mientras siga siendo seguro (nada de ir y venir).
+   */
+  private puntoResguardo(): THREE.Vector3 {
+    const ctx = this.ctx;
+    const j = ctx.jugador.posicion;
+    const f = this.rumboFormacion;
+    const amenazas = ctx.poblacion.titanesCerca(j, 200).filter(esAmenaza);
+    const holgura = (p: THREE.Vector3) => amenazas.reduce((m, t) => Math.min(m, Math.hypot(t.posicion.x - p.x, t.posicion.z - p.z)), Infinity);
+    const previo = this.resguardo;
+    if (previo) {
+      const dj = Math.hypot(previo.x - j.x, previo.z - j.z);
+      if (dj > DIST_RESGUARDO * 0.5 && dj < DIST_RESGUARDO * 1.6 && holgura(previo) > SEGURIDAD_RESGUARDO) return previo;
+    }
+    const lado = new THREE.Vector3(f.z, 0, -f.x);
+    const opciones: { p: THREE.Vector3; lado: 1 | -1 }[] = [
+      { p: j.clone().addScaledVector(lado, DIST_RESGUARDO * this.ladoResguardo), lado: this.ladoResguardo },
+      { p: j.clone().addScaledVector(lado, -DIST_RESGUARDO * this.ladoResguardo), lado: this.ladoResguardo === 1 ? -1 : 1 },
+      { p: j.clone().addScaledVector(f, -DIST_RESGUARDO * 1.3), lado: this.ladoResguardo },
+    ];
+    let mejor = opciones[0];
+    let h = holgura(mejor.p);
+    for (const o of opciones.slice(1)) {
+      const x = holgura(o.p);
+      if (h < SEGURIDAD_RESGUARDO && x > h) {
+        mejor = o;
+        h = x;
+      }
+    }
+    this.ladoResguardo = mejor.lado;
+    const libre = ctx.nav.puntoLibreCercano(mejor.p.x, mejor.p.z, 1.5, 8);
+    const base = libre ? new THREE.Vector3(libre.x, 0, libre.z) : mejor.p.clone();
+    this.resguardo = puntoAlSuelo(ctx.fisica, base.setY(Math.max(j.y, 0) + 80), 400);
+    return this.resguardo;
+  }
+
   private titanPara(s: Soldado, memo: Map<unknown, TitanAPI | null>): TitanAPI | null {
-    // el intendente no se mete en la pelea: cuida de las bombonas
-    if (s.rol === 'intendente') return null;
+    // el intendente no se mete en la pelea: cuida de las bombonas… salvo que mueran todos los demás
+    if (s.rol === 'intendente') {
+      if (this.quedanCombatientes()) return null;
+      return this.elegirTitan('seguir') ?? this.amenazaDirecta(s, 35);
+    }
     const o = s.orden;
     const calcular = (clave: unknown, f: () => TitanAPI | null): TitanAPI | null => {
       if (!memo.has(clave)) memo.set(clave, f());
