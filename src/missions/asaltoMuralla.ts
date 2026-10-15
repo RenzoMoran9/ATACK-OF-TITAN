@@ -9,7 +9,7 @@ import type { Titan } from '../titans/titan';
  * Colosal, Acorazado, Bestia) avanza hacia la puerta sur con una escolta de titanes, y hay que
  * pararlo antes de que la eche abajo:
  *
- * - Colosal (60 m): camina despacio hasta la puerta y la patea (tres patadas la rompen). Cada
+ * - Colosal (60 m): camina despacio hasta la puerta y la patea (cinco patadas la rompen). Cada
  *   pocos segundos suelta vapor: la nuca queda protegida y quien esté pegado a él se abrasa y sale
  *   despedido. Hay que cortarle la nuca entre nube y nube, y varias veces.
  * - Acorazado (15 m): va a la puerta y la embiste una y otra vez; si te acercas, se vuelve contra ti.
@@ -28,7 +28,7 @@ const ENTRE_ASALTOS: [number, number] = [780, 1200];
 /** Solo empieza si estás a menos de esto de Trost (si no, espera). */
 const RADIO_JUGADOR = 1300;
 const VIDA_PUERTA = 100;
-const DANIO_PATADA = 34;
+const DANIO_PATADA = 20;
 const DANIO_EMBESTIDA = 9;
 const DANIO_ROCA_PUERTA = 5;
 const ESPERA_REPARAR = 120;
@@ -173,7 +173,7 @@ export class AsaltosMuralla {
       return;
     }
     a.jefe.plantado = this.puerta.p;
-    this.golpear(a, dt, 7, 'patada', 2.4, 0.62, DANIO_PATADA);
+    this.golpear(a, dt, 8.5, 'patada', 2.4, 0.62, DANIO_PATADA);
   }
 
   private acorazado(a: Asalto, dt: number): void {

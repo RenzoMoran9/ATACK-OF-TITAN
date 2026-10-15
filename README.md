@@ -215,7 +215,7 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   (barra arriba en pantalla, con la distancia al cambiante); si llega a cero se rompe, los titanes entran en la
   ciudad y no se repara hasta que no queda ningún cambiante y pasan dos minutos.
   - **Colosal** (60 m, sin piel: músculo rojo, costillas y la dentadura al aire): camina despacio hasta la puerta y la
-    patea (tres patadas la rompen). Cada 14 s suelta vapor: 4,5 s con la nuca protegida (los tajos rebotan) y quien
+    patea (cinco patadas, una cada 8 s, la rompen). Cada 14 s suelta vapor: 4,5 s con la nuca protegida (los tajos rebotan) y quien
     esté pegado a él se abrasa y sale despedido. Su nuca aguanta cuatro veces más: hay que volver varias veces.
   - **Acorazado** (15 m, placas color hueso y máscara): embiste la puerta una y otra vez; si te acercas a menos de
     45 m, se vuelve contra ti. Solo corvas y codos; con una corva cortada cae y se le agrieta la nuca.
