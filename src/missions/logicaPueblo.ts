@@ -5,7 +5,7 @@
  *   tomado ──(matas a los titanes que lo ocupan)──▶ liberado ──(llegan refugiados)──▶
  *   reconstruyendo ──(de día, sin titanes; más rápido con más gente)──▶ en paz
  *
- * Con titanes dentro, la reconstrucción retrocede (pueden echar abajo una etapa entera) y,
+ * Con titanes dentro, la obra de la etapa en curso retrocede (lo ya terminado aguanta) y,
  * si el jugador no está cerca para verlo, la gente huye o muere. Si no queda nadie, el pueblo
  * vuelve a estar tomado.
  */
@@ -18,8 +18,13 @@ export const ETAPAS = 3;
 export const LLEGADA_POR_HORA = 5;
 /** Vecinos por casa. */
 export const VECINOS_POR_CASA = 3;
-/** Avance de la reconstrucción por hora de día con el pueblo lleno (≈17 h de día para terminar). */
-export const OBRA_POR_HORA = 0.06;
+/**
+ * Avance de la reconstrucción por hora de día: con el pueblo lleno ≈3 h de juego (3 min reales);
+ * con poca gente, como mucho el doble. Así una vez liberado se termina de verdad.
+ */
+export const OBRA_POR_HORA = 0.33;
+/** Aunque haya poca gente, la obra avanza al menos a esta fracción del ritmo con el pueblo lleno. */
+export const RITMO_MINIMO = 0.5;
 /** Lo que destroza cada titán dentro del pueblo por hora. */
 export const DESTROZO_POR_HORA = 0.1;
 /** Vecinos que se pierden por hora y titán cuando el jugador no está (huyen o mueren). */
@@ -83,7 +88,9 @@ export class LogicaPueblo {
   avanzar(horas: number, esDia: boolean, amenaza: number, abstracto: boolean): 'caido' | null {
     if (!this.liberado || horas <= 0) return null;
     if (amenaza > 0) {
-      this.progreso = Math.max(0, this.progreso - DESTROZO_POR_HORA * amenaza * horas);
+      // los titanes echan abajo la etapa que está en obras, no las casas ya terminadas
+      const hecho = this.etapas / ETAPAS;
+      this.progreso = Math.max(hecho, this.progreso - DESTROZO_POR_HORA * amenaza * horas);
       if (abstracto && this.habitantes > 0) {
         this.habitantes = Math.max(0, this.habitantes - PERDIDA_POR_HORA * amenaza * horas);
         if (this.habitantes < 1) return this.caer(amenaza);
@@ -91,7 +98,10 @@ export class LogicaPueblo {
       return null;
     }
     this.habitantes = Math.min(this.maxHabitantes, this.habitantes + LLEGADA_POR_HORA * horas);
-    if (esDia && this.habitantes >= 1) this.progreso = Math.min(1, this.progreso + OBRA_POR_HORA * (this.habitantes / this.maxHabitantes) * horas);
+    if (esDia && this.habitantes >= 1) {
+      const ritmo = Math.max(RITMO_MINIMO, this.habitantes / this.maxHabitantes);
+      this.progreso = Math.min(1, this.progreso + OBRA_POR_HORA * ritmo * horas);
+    }
     return null;
   }
 

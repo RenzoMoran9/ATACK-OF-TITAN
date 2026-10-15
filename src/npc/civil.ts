@@ -13,6 +13,29 @@ import type { PoseCivil } from './modeloCivil';
  * salvado, agarrado (pataleo), caída al ser soltado y devorado.
  */
 
+/** Sitios con vida de una aldea (los da el pueblo): para que los aldeanos tengan rutina. */
+export interface LugaresAldea {
+  plaza: THREE.Vector3;
+  /** Puertas de las casas en pie (de noche, cada cual a la suya). */
+  puertas: THREE.Vector3[];
+  /** Casas en obras ahora mismo (centro): allí trabajan con el martillo. */
+  obras: THREE.Vector3[];
+  /** Huertos alrededor del pueblo. */
+  huertos: THREE.Vector3[];
+  noche: boolean;
+}
+
+/** Lo que está haciendo un aldeano en su sitio. */
+export type TipoActividad = 'obra' | 'huerto' | 'charla' | 'plaza' | 'casa' | 'juego' | 'paseo';
+
+export interface Actividad {
+  tipo: TipoActividad;
+  /** Hacia dónde mira mientras la hace (la casa, el compañero de charla...). */
+  mirar: THREE.Vector3 | null;
+  /** Segundos que se queda. */
+  duracion: number;
+}
+
 export type EstadoCivil =
   | 'quieto'
   | 'paseo'
@@ -87,7 +110,14 @@ export class Civil implements Humano {
   /** Brazo del titán que lo sujeta. */
   brazoAgarre: 'brazoIzq' | 'brazoDer' | null = null;
   /** Aldeano de un pueblo: pasea por él y, si huye, se aleja del titán sin ir a la puerta de Trost. */
-  hogar: { x: number; z: number; radio: number } | null = null;
+  hogar: { x: number; z: number; radio: number; lugares?: () => LugaresAldea | null } | null = null;
+  /** Alarga lo que se queda quieto en su sitio (un vecino que se para a charlar con él). */
+  alargarParada(segundos: number): void {
+    if (this.estado === 'quieto') this.temporizador = Math.max(this.temporizador, segundos);
+  }
+
+  /** Rutina de aldeano: qué va a hacer (o está haciendo) en su destino. */
+  actividad: Actividad | null = null;
 
   private readonly vAndar: number;
   private readonly vCorrer: number;
@@ -289,6 +319,9 @@ export class Civil implements Humano {
   private vidaNormal(dt: number, e: EntornoCivil): void {
     if (this.estado === 'quieto') {
       this.frenar(dt, 5);
+      // en su sitio, mira a lo que hace (la obra, el huerto, con quien habla)
+      const m = this.actividad?.mirar;
+      if (m && !this.ruta) this.girarHacia(m, dt, 3);
       this.temporizador -= dt;
       if (this.temporizador <= 0 && !this.rutaPedida && !this.ruta) {
         const d = e.destinoPaseo(this);
@@ -309,10 +342,11 @@ export class Civil implements Humano {
       this.cambiar('quieto');
       return;
     }
-    const v = this.herido ? this.vAndar * 0.7 : this.vAndar;
+    // los niños que juegan van corriendo
+    const v = (this.herido ? this.vAndar * 0.7 : this.vAndar) * (this.actividad?.tipo === 'juego' ? 2.2 : 1);
     if (this.seguirRuta(dt, e, v, 0.9)) {
       this.ruta = null;
-      this.temporizador = e.rng.rango(2.5, 10);
+      this.temporizador = this.actividad ? this.actividad.duracion : e.rng.rango(2.5, 10);
       this.cambiar('quieto');
     }
   }
@@ -557,8 +591,32 @@ export class Civil implements Humano {
         out.brazoIzq = respira;
         out.brazoDer = -respira;
         out.cabezaGiro = Math.sin(t * 0.45 + this.id * 1.3) * 0.55;
-        // de vez en cuando gesticula al hablar
-        if (this.estado === 'quieto' && Math.sin(t * 0.7 + this.id * 2.1) > 0.75) out.brazoDer = 0.7 + Math.sin(t * 6 + this.id) * 0.15;
+        const act = this.estado === 'quieto' && !this.ruta ? this.actividad?.tipo : undefined;
+        if (act === 'obra') {
+          // martillazos: el brazo sube y baja a golpes, el torso algo inclinado hacia la obra
+          const golpe = Math.max(0, Math.sin(t * 6.5 + this.id));
+          out.brazoDer = 1.1 + golpe * 1.3;
+          out.brazoIzq = 0.6;
+          out.inclinacion = 0.12;
+          out.cabezaGiro = 0;
+          out.cabezaAlzada = 0.1;
+        } else if (act === 'huerto') {
+          // cavando con la azada: agachado, los dos brazos van y vienen
+          const azada = Math.sin(t * 2.4 + this.id);
+          out.inclinacion = 0.55;
+          out.brazoIzq = 0.9 + azada * 0.45;
+          out.brazoDer = 0.9 + azada * 0.45;
+          out.cabezaGiro = 0;
+          out.cabezaAlzada = -0.2;
+        } else if (act === 'charla') {
+          // charlando: gesticula más a menudo
+          out.cabezaGiro = Math.sin(t * 0.9 + this.id) * 0.2;
+          if (Math.sin(t * 1.3 + this.id * 2.1) > 0.2) out.brazoDer = 0.6 + Math.sin(t * 5 + this.id) * 0.25;
+          if (Math.sin(t * 1.1 + this.id * 3.7) > 0.6) out.brazoIzq = 0.5 + Math.sin(t * 4 + this.id) * 0.2;
+        } else if (this.estado === 'quieto' && Math.sin(t * 0.7 + this.id * 2.1) > 0.75) {
+          // de vez en cuando gesticula al hablar
+          out.brazoDer = 0.7 + Math.sin(t * 6 + this.id) * 0.15;
+        }
         if (this.estado === 'cola') out.cabezaAlzada = 0.15;
         break;
       }

@@ -6,9 +6,9 @@ import type { Navegacion } from '../core/navegacion';
 import { crearRng, type Rng } from '../core/rng';
 import type { CivilesAPI, Humano } from '../core/tipos';
 import { CampoHuida, type Peligro } from './campoHuida';
-import { Civil, type EntornoCivil } from './civil';
+import { Civil, type EntornoCivil, type LugaresAldea, type TipoActividad } from './civil';
 import { EstimadorAlfa } from './interpolacion';
-import { CIVILES, ColaPuerta, crearAspectoCivil } from './logicaCivil';
+import { CIVILES, ColaPuerta, crearAspectoCivil, esAnciano, esNino } from './logicaCivil';
 import { ModeloCiviles, poseNeutra } from './modeloCivil';
 
 /** Del centro del cuerpo de un civil a los pies (como `Humano.posicion`). */
@@ -222,6 +222,9 @@ export class GestorCiviles implements CivilesAPI, EntornoCivil {
 
   destinoPaseo(c: Civil): THREE.Vector3 | null {
     const h = c.hogar;
+    const lugares = h?.lugares?.();
+    if (h && lugares) return this.rutinaAldea(c, lugares);
+    c.actividad = null;
     if (h) {
       for (let k = 0; k < 8; k++) {
         const a = this.rng.rango(-Math.PI, Math.PI);
@@ -243,6 +246,71 @@ export class GestorCiviles implements CivilesAPI, EntornoCivil {
       if (this.nav.libre(x, z, 0.8)) return new THREE.Vector3(x, 0, z);
     }
     return null;
+  }
+
+  /**
+   * Rutina de un aldeano según la hora: de noche, a la puerta de su casa; de día, los adultos
+   * trabajan en las casas en obras o en los huertos y charlan en la plaza; los niños corretean.
+   * Elige el destino y deja en `c.actividad` lo que hará allí (y hacia dónde mirar).
+   */
+  private rutinaAldea(c: Civil, l: LugaresAldea): THREE.Vector3 | null {
+    const r = this.rng;
+    const nino = esNino(c.aspecto.tipo);
+    const anciano = esAnciano(c.aspecto.tipo);
+    const cerca = (p: THREE.Vector3, radio: number): THREE.Vector3 | null => {
+      for (let k = 0; k < 6; k++) {
+        const a = r.rango(-Math.PI, Math.PI);
+        const d = radio * Math.sqrt(r.siguiente());
+        const x = p.x + Math.cos(a) * d;
+        const z = p.z + Math.sin(a) * d;
+        if (this.nav.libre(x, z, 0.7)) return new THREE.Vector3(x, 0, z);
+      }
+      return this.nav.puntoLibreCercano(p.x, p.z, 0.7, 4);
+    };
+    const hacer = (tipo: TipoActividad, destino: THREE.Vector3 | null, mirar: THREE.Vector3 | null, duracion: number) => {
+      c.actividad = destino ? { tipo, mirar, duracion } : null;
+      return destino;
+    };
+    // de noche cada cual a la puerta de una casa (o junto al fuego de la plaza)
+    if (l.noche) {
+      const puerta = l.puertas.length ? l.puertas[c.id % l.puertas.length] : null;
+      if (puerta) return hacer('casa', cerca(puerta, 1.2), puerta, r.rango(40, 90));
+      return hacer('plaza', cerca(l.plaza, 6), l.plaza, r.rango(30, 60));
+    }
+    if (nino) {
+      // juegan a pillarse por la plaza: carreras cortas
+      return hacer('juego', cerca(l.plaza, 12), null, r.rango(0.5, 2.5));
+    }
+    const tirada = r.siguiente();
+    if (!anciano && l.obras.length && tirada < 0.5) {
+      const obra = l.obras[Math.floor(r.siguiente() * l.obras.length)];
+      const dir = new THREE.Vector3(l.plaza.x - obra.x, 0, l.plaza.z - obra.z);
+      if (dir.lengthSq() < 1) dir.set(1, 0, 0);
+      const pie = obra.clone().addScaledVector(dir.normalize(), 4.5);
+      return hacer('obra', cerca(pie, 1.5), obra.clone().setY(1.5), r.rango(12, 25));
+    }
+    if (!anciano && l.huertos.length && tirada < 0.72) {
+      const huerto = l.huertos[Math.floor(r.siguiente() * l.huertos.length)];
+      const punto = cerca(huerto, 3);
+      return hacer('huerto', punto, punto ? punto.clone().add(new THREE.Vector3(r.rango(-1, 1), 0, r.rango(-1, 1))) : null, r.rango(15, 30));
+    }
+    if (tirada < 0.9) {
+      // charla: se acerca a alguien que esté parado en la plaza y se ponen frente a frente
+      const otro = this.lista.find((x) => x !== c && x.hogar === c.hogar && x.estado === 'quieto' && x.actividad?.tipo !== 'obra' && x.actividad?.tipo !== 'huerto' && Math.hypot(x.pies.x - l.plaza.x, x.pies.z - l.plaza.z) < 16);
+      if (otro) {
+        const dir = new THREE.Vector3(c.pies.x - otro.pies.x, 0, c.pies.z - otro.pies.z);
+        if (dir.lengthSq() < 0.01) dir.set(1, 0, 0);
+        const sitio = otro.pies.clone().addScaledVector(dir.normalize(), 1.3);
+        const destino = this.nav.libre(sitio.x, sitio.z, 0.5) ? sitio.setY(0) : cerca(otro.pies, 2);
+        const dur = r.rango(10, 22);
+        // el otro también se gira y alarga la charla
+        otro.actividad = { tipo: 'charla', mirar: destino, duracion: dur };
+        otro.alargarParada(dur);
+        return hacer('charla', destino, otro.pies, dur);
+      }
+      return hacer('plaza', cerca(l.plaza, 9), l.plaza, r.rango(6, 14));
+    }
+    return hacer('paseo', cerca(new THREE.Vector3(c.hogar!.x, 0, c.hogar!.z), c.hogar!.radio), null, r.rango(3, 8));
   }
 
   turnoPuerta(): number {

@@ -2,7 +2,7 @@ import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { umbralNuca, umbralZona } from '../combat/corte';
 import type { ContextoJuego } from '../core/contexto';
-import type { FuerteAPI, Humano, TitanAPI, ZonaTitan } from '../core/tipos';
+import type { FuerteAPI, Humano, JugadorAPI, TitanAPI, ZonaTitan } from '../core/tipos';
 import { COLOR_AVISO, textoAviso } from '../npc/logicaOrdenes';
 import { texturaParticula } from '../world/texturas';
 import {
@@ -191,6 +191,10 @@ export class Campamento implements FuerteAPI {
   /** Orden en que se levantan las obras (índices de `obras`) y reloj de la obra. */
   private readonly ordenObras: number[] = [];
   private tObra = 0;
+  /** Escala de la atalaya: 1 subiendo, −1 bajando, 0 nada; altura de los pies en la escala. */
+  private subiendo = 0;
+  private yEscala = 0;
+  private esperaEscala = 0;
   private tMartillo = 0;
   private readonly heridas = new Map<number, number>();
   private readonly avisados = new Set<number>();
@@ -455,6 +459,7 @@ export class Campamento implements FuerteAPI {
     this.t += dt;
     this.tAguja += dt;
     this.construir(dt);
+    this.escala(dt);
     this.puertaAutomatica(dt);
     this.estacasAtacadas(dt);
     this.vigias();
@@ -551,6 +556,56 @@ export class Campamento implements FuerteAPI {
       this.ctx.eventos.emit({ tipo: 'martillazo', pos: o.pos.clone().setY(1), golpe: 'bueno' });
     }
     this.dibujarObras();
+  }
+
+  /**
+   * Escala de la atalaya: al pie de ella, sube sola hasta la plataforma; arriba, junto a la
+   * trampilla, baja sola al suelo. (Se puede subir también con los ganchos o el salto con gas.)
+   */
+  private escala(dt: number): void {
+    const torre = this.obras.find((o) => o.tipo === 'torre');
+    const j = this.ctx.jugador as JugadorAPI & { montado?: boolean };
+    if (!torre || torre.progreso < 1 || !j.vivo || j.agarradoPor || j.montado) {
+      this.subiendo = 0;
+      return;
+    }
+    const g = torre.malla;
+    g.updateMatrixWorld();
+    const pie = g.localToWorld(new THREE.Vector3(0, 0, 1.4 + 0.55));
+    const arriba = g.localToWorld(new THREE.Vector3(0, ALTO_TORRE + 0.1, 0.2));
+    const trampilla = g.localToWorld(new THREE.Vector3(0, ALTO_TORRE, 1.1));
+    const p = j.posicion;
+    const yPies = p.y - 0.9;
+    if (this.subiendo === 0) {
+      const enPie = Math.hypot(p.x - pie.x, p.z - pie.z) < 0.9 && yPies < 1;
+      const enTrampilla = Math.hypot(p.x - trampilla.x, p.z - trampilla.z) < 0.7 && Math.abs(yPies - ALTO_TORRE) < 0.6;
+      if (this.esperaEscala > 0) {
+        // no vuelve a engancharse hasta que se aparte de la escala
+        if (!enPie && !enTrampilla) this.esperaEscala = 0;
+        return;
+      }
+      if (enPie) {
+        this.subiendo = 1;
+        this.yEscala = Math.max(0, yPies);
+      } else if (enTrampilla) {
+        this.subiendo = -1;
+        this.yEscala = ALTO_TORRE;
+      } else return;
+    }
+    this.yEscala += this.subiendo * 3.2 * dt;
+    if (this.subiendo > 0 && this.yEscala >= ALTO_TORRE + 0.15) {
+      j.teletransportar(arriba);
+      this.subiendo = 0;
+      this.esperaEscala = 1;
+      return;
+    }
+    if (this.subiendo < 0 && this.yEscala <= 0) {
+      j.teletransportar(pie.clone().setY(0));
+      this.subiendo = 0;
+      this.esperaEscala = 1;
+      return;
+    }
+    j.teletransportar(pie.clone().setY(this.yEscala));
   }
 
   /** Terminado: el escuadrón espera dentro del campamento (y solo sale si le mandas atacar). */
@@ -1068,12 +1123,14 @@ export class Campamento implements FuerteAPI {
       const largo = CUERDA * (R_ADARVE / APOTEMA) + 0.05;
       lista.push(f.caja(en(R_ADARVE, ALTO_ADARVE - 0.08), { x: largo / 2, y: 0.08, z: ANCHO_ADARVE / 2 }, 'tejado', rot));
       if (TRAMOS_ESCALERA.includes(i)) {
+        // la escalera se pisa como una rampa lisa (los peldaños son solo de vista): el personaje
+        // sube andando sin quedarse enganchado en el borde de cada escalón
         const rIn = R_ADARVE - ANCHO_ADARVE / 2;
-        for (let k = 0; k < 5; k++) {
-          const r0 = rIn - (5 - k) * 0.68;
-          const alto = (k + 1) * (ALTO_ADARVE / 5);
-          lista.push(f.caja(en((r0 + rIn) / 2, alto / 2), { x: 0.65, y: alto / 2, z: (rIn - r0) / 2 }, 'tejado', rot));
-        }
+        const largo = 5 * 0.68;
+        const angulo = Math.atan2(ALTO_ADARVE, largo);
+        const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), angulo));
+        const medio = en(rIn - largo / 2, ALTO_ADARVE / 2 - 0.1 * Math.cos(angulo));
+        lista.push(f.caja(medio, { x: 0.65, y: 0.1, z: Math.hypot(largo, ALTO_ADARVE) / 2 + 0.05 }, 'tejado', q));
       }
     }
     this.collidersTramo.set(i, lista);

@@ -485,6 +485,18 @@ export class VistaPueblo {
     });
   }
 
+  /** Puertas (delante de la fachada) de las casas de las etapas ya levantadas. */
+  puertas(hechas: number): THREE.Vector3[] {
+    const res: THREE.Vector3[] = [];
+    this.etapas.slice(0, hechas).forEach((e) => {
+      for (const c of e.casas) {
+        const d = c.fondo / 2 + 1.3;
+        res.push(new THREE.Vector3(c.x + Math.sin(c.rotY) * d, 0, c.z + Math.cos(c.rotY) * d));
+      }
+    });
+    return res;
+  }
+
   /** Centros de las casas en obras ahora mismo (para el sonido de martillos). */
   obras(hechas: number): THREE.Vector3[] {
     const e = this.etapas[hechas];

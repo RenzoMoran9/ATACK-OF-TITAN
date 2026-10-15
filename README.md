@@ -203,9 +203,12 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   ≈ 19 min). El sol sale por el este, pasa por el sur y se pone por el oeste; amanecer y atardecer tiñen el cielo, de
   noche hay luna y estrellas, se encienden ventanas y faroles, y casi todos los titanes se apagan (los cambiantes no).
 - **Pueblos** (Pastores, Molino, Ragako y Dauper): empiezan **tomados** por titanes. Al acercarte aparecen; mátalos a
-  todos y el pueblo queda **liberado**. Llegan refugiados de Trost, pasean por sus calles y, de día y sin titanes,
-  **reconstruyen** por etapas (andamios y martillos, y las ruinas pasan a casas nuevas, campos de cultivo, faroles).
-  Terminado, el pueblo **vive en paz**: sus cajas de la plaza recargan gas, cuchillas y bengalas, y puedes descansar y
+  todos y el pueblo queda **liberado**. Llegan refugiados de Trost y, de día y sin titanes, **reconstruyen** por
+  etapas (andamios y martillos, y las ruinas pasan a casas nuevas, campos de cultivo, faroles): unas 3 horas de juego
+  con el pueblo lleno, 6 como mucho con poca gente. Un ataque solo echa abajo la etapa en obras, nunca lo ya
+  terminado. Los vecinos **hacen vida**: de día trabajan con el martillo en las casas en obras o cavan en los huertos,
+  charlan por parejas en la plaza (frente a frente, gesticulando) y los niños corretean; de noche vuelven a la puerta
+  de su casa. Terminado, el pueblo **vive en paz**: sus cajas de la plaza recargan gas, cuchillas y bengalas, y puedes descansar y
   reaparecer allí.
 - **Ataques**: cada pocas horas, de día, un grupo de titanes marcha hacia un pueblo habitado (más cuantos más días
   llevas; desde el día 3, a veces con un cambiante al frente). Cuando entran, **los propios aldeanos dan la alarma**:
@@ -225,8 +228,9 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   donde miras al armarlo. **Se construye solo** (unos 25 s): la empalizada sube tramo a tramo desde la puerta, luego
   la atalaya y las carpas; mientras, el escuadrón espera dentro. Terminado:
   - **Empalizada maciza** de troncos afilados (3,4 m): ni tú, ni los soldados, ni los titanes la atraviesan. Por arriba
-    está abierta: desde el **adarve** (pasarela a 2,2 m, con dos escaleras) ves por encima del muro, y desde la
-    **atalaya** (8,5 m) todo el contorno.
+    está abierta: desde el **adarve** (pasarela a 2,2 m; sus dos escaleras se suben andando) ves por encima del muro, y
+    desde la **atalaya** (8,5 m) todo el contorno: ponte al pie de su escala y sube sola; arriba, junto a la trampilla,
+    bajas igual.
   - **Puerta automática**: la hoja se hunde en el suelo cuando tú o un soldado os acercáis y sube cuando os alejáis.
     Los titanes no la abren, no pisan el recinto y **no pueden agarrar a nadie dentro**.
   - **Estacas** cruzadas alrededor: el titán que llega a la empalizada se enreda, **se hiere las piernas** (cojea o cae

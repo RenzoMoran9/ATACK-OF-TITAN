@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { ContextoJuego } from '../core/contexto';
 import type { EspecialTitan, Humano, TitanAPI } from '../core/tipos';
+import type { Civil, LugaresAldea } from '../npc/civil';
 import type { DatosPueblo } from '../world/lugares';
 import { LogicaPueblo, horasHastaAtaque, titanesAtaque, type EstadoGuardadoPueblo, type FasePueblo } from './logicaPueblo';
 
@@ -37,6 +38,10 @@ export class Pueblo {
   private tAlarma = 0;
   depositoPuesto = false;
   faseAnterior: FasePueblo = 'tomado';
+  /** Sitios con vida del pueblo para la rutina de los aldeanos (se refresca cada pocos segundos). */
+  lugares: LugaresAldea | null = null;
+  huertos: THREE.Vector3[] | null = null;
+  tLugares = 0;
 
   constructor(readonly datos: DatosPueblo) {
     this.logica = new LogicaPueblo(datos.id, datos.casas, OCUPANTES[datos.id] ?? 3);
@@ -115,6 +120,11 @@ export class GestorPueblos {
       this.avisarFase(p);
       // aspecto: etapas, andamios, faroles y ventanas encendidas si vive gente
       p.datos.vista.mostrar(p.logica.etapas, p.logica.enObras(esDia, p.amenaza), j);
+      p.tLugares -= dt;
+      if (p.tLugares <= 0) {
+        p.tLugares = 2;
+        this.lugaresDe(p, esDia);
+      }
       p.datos.estado.habitado = p.logica.habitantes >= 1;
       p.datos.ventanas.emissiveIntensity = p.datos.estado.habitado ? 1.2 * noche : 0;
       this.deposito(p);
@@ -175,7 +185,39 @@ export class GestorPueblos {
       return;
     }
     // aparecen poco a poco (de dos en dos), nunca con titanes dentro
-    if (p.aldeanos.length < quiere && p.amenaza === 0) p.aldeanos.push(...this.ctx.civiles.generarAldeanos(Math.min(2, quiere - p.aldeanos.length), p.centro, 45));
+    if (p.aldeanos.length < quiere && p.amenaza === 0) {
+      const nuevos = this.ctx.civiles.generarAldeanos(Math.min(2, quiere - p.aldeanos.length), p.centro, 45);
+      // con rutina: obras, huertos, charlas en la plaza, juegos y a casa de noche
+      for (const h of nuevos) {
+        const c = h as Civil;
+        if (c.hogar) c.hogar.lugares = () => p.lugares;
+      }
+      p.aldeanos.push(...nuevos);
+    }
+  }
+
+  /** Plaza, puertas, casas en obras y huertos del pueblo, para la rutina de sus vecinos. */
+  private lugaresDe(p: Pueblo, esDia: boolean): void {
+    const d = p.datos;
+    if (!p.huertos) {
+      p.huertos = [];
+      for (let k = 0; k < 10 && p.huertos.length < 5; k++) {
+        const a = this.azar() * Math.PI * 2;
+        const r = d.radio * (0.7 + this.azar() * 0.25);
+        const x = d.centro.x + Math.cos(a) * r;
+        const z = d.centro.z + Math.sin(a) * r;
+        if (this.ctx.nav.libre(x, z, 1.5)) p.huertos.push(new THREE.Vector3(x, 0, z));
+      }
+    }
+    const etapas = p.logica.etapas;
+    const obras = p.logica.enObras(esDia, p.amenaza) ? d.vista.obras(etapas) : [];
+    p.lugares = {
+      plaza: d.campana.clone().setY(0).lerp(d.centro, 0.5),
+      puertas: d.vista.puertas(etapas),
+      obras,
+      huertos: p.huertos,
+      noche: !esDia,
+    };
   }
 
   private caer(p: Pueblo): void {

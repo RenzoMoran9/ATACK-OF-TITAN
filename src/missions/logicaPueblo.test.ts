@@ -59,3 +59,28 @@ describe('vida de un pueblo', () => {
     expect(titanesAtaque(40)).toBe(7);
   });
 });
+
+describe('reconstrucción que termina', () => {
+  it('con gente, un pueblo liberado se termina en unas pocas horas de día', () => {
+    const p = new LogicaPueblo('x', 10, 0);
+    p.liberado = true;
+    p.habitantes = 5; // poca gente: va al ritmo mínimo
+    let horas = 0;
+    while (p.progreso < 1 && horas < 24) {
+      p.avanzar(0.25, true, 0, true);
+      horas += 0.25;
+    }
+    expect(p.progreso).toBe(1);
+    expect(horas).toBeLessThanOrEqual(7);
+  });
+
+  it('un ataque no echa abajo las etapas ya terminadas', () => {
+    const p = new LogicaPueblo('x', 10, 0);
+    p.liberado = true;
+    p.habitantes = 30;
+    p.progreso = 0.7; // dos etapas hechas y media tercera
+    p.avanzar(5, true, 3, false);
+    expect(p.etapas).toBe(2);
+    expect(p.progreso).toBeCloseTo(2 / 3, 5);
+  });
+});
