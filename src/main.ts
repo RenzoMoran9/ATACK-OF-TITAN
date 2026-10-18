@@ -41,7 +41,7 @@ declare global {
   interface Window {
     /** true cuando la escena está construida y se han dibujado varios fotogramas (lo usa scripts/capturas.ts). */
     __juegoListo?: boolean;
-    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown; renderer?: unknown; sonido?: unknown };
+    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown; renderer?: unknown; sonido?: unknown; avanzar?: (segundos: number) => void };
   }
 }
 
@@ -490,6 +490,10 @@ async function iniciar(): Promise<void> {
     }),
     // Para pruebas automáticas (Playwright) y depuración en consola
     ctx,
+    /** Avanza la lógica del juego sin dibujar (simulaciones largas en pruebas). */
+    avanzar: (segundos: number) => {
+      for (let i = 0; i < Math.round(segundos * config.fisica.hz); i++) actualizar(1 / config.fisica.hz);
+    },
     campana,
     rig,
     mando,

@@ -984,9 +984,8 @@ export class Campamento implements FuerteAPI {
     }
     if (!this.hud) {
       const el = document.createElement('div');
-      el.style.cssText =
-        'position:fixed;left:50%;top:max(118px,calc(env(safe-area-inset-top) + 104px));transform:translateX(-50%);z-index:5;pointer-events:none;' +
-        'font:600 12px/1.3 Georgia,serif;color:#f1e7d0;text-shadow:0 1px 2px #000;text-align:center;letter-spacing:.06em';
+      el.className = 'hud-campamento';
+      el.style.color = '#f1e7d0';
       el.innerHTML = '<div class="t"></div><div style="width:180px;height:7px;margin:3px auto 0;background:rgba(0,0,0,.55);border:1px solid rgba(241,231,208,.5)"><div class="b" style="height:100%;width:100%;background:#7fae4f"></div></div>';
       document.body.appendChild(el);
       this.hud = el;

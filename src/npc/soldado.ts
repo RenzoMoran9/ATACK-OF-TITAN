@@ -118,6 +118,8 @@ export class Soldado implements Humano {
   lod = false;
   /** Para el HUD y los mensajes. */
   ultimaFrase = -99;
+  /** A quién anunció el intendente su última entrega, y cuándo. */
+  avisoGas: { humano: Humano | null; t: number } = { humano: null, t: -99 };
   /** No intentar recargar antes de este tiempo de juego (tras rendirse con un depósito). */
   vetoRecarga = 0;
   /** Vida 0–100: la pierde en la mano de un titán; a 0 cae. */
@@ -451,7 +453,7 @@ export class Soldado implements Humano {
     this.ctx.eventos.emit({ tipo: 'corte', titan, resultado: res, por: this });
     if (res.efecto === 'liberacion') {
       this.ultimaFrase = -99;
-      this.decir('¡Me he soltado yo solo!');
+      this.decir('¡Me he zafado de su mano!');
     }
   }
 

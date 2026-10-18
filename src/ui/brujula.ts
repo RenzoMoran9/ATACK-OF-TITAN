@@ -23,6 +23,12 @@ const CARDINALES: [string, number][] = [
   ['NO', -Math.PI / 4],
 ];
 
+/** Qué nombre se queda cuando dos se pisan en la tira (más = más importante). */
+const PRIORIDAD: Record<string, number> = { alarma: 6, jefe: 5, campamento: 4, trost: 3, deposito: 2, lugar: 1 };
+export function prioridad(clase: string): number {
+  return PRIORIDAD[clase.split(' ')[0]] ?? 0;
+}
+
 /** Rumbo de brújula (0 = norte, π/2 = este) de un desplazamiento horizontal. */
 export function rumboBrujula(dx: number, dz: number): number {
   return Math.atan2(dx, -dz);
@@ -45,6 +51,8 @@ export class Brujula {
   private readonly cardinales: HTMLSpanElement[] = [];
   private readonly pozo: HTMLDivElement[] = [];
   private readonly marcas: Marca[] = [];
+  private ancho = 400;
+  private cuentaAncho = 0;
   /** Pueblos del mundo abierto (para marcar los que están siendo atacados). */
   pueblos: (() => GestorPueblos | null) | null = null;
   /** Tu campamento (si has armado uno). */
@@ -105,13 +113,33 @@ export class Brujula {
     for (const e of ctx.suministros.lista) m.push({ clase: 'equipo', x: e.pos.x, z: e.pos.z });
     for (const t of ctx.poblacion.titanesCerca(j, 150)) m.push({ clase: t.cuadrupedo ? 'titan cuadrupedo' : 'titan', x: t.posicion.x, z: t.posicion.z });
 
-    let usadas = 0;
+    // los nombres no se pisan: los más importantes primero; a los que no caben, solo el punto
+    const visibles: { marca: Marca; x: number; texto: string }[] = [];
     for (const marca of m) {
       const dx = marca.x - j.x;
       const dz = marca.z - j.z;
       if (dx * dx + dz * dz < 4) continue;
       const x = pos(rumboBrujula(dx, dz));
-      if (x === null) continue;
+      if (x !== null) visibles.push({ marca, x, texto: marca.texto ?? '' });
+    }
+    // el ancho se lee de vez en cuando (leerlo cada fotograma fuerza a recalcular la maqueta)
+    if (this.cuentaAncho-- <= 0) {
+      this.cuentaAncho = 60;
+      this.ancho = this.raiz.clientWidth || 400;
+    }
+    const ancho = this.ancho;
+    const ocupado: [number, number][] = [];
+    for (const v of [...visibles].sort((a, b) => prioridad(b.marca.clase) - prioridad(a.marca.clase))) {
+      if (!v.texto) continue;
+      const medio = ((v.texto.length * 5.6 + 10) / ancho) * 50;
+      const a = v.x - medio;
+      const b = v.x + medio;
+      if (ocupado.some(([o0, o1]) => a < o1 && b > o0)) v.texto = '';
+      else ocupado.push([a, b]);
+    }
+
+    let usadas = 0;
+    for (const { marca, x, texto } of visibles) {
       let el = this.pozo[usadas];
       if (!el) {
         el = document.createElement('div');
@@ -123,7 +151,6 @@ export class Brujula {
       const clase = `marca ${marca.clase}`;
       if (el.className !== clase) el.className = clase;
       el.style.left = `${x}%`;
-      const texto = marca.texto ?? '';
       if (el.textContent !== texto) el.textContent = texto;
     }
     for (let i = usadas; i < this.pozo.length; i++) this.pozo[i].hidden = true;

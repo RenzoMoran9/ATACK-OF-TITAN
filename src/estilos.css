@@ -321,7 +321,7 @@ body {
 .hud-anormal {
   position: absolute;
   left: 50%;
-  top: 12%;
+  top: max(118px, calc(env(safe-area-inset-top) + 104px));
   transform: translateX(-50%);
   font-size: 15px;
   letter-spacing: 3px;
@@ -886,10 +886,54 @@ body.tactil .hud-mando .leyenda,
 body.tactil .hud-mando .l2 {
   display: none;
 }
+/* columna central de arriba: brújula, barra del asalto, barra del campamento y aviso del
+   cambiante, una debajo de otra y lejos de la mira */
+.hud-asalto,
+.hud-campamento {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  pointer-events: none;
+  font: 600 12px/1.3 Georgia, serif;
+  text-shadow: 0 1px 2px #000;
+  text-align: center;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.hud-asalto {
+  top: max(56px, calc(env(safe-area-inset-top) + 46px));
+}
+.hud-campamento {
+  top: max(88px, calc(env(safe-area-inset-top) + 78px));
+}
+body.tactil .hud-asalto,
+body.tactil .hud-campamento {
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+body.tactil .hud-asalto {
+  top: calc(86px + env(safe-area-inset-top));
+}
+body.tactil .hud-campamento {
+  top: calc(114px + env(safe-area-inset-top));
+}
+body.tactil .hud-anormal {
+  top: calc(142px + env(safe-area-inset-top));
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  max-width: 46vw;
+  text-align: center;
+}
+/* debajo del equipo (vida, aguante, filo, gas) y a la derecha del botón de gancho, no encima */
 body.tactil .hud-mensajes {
-  left: calc(14px + env(safe-area-inset-left));
-  top: 70px;
-  max-width: 34vw;
+  left: calc(92px + env(safe-area-inset-left));
+  top: calc(168px + env(safe-area-inset-top));
+  max-width: 30vw;
+}
+body.tactil .hud-mensajes .mensaje {
+  font-size: 12px;
 }
 body.tactil .hud-objetivo {
   left: calc(14px + env(safe-area-inset-left));

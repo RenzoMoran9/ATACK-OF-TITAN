@@ -402,7 +402,12 @@ export class CapMundo implements Capitulo {
   /** El refugio más cercano: la puerta sur, los puestos y el campamento descubiertos y los pueblos en paz. */
   private lugarSeguro(p: THREE.Vector3): THREE.Vector3 {
     const ctx = this.api.ctx;
-    const candidatos: THREE.Vector3[] = [new THREE.Vector3(6, 0, ctx.mundo.muralla.radioExterior + 30)];
+    const m = ctx.mundo.muralla;
+    // con un cambiante a las puertas no se reaparece delante de él, sino dentro de Trost
+    const trost = this.asaltos?.enCurso
+      ? (ctx.nav.puntoLibreCercano(0, m.radioInterior - 40, 1.5) ?? new THREE.Vector3(0, 0, m.radioInterior - 40))
+      : new THREE.Vector3(6, 0, m.radioExterior + 30);
+    const candidatos: THREE.Vector3[] = [trost];
     for (const l of ctx.mundo.lugares) if (l.descubierto && (l.tipo === 'puesto' || l.tipo === 'campamento' || l.tipo === 'castillo' || l.tipo === 'puente')) candidatos.push(l.pos);
     for (const x of this.pueblos?.refugios() ?? []) candidatos.push(x.datos.deposito);
     if (this.campamento?.listo) candidatos.push(this.campamento.centro.clone().add(new THREE.Vector3(2, 0, 2)));

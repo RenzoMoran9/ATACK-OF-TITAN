@@ -516,9 +516,12 @@ export class Titan implements TitanAPI {
   }
 
   private regenerar(dt: number): void {
-    // la herida de la nuca se cierra a U/6 por segundo, 1 s después del último corte
+    // la herida de la nuca se cierra a U/6 por segundo, 1 s después del último corte; la de un
+    // cambiante (que necesita varios tajos) aguanta 4 s entre pasada y pasada y se cierra en 30 s
     this.tSinCorteNuca += dt;
-    if (this.tSinCorteNuca > 1 && this.danioNuca > 0) this.danioNuca = Math.max(0, this.danioNuca - (umbralNuca(this.altura) / 6) * dt);
+    const espera = this.especial ? 4 : 1;
+    const cierre = this.especial ? (umbralNuca(this.altura) * aguanteNuca(this.especial)) / 30 : umbralNuca(this.altura) / 6;
+    if (this.tSinCorteNuca > espera && this.danioNuca > 0) this.danioNuca = Math.max(0, this.danioNuca - cierre * dt);
     for (const [zona, restante] of this.regen) {
       const r = restante - dt;
       if (r > 0) {
@@ -1011,7 +1014,8 @@ export class Titan implements TitanAPI {
     } else if (libre(this.posicion.x, nueva.z)) {
       this.posicion.z = nueva.z;
     } else {
-      this.ruta = null; // atascado: recalcular
+      this.ruta = null; // atascado: recalcular enseguida
+      this.tRuta = Math.min(this.tRuta, 0.3);
     }
     this.posicion.y = 0;
   }
@@ -1052,7 +1056,13 @@ export class Titan implements TitanAPI {
   private siguientePunto(meta: THREE.Vector3, dt: number): THREE.Vector3 {
     this.tRuta -= dt;
     if (this.tRuta <= 0 || meta.distanceTo(this.metaRuta) > 4 + this.altura * 0.3) {
-      this.ruta = this.ctx.nav.ruta(this.posicion, meta, this.radioNav, 5000);
+      const nav = this.ctx.nav;
+      // los cambiantes van lejos (y los grandes no caben por cualquier sitio): más búsqueda
+      const presupuesto = this.especial ? 20000 : 5000;
+      // sin ruta holgada, la justa para su cuerpo (la que se usa al andar); sin ninguna, sigue la que tenía
+      const nueva = nav.ruta(this.posicion, meta, this.radioNav, presupuesto) ?? nav.ruta(this.posicion, meta, this.radioNav * 0.7, presupuesto);
+      const sigueValiendo = meta.distanceTo(this.metaRuta) <= 4 + this.altura * 0.3;
+      if (nueva || !sigueValiendo) this.ruta = nueva;
       this.metaRuta.copy(meta);
       this.tRuta = 0.8 + this.azar() * 0.5;
     }

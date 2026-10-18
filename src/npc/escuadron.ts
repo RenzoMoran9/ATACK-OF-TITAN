@@ -367,13 +367,18 @@ export class Escuadron implements EscuadronAPI {
 
     // El intendente reparte gas sin que se lo pidan: a ti primero, luego al que vaya más justo
     for (const s of libres) {
-      if (s.rol !== 'intendente' || asignados.has(s) || (s.orden.dada && !s.orden.campamento)) continue;
+      // si está huyendo de un titán, primero se pone a salvo (lo lleva la retirada)
+      if (s.rol !== 'intendente' || asignados.has(s) || s.huyendo || (s.orden.dada && !s.orden.campamento)) continue;
       const quien = this.necesitaGas(s);
       if (!quien) continue;
       if (!(s.mision.tipo === 'darGas' && s.mision.humano === quien)) {
         s.mision = { tipo: 'darGas', humano: quien };
-        s.ultimaFrase = -99;
-        s.decir(quien === j ? '¡Voy, te llevo gas, hojas y vendas!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, aguanta, te llevo suministros!`);
+        // lo anuncia una vez por compañero (no cada vez que retoma la entrega)
+        if (s.avisoGas.humano !== quien || ctx.reloj.t - s.avisoGas.t > 30) {
+          s.avisoGas = { humano: quien, t: ctx.reloj.t };
+          s.ultimaFrase = -99;
+          s.decir(quien === j ? '¡Voy, te llevo gas, hojas y vendas!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, aguanta, te llevo suministros!`);
+        }
       }
       asignados.add(s);
     }
@@ -510,11 +515,11 @@ export class Escuadron implements EscuadronAPI {
       s.herido = estaHerido(fraccion, s.herido);
       if (s.herido && !estabaHerido) {
         s.huyendo = true;
-        s.decir('¡Estoy herido, me retiro!');
+        s.decir('¡Me han herido, me retiro!');
         const adonde = medico && medico !== s ? 'con el médico' : 'hacia ti';
-        ctx.eventos.emit({ tipo: 'mensaje', texto: `${s.nombre} herido (${Math.round(fraccion * 100)} %): se retira ${adonde}`, segundos: 3 });
+        ctx.eventos.emit({ tipo: 'mensaje', texto: `${s.nombre} tiene heridas graves (${Math.round(fraccion * 100)} %): se retira ${adonde}`, segundos: 3 });
       } else if (estabaHerido && !s.herido) {
-        ctx.eventos.emit({ tipo: 'mensaje', texto: `${s.nombre} curado: vuelve a la línea`, segundos: 2.5 });
+        ctx.eventos.emit({ tipo: 'mensaje', texto: `${s.nombre} se ha recuperado: vuelve a la línea`, segundos: 2.5 });
       }
       // con una orden tuya no huye por su cuenta: la retirada (4) lo manda a tu espalda, a caballo si está lejos
       if (s.orden.dada) {
@@ -644,8 +649,8 @@ export class Escuadron implements EscuadronAPI {
   /** A quién le hace falta gas (para el intendente): el jugador por debajo del 35 %, o el compañero más justo. */
   private necesitaGas(intendente: Soldado): Humano | null {
     const j = this.ctx.jugador;
-    // nunca se mete bajo las manos de un titán para llegar a nadie
-    const seguro = (h: Humano) => !this.ctx.poblacion.titanesCerca(h.posicion, 14).some(esAmenaza);
+    // nunca se mete bajo las manos de un titán para llegar a nadie (las de uno grande llegan lejos)
+    const seguro = (h: Humano) => !this.ctx.poblacion.titanesCerca(h.posicion, 50).some((t) => esAmenaza(t) && t.posicion.distanceTo(h.posicion) < 14 + 0.5 * t.altura);
     if (j.vivo && !j.agarradoPor && seguro(j) && (j.gas.nivel < j.gas.capacidad * 0.35 || j.salud < j.saludMax * 0.6 || j.paresRepuesto < 2 || j.filo < 0.3)) return j;
     let peor: Soldado | null = null;
     let nota = 0;

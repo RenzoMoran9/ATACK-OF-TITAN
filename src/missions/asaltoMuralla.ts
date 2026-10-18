@@ -7,12 +7,15 @@ import type { Titan } from '../titans/titan';
 /**
  * Asaltos de los cambiantes a la muralla de Trost. Cada cierto tiempo uno de ellos (por turnos:
  * Colosal, Acorazado, Bestia) avanza hacia la puerta sur con una escolta de titanes, y hay que
- * pararlo antes de que la eche abajo:
+ * pararlo antes de que la eche abajo. Sale de campo abierto con el camino despejado (nunca de
+ * dentro de un bosque, donde un titán de 60 m no cabe entre los troncos):
  *
  * - Colosal (60 m): camina despacio hasta la puerta y la patea (cinco patadas la rompen). Cada
  *   pocos segundos suelta vapor: la nuca queda protegida y quien esté pegado a él se abrasa y sale
- *   despedido. Hay que cortarle la nuca entre nube y nube, y varias veces.
+ *   despedido. Hay que cortarle la nuca entre nube y nube, y varias veces. Si la rompe,
+ *   desaparece en una explosión de vapor, como en Trost.
  * - Acorazado (15 m): va a la puerta y la embiste una y otra vez; si te acercas, se vuelve contra ti.
+ *   Si la rompe, entra en la ciudad a cazar.
  * - Bestia (17 m): se planta a unos 150 m y lanza rocas: a ti, a tus soldados o a la puerta.
  *   Si te le acercas, pelea cuerpo a cuerpo.
  *
@@ -29,9 +32,11 @@ const ENTRE_ASALTOS: [number, number] = [780, 1200];
 const RADIO_JUGADOR = 1300;
 const VIDA_PUERTA = 100;
 const DANIO_PATADA = 20;
-const DANIO_EMBESTIDA = 9;
+const DANIO_EMBESTIDA = 6;
 const DANIO_ROCA_PUERTA = 5;
 const ESPERA_REPARAR = 120;
+/** Segundos que tarda el Colosal en desvanecerse tras abrir la brecha. */
+const DURACION_DESVANECER = 4;
 
 interface Roca {
   malla: THREE.Mesh;
@@ -51,6 +56,10 @@ interface Asalto {
   tVapor: number;
   /** Ya ha dado el golpe de la acción en curso. */
   golpeDado: boolean;
+  /** El Colosal, tras abrir la brecha, se desvanece en vapor (segundos que le quedan). */
+  desvanecer: number | null;
+  /** El Acorazado o la Bestia han entrado por la brecha a cazar. */
+  caza: boolean;
 }
 
 export class AsaltosMuralla {
@@ -97,11 +106,15 @@ export class AsaltosMuralla {
     }
     const a = this.asalto;
     a.escolta = a.escolta.filter((t) => t.vivo);
+    if (a.desvanecer !== null) {
+      this.desvanecerse(a, dt);
+      return;
+    }
     if (!a.jefe.vivo) {
-      this.ctx.eventos.emit({ tipo: 'mensaje', texto: `¡Has parado a ${nombreEspecial(a.tipo)}! La muralla resiste`, segundos: 4 });
-      for (const t of a.escolta) t.dirigirA?.(null);
-      this.asalto = null;
-      this.tSiguiente = ENTRE_ASALTOS[0] + Math.random() * (ENTRE_ASALTOS[1] - ENTRE_ASALTOS[0]);
+      const rota = this.ctx.mundo.muralla.rota;
+      this.ctx.eventos.emit({ tipo: 'mensaje', texto: rota ? 'Asalto detenido, pero la puerta está rota: los ingenieros la repararán cuando se despeje' : '¡Asalto detenido! La puerta de Trost resiste', segundos: 4 });
+      for (const t of a.escolta) if (!rota) t.dirigirA?.(null);
+      this.terminar();
       return;
     }
     if (a.tipo === 'colosal') this.colosal(a, dt);
@@ -111,29 +124,37 @@ export class AsaltosMuralla {
 
   /** Lanza ya un asalto (también para pruebas). */
   lanzar(tipo: EspecialTitan): void {
-    const { p, fuera } = this.puerta;
+    const { p } = this.puerta;
     const lejos = tipo === 'colosal' ? 520 : tipo === 'acorazado' ? 380 : 360;
-    const lateral = new THREE.Vector3(1, 0, 0).multiplyScalar((Math.random() - 0.5) * 140);
-    const sitio = p.clone().addScaledVector(fuera, lejos).add(lateral);
     const H = alturaEspecial(tipo);
-    const libre = this.ctx.nav.puntoLibreCercano(sitio.x, sitio.z, Math.max(1, 0.17 * H * 0.7), 14) ?? sitio;
-    const jefe = this.ctx.titanes.generar({ posicion: libre.clone(), altura: H, especial: tipo, rumbo: Math.atan2(p.x - libre.x, p.z - libre.z) }) as Titan;
+    const meta = this.metaDe(tipo);
+    const nav = this.ctx.nav;
+    const r = Math.max(0.6, 0.17 * H);
+    // sale de campo abierto con el camino despejado hasta su meta: nunca de dentro de un bosque
+    const sitio =
+      sitioDeSalida(p, lejos, Math.random, (x, z) => nav.libre(x, z, r) && nav.lineaLibre({ x, z }, meta, r)) ??
+      sitioDeSalida(p, lejos, Math.random, (x, z) => nav.libre(x, z, r) && nav.ruta({ x, z }, meta, r, 40000) !== null) ??
+      nav.puntoLibreCercano(p.x, p.z + lejos, r * 0.7, 14) ??
+      new THREE.Vector3(p.x, 0, p.z + lejos);
+    const jefe = this.ctx.titanes.generar({ posicion: sitio.clone(), altura: H, especial: tipo, rumbo: Math.atan2(p.x - sitio.x, p.z - sitio.z) }) as Titan;
     jefe.soloMarcha = true;
-    jefe.dirigirA(this.metaDe(tipo));
+    jefe.dirigirA(meta);
     const dia = this.ctx.ciclo.dia;
-    const escolta = this.ctx.titanes.generarGrupo(Math.min(6, 2 + dia), libre.clone().addScaledVector(fuera, -30), 40, [4, 5, 7, 8, 10, 12], 0.2);
+    // la escolta va unos pasos por delante, entre él y la puerta
+    const haciaPuerta = p.clone().sub(sitio).setY(0).normalize();
+    const escolta = this.ctx.titanes.generarGrupo(Math.min(6, 2 + dia), sitio.clone().addScaledVector(haciaPuerta, 30), 40, [4, 5, 7, 8, 10, 12], 0.2);
     for (const t of escolta) t.dirigirA?.(p);
-    this.asalto = { tipo, jefe, escolta, tGolpe: 3, tVapor: 10, golpeDado: false };
+    this.asalto = { tipo, jefe, escolta, tGolpe: 3, tVapor: 10, golpeDado: false, desvanecer: null, caza: false };
     this.vidaPuerta = this.ctx.mundo.muralla.rota ? 0 : this.vidaPuerta;
     const j = this.ctx.jugador.posicion;
-    const d = Math.round(Math.hypot(libre.x - j.x, libre.z - j.z));
+    const d = Math.round(Math.hypot(sitio.x - j.x, sitio.z - j.z));
     this.ctx.eventos.emit({ tipo: 'mensaje', texto: `¡${nombreEspecial(tipo).replace(/^./, (c) => c.toUpperCase())} avanza hacia la puerta sur de Trost! (${d} m) ¡Defiende la muralla!`, segundos: 5 });
     this.ctx.eventos.emit({ tipo: 'alarmaPueblo', nombre: 'Trost', pos: p.clone().setY(40) });
     this.ctx.efectos.bengala(p.clone().setY(55), '#d12a1f');
   }
 
   /** Adónde va cada uno: el Colosal y el Acorazado, a la puerta; la Bestia, a tiro de piedra. */
-  private metaDe(tipo: EspecialTitan): THREE.Vector3 {
+  metaDe(tipo: EspecialTitan): THREE.Vector3 {
     const { p, fuera } = this.puerta;
     const H = alturaEspecial(tipo);
     const separacion = tipo === 'colosal' ? 0.17 * H + 9 : tipo === 'acorazado' ? 6 : 150;
@@ -168,7 +189,12 @@ export class AsaltosMuralla {
         j.velocidad.addScaledVector(fuera, 22 * dt);
       }
     }
-    if (!this.llega(a, 0.12 * H + 6) || this.ctx.mundo.muralla.rota) {
+    // como en Trost: con la brecha abierta desaparece en una explosión de vapor
+    if (this.ctx.mundo.muralla.rota) {
+      if (!a.jefe.accion) this.empezarDesvanecer(a);
+      return;
+    }
+    if (!this.llega(a, 0.12 * H + 6)) {
       a.jefe.plantado = null;
       return;
     }
@@ -185,8 +211,18 @@ export class AsaltosMuralla {
       a.jefe.plantado = null;
       return;
     }
+    // con la brecha abierta entra en Trost a cazar (la orden, una vez: dirigirA borra su destino)
+    if (a.caza || this.ctx.mundo.muralla.rota) {
+      if (!a.caza && !a.jefe.accion) {
+        a.caza = true;
+        a.jefe.dirigirA(this.dentroDeTrost());
+      }
+      a.jefe.soloMarcha = false;
+      a.jefe.plantado = null;
+      return;
+    }
     a.jefe.soloMarcha = true;
-    if (!this.llega(a, 10) || this.ctx.mundo.muralla.rota) {
+    if (!this.llega(a, 10)) {
       a.jefe.plantado = null;
       return;
     }
@@ -204,12 +240,24 @@ export class AsaltosMuralla {
       a.jefe.accion = null;
       return;
     }
+    // ya dentro de Trost: caza como cualquier titán
+    if (a.caza) return;
     a.jefe.soloMarcha = true;
     if (!this.llega(a, 14)) {
       a.jefe.plantado = null;
       return;
     }
     const blanco = this.blancoRoca(a.jefe);
+    // con la brecha abierta y nadie a tiro, deja las rocas y entra en Trost a cazar
+    if (blanco.puerta && this.ctx.mundo.muralla.rota) {
+      if (!a.jefe.accion) {
+        a.caza = true;
+        a.jefe.soloMarcha = false;
+        a.jefe.plantado = null;
+        a.jefe.dirigirA(this.dentroDeTrost());
+      }
+      return;
+    }
     a.jefe.plantado = blanco.p;
     a.tGolpe -= dt;
     if (!a.jefe.accion && a.tGolpe <= 0) {
@@ -221,18 +269,24 @@ export class AsaltosMuralla {
     if (acc?.tipo === 'lanzar' && !a.golpeDado && acc.t >= acc.dur * 0.78) {
       a.golpeDado = true;
       const mano = a.jefe.modelo.posMano(1, new THREE.Vector3());
-      this.lanzarRoca(mano, blanco.p, blanco.puerta);
+      this.lanzarRoca(mano, blanco.p, blanco.puerta, blanco.jugador);
     }
   }
 
-  /** A quién tira la Bestia: a ti si estás a tiro, si no a un soldado, y si no a la puerta. */
-  private blancoRoca(b: Titan): { p: THREE.Vector3; puerta: boolean } {
+  /**
+   * A quién tira la Bestia: a ti si estás a tiro, si no a un soldado, y si no a la puerta. A quien
+   * está a cubierto tras la muralla (dentro de Trost y por debajo del adarve) no lo ve.
+   */
+  private blancoRoca(b: Titan): { p: THREE.Vector3; puerta: boolean; jugador: boolean } {
     const j = this.ctx.jugador;
     const alcance = 260;
-    if (j.vivo && j.posicion.distanceTo(b.posicion) < alcance) return { p: j.posicion.clone().addScaledVector(j.velocidad, 1.2), puerta: false };
-    const s = this.ctx.escuadron.soldados.find((x) => x.vivo && x.posicion.distanceTo(b.posicion) < alcance);
-    if (s) return { p: s.posicion.clone(), puerta: false };
-    return { p: this.puerta.p.clone().setY(12), puerta: true };
+    const m = this.ctx.mundo.muralla;
+    const aTiro = (p: THREE.Vector3) => p.distanceTo(b.posicion) < alcance && !(Math.hypot(p.x, p.z) < m.radioExterior + 2 && p.y < m.altura - 1);
+    // apunta algo por delante de quien se mueve, pero no adivina el futuro
+    if (j.vivo && aTiro(j.posicion)) return { p: j.posicion.clone().addScaledVector(j.velocidad, 0.6), puerta: false, jugador: true };
+    const s = this.ctx.escuadron.soldados.find((x) => x.vivo && aTiro(x.posicion));
+    if (s) return { p: s.posicion.clone(), puerta: false, jugador: false };
+    return { p: this.puerta.p.clone().setY(12), puerta: true, jugador: false };
   }
 
   /** Golpe periódico contra la puerta: la acción y, a mitad, el daño. */
@@ -266,7 +320,7 @@ export class AsaltosMuralla {
     this.ctx.eventos.emit({ tipo: 'brecha' });
     this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Han roto la puerta de Trost! Los titanes entran en la ciudad', segundos: 5 });
     // los titanes cruzan la brecha
-    const dentro = new THREE.Vector3(0, 0, m.radioInterior - 60);
+    const dentro = this.dentroDeTrost();
     for (const t of this.asalto?.escolta ?? []) t.dirigirA?.(dentro);
     this.tReparar = 0;
   }
@@ -287,16 +341,56 @@ export class AsaltosMuralla {
     this.ctx.eventos.emit({ tipo: 'mensaje', texto: 'Los ingenieros han reparado la puerta de Trost', segundos: 3 });
   }
 
+  /** Calles de Trost justo detrás de la puerta sur. */
+  private dentroDeTrost(): THREE.Vector3 {
+    return new THREE.Vector3(0, 0, this.ctx.mundo.muralla.radioInterior - 60);
+  }
+
+  private terminar(): void {
+    this.asalto = null;
+    this.tSiguiente = ENTRE_ASALTOS[0] + Math.random() * (ENTRE_ASALTOS[1] - ENTRE_ASALTOS[0]);
+  }
+
+  /** El Colosal se queda quieto y desaparece entre vapor abrasador; la escolta entra por la brecha. */
+  private empezarDesvanecer(a: Asalto): void {
+    const j = a.jefe;
+    const H = j.altura;
+    a.desvanecer = DURACION_DESVANECER;
+    j.plantado = j.posicion.clone().add(new THREE.Vector3(Math.sin(j.rumbo), 0, Math.cos(j.rumbo)));
+    j.protegerNuca(DURACION_DESVANECER + 1);
+    const sitio = j.posicion.clone();
+    for (const y of [0.25, 0.55, 0.85]) this.ctx.efectos.vaporContinuo(sitio.clone().setY(H * y), DURACION_DESVANECER + 2.5, 35, H * 0.3);
+    this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡El Colosal desaparece en una explosión de vapor! Los titanes entran por la brecha', segundos: 5 });
+  }
+
+  private desvanecerse(a: Asalto, dt: number): void {
+    const j = a.jefe;
+    a.desvanecer = (a.desvanecer ?? 0) - dt;
+    // el vapor abrasa a quien siga pegado a él
+    const h = this.ctx.jugador;
+    if (j.vivo && h.vivo && Math.hypot(h.posicion.x - j.posicion.x, h.posicion.z - j.posicion.z) < 0.35 * j.altura) {
+      (h as unknown as { herir?: (c: number, m: string) => void }).herir?.(12 * dt, 'El vapor del Colosal te ha abrasado');
+    }
+    if (a.desvanecer > 0 && j.vivo) return;
+    if (j.vivo) j.terminado = true;
+    this.terminar();
+  }
+
   // ─────────────────────────── Rocas de la Bestia ───────────────────────────
 
-  private lanzarRoca(desde: THREE.Vector3, hasta: THREE.Vector3, aPuerta: boolean): void {
+  private lanzarRoca(desde: THREE.Vector3, hasta: THREE.Vector3, aPuerta: boolean, aTi: boolean): void {
     const malla = new THREE.Mesh(this.geoRoca, this.matRoca);
     malla.castShadow = true;
     malla.position.copy(desde);
     this.ctx.escena.add(malla);
     const d = desde.distanceTo(hasta);
-    this.rocas.push({ malla, desde: desde.clone(), hasta: hasta.clone(), t: 0, dur: THREE.MathUtils.clamp(d / 55, 1, 4), alto: Math.min(70, d * 0.22), aPuerta });
-    this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Roca de la Bestia!', segundos: 1.2 });
+    // no es un cañón: cuanto más lejos, más se desvía (a la puerta, que es enorme, casi siempre acierta)
+    const desvio = aPuerta ? 2 : 3 + d * 0.035;
+    const fin = hasta.clone().add(new THREE.Vector3((Math.random() - 0.5) * 2 * desvio, 0, (Math.random() - 0.5) * 2 * desvio));
+    fin.y = Math.max(0, fin.y);
+    this.rocas.push({ malla, desde: desde.clone(), hasta: fin, t: 0, dur: THREE.MathUtils.clamp(d / 55, 1, 4), alto: Math.min(70, d * 0.22), aPuerta });
+    // solo avisa cuando va a por ti (si no, llenaría la pantalla de avisos)
+    if (aTi) this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Roca de la Bestia hacia ti!', segundos: 1.2 });
   }
 
   private moverRocas(dt: number): void {
@@ -307,11 +401,23 @@ export class AsaltosMuralla {
       r.malla.position.lerpVectors(r.desde, r.hasta, u).y += 4 * u * (1 - u) * r.alto;
       r.malla.rotation.x += dt * 4;
       r.malla.rotation.z += dt * 3;
-      if (u < 1) continue;
+      // la muralla para las rocas: revientan contra ella (y si es junto a la puerta, la dañan)
+      if (u < 1 && this.contraMuralla(r.malla.position)) {
+        r.hasta = r.malla.position.clone();
+        r.aPuerta = Math.abs(r.hasta.x) < this.ctx.mundo.muralla.anchoPuerta && r.hasta.z > 0;
+        r.t = 1;
+      } else if (u < 1) continue;
       r.malla.removeFromParent();
       this.rocas.splice(i, 1);
       this.impactoRoca(r);
     }
+  }
+
+  /** ¿Ese punto está dentro del muro (entre sus dos caras y por debajo de lo alto)? */
+  private contraMuralla(p: THREE.Vector3): boolean {
+    const m = this.ctx.mundo.muralla;
+    const r = Math.hypot(p.x, p.z);
+    return r > m.radioInterior && r < m.radioExterior && p.y < m.altura;
   }
 
   /** La roca revienta: polvo y daño en 7 m (te puede matar si no esquivas). */
@@ -346,9 +452,8 @@ export class AsaltosMuralla {
     }
     if (!this.hud) {
       const el = document.createElement('div');
-      el.style.cssText =
-        'position:fixed;left:50%;top:max(146px,calc(env(safe-area-inset-top) + 132px));transform:translateX(-50%);z-index:5;pointer-events:none;' +
-        'font:600 12px/1.3 Georgia,serif;color:#f6dccf;text-shadow:0 1px 2px #000;text-align:center;letter-spacing:.06em';
+      el.className = 'hud-asalto';
+      el.style.color = '#f6dccf';
       el.innerHTML = '<div class="t"></div><div style="width:200px;height:7px;margin:3px auto 0;background:rgba(0,0,0,.55);border:1px solid rgba(246,220,207,.5)"><div class="b" style="height:100%;width:100%;background:#c2412e"></div></div>';
       document.body.appendChild(el);
       this.hud = el;
@@ -369,4 +474,22 @@ export class AsaltosMuralla {
     this.geoRoca.dispose();
     this.matRoca.dispose();
   }
+}
+
+/**
+ * Punto de salida de un asalto: a `lejos` m de la puerta (al sur, hasta 80° a cada lado), elegido
+ * al azar entre los que cumplen `vale` (campo abierto y camino despejado). Null si ninguno vale.
+ */
+export function sitioDeSalida(puerta: THREE.Vector3, lejos: number, azar: () => number, vale: (x: number, z: number) => boolean): THREE.Vector3 | null {
+  const buenos: THREE.Vector3[] = [];
+  for (const d of [lejos, lejos * 0.8, lejos * 0.6]) {
+    for (let g = -80; g <= 80; g += 5) {
+      const a = (g * Math.PI) / 180;
+      const x = puerta.x + Math.sin(a) * d;
+      const z = puerta.z + Math.cos(a) * d;
+      if (vale(x, z)) buenos.push(new THREE.Vector3(x, 0, z));
+    }
+    if (buenos.length > 0) break;
+  }
+  return buenos.length > 0 ? buenos[Math.floor(azar() * buenos.length)] : null;
 }

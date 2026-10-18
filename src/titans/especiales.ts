@@ -40,7 +40,7 @@ export function alturaEspecial(e: EspecialTitan): number {
 
 /** Multiplica el umbral de la nuca: cuánto cuesta matarlo de un tajo. */
 export function aguanteNuca(e: EspecialTitan | null): number {
-  return e === 'acorazado' ? 1.3 : e === 'hembra' ? 1.4 : e === 'colosal' ? 4 : e === 'bestia' ? 2.2 : 1;
+  return e === 'acorazado' ? 2 : e === 'hembra' ? 1.4 : e === 'colosal' ? 4 : e === 'bestia' ? 2.2 : 1;
 }
 
 /** Multiplica su velocidad: el Colosal camina despacio, la Bestia algo menos que un puro. */
