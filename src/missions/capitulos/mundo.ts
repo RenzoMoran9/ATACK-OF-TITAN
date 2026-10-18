@@ -540,7 +540,7 @@ export class CapMundo implements Capitulo {
     const detalle = [
       `Pueblos en paz ${pueblos?.enPaz ?? 0}/${n}`,
       `Vecinos ${pueblos?.poblacion ?? 0}`,
-      `Titanes abatidos ${this.titanesTotales}`,
+      `Titanes ${this.titanesTotales}`,
       textoRango(this.meritos),
     ].join(' · ');
     this.api.objetivo(titulo, detalle);

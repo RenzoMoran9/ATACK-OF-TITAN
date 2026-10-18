@@ -270,7 +270,8 @@ body {
   position: absolute;
   left: 24px;
   top: 16px;
-  max-width: min(460px, calc(100vw - 48px));
+  /* sin llegar a la brújula (centrada arriba): si no cabe, el detalle pasa a dos líneas */
+  max-width: min(460px, calc(50vw - min(200px, 19vw) - 36px));
   padding: 10px 14px;
   background: linear-gradient(90deg, rgba(10, 14, 20, 0.6), rgba(10, 14, 20, 0));
   border-left: 3px solid #b3121b;
@@ -969,6 +970,8 @@ body.tactil .hud-mensajes .mensaje {
 body.tactil .hud-objetivo {
   left: calc(14px + env(safe-area-inset-left));
   top: 8px;
+  /* en el celular la brújula va más abajo: aquí solo hay que no pisar los botones de arriba */
+  max-width: min(460px, 46vw);
   transform: scale(0.85);
   transform-origin: top left;
 }
