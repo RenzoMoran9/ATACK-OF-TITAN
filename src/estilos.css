@@ -1265,6 +1265,13 @@ body.tactil .hud-objetivo {
   border: 2px solid rgba(232, 222, 200, 0.7);
   box-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
 }
+.hud-mapa .asalto {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #ff9c8a;
+  text-align: center;
+}
 .hud-mapa .pie {
   font-size: 13px;
   text-shadow: 0 1px 2px #000;

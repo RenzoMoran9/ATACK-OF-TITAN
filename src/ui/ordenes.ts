@@ -252,7 +252,7 @@ function texturaIcono(color: string): THREE.CanvasTexture {
 
 const LEYENDA =
   '<div class="leyenda"><span><b>1</b> Seguid</span><span><b>2</b> Atacad</span><span><b>3</b> Civiles</span><span><b>4</b> Retirada</span>' +
-  '<span><b>5</b> Esperad</span><span><b>6</b> Id allí</span><span><b>7</b> Ese titán</span><span><b>8</b> Explorad</span>' +
+  '<span><b>5</b> Esperad</span><span><b>6</b> Id allí</span><span><b>7</b> Ese titán</span><span><b>8</b> Explorad</span><span><b>9</b> A la muralla</span>' +
   '<span class="tab"><b>Tab</b> a quién mandas</span></div>';
 
 /**

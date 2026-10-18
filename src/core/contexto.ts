@@ -134,6 +134,7 @@ export class EscuadronNulo implements EscuadronAPI {
     return null;
   }
   trabajarEn(): void {}
+  aLaMuralla(): void {}
   info(): null {
     return null;
   }

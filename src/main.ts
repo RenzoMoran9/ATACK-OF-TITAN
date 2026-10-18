@@ -229,6 +229,7 @@ async function iniciar(): Promise<void> {
     return c && o ? { aguja: c.aguja, zona: c.zona, ancho: ANCHO_ZONA, progreso: o.progreso } : null;
   };
   mapa.pueblos = sonidos.pueblos;
+  mapa.asaltos = () => mundoAbierto()?.asaltos?.proximo ?? null;
   const derechaCamara = new THREE.Vector3();
   const alternarSonido = () => {
     sonido.desbloquear();

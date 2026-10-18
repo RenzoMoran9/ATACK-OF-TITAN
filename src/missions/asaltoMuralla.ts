@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { ContextoJuego } from '../core/contexto';
 import type { EspecialTitan, TitanAPI } from '../core/tipos';
-import { alturaEspecial, nombreEspecial } from '../titans/especiales';
+import { alturaEspecial, nombreCon, nombreCorto, nombreEspecial } from '../titans/especiales';
 import type { Titan } from '../titans/titan';
 
 /**
@@ -35,6 +35,8 @@ const DANIO_PATADA = 20;
 const DANIO_EMBESTIDA = 6;
 const DANIO_ROCA_PUERTA = 5;
 const ESPERA_REPARAR = 120;
+/** La campana de Trost avisa tantos segundos antes de cada asalto. */
+export const AVISO_PREVIO = 60;
 /** Segundos que tarda el Colosal en desvanecerse tras abrir la brecha. */
 const DURACION_DESVANECER = 4;
 
@@ -74,6 +76,7 @@ export class AsaltosMuralla {
   private hud: HTMLDivElement | null = null;
   private tHud = 0;
   private tAvisoVapor = -99;
+  private avisoDado = false;
   private t = 0;
 
   constructor(private readonly ctx: ContextoJuego) {}
@@ -88,6 +91,31 @@ export class AsaltosMuralla {
     return this.asalto !== null;
   }
 
+  /** El próximo asalto: quién y en cuántos segundos (`espera`: estás lejos y no empezará hasta que vuelvas). */
+  get proximo(): { tipo: EspecialTitan; segundos: number; espera: boolean } | null {
+    if (this.asalto) return null;
+    return { tipo: TURNOS[this.turno % TURNOS.length], segundos: Math.max(0, this.tSiguiente), espera: !this.puedeEmpezar };
+  }
+
+  /** Solo hay asalto si andas a menos de 1,3 km de Trost y la puerta está en pie. */
+  private get puedeEmpezar(): boolean {
+    const j = this.ctx.jugador.posicion;
+    return Math.hypot(j.x, j.z) <= RADIO_JUGADOR && !this.ctx.mundo.muralla.rota;
+  }
+
+  /** Un minuto antes: repica la campana de Trost y los vigías dicen quién viene y por dónde. */
+  private avisar(): void {
+    this.avisoDado = true;
+    const tipo = TURNOS[this.turno % TURNOS.length];
+    const p = this.puerta.p;
+    this.ctx.eventos.emit({ tipo: 'alarmaPueblo', nombre: 'Trost', pos: p.clone().setY(40) });
+    this.ctx.eventos.emit({
+      tipo: 'mensaje',
+      texto: `¡Campana en Trost! Los vigías avistan ${nombreCon(tipo, 'a')} al sur: llega en un minuto. Sube a la muralla (T: cañones · 9: el escuadrón a los cañones) o sal a su encuentro`,
+      segundos: 7,
+    });
+  }
+
   actualizar(dt: number): void {
     this.t += dt;
     this.moverRocas(dt);
@@ -95,13 +123,16 @@ export class AsaltosMuralla {
     this.actualizarHud(dt);
     if (!this.asalto) {
       this.tSiguiente -= dt;
+      if (this.tSiguiente <= AVISO_PREVIO && !this.avisoDado && this.puedeEmpezar) this.avisar();
       if (this.tSiguiente > 0) return;
-      const j = this.ctx.jugador.posicion;
-      if (Math.hypot(j.x, j.z) > RADIO_JUGADOR || this.ctx.mundo.muralla.rota) {
+      if (!this.puedeEmpezar) {
+        // lejos de Trost (o con la puerta ya rota) espera; el aviso se repite cuando vuelva a tocar
         this.tSiguiente = 90;
+        this.avisoDado = false;
         return;
       }
       this.lanzar(TURNOS[this.turno++ % TURNOS.length]);
+      this.avisoDado = false;
       return;
     }
     const a = this.asalto;
@@ -446,7 +477,9 @@ export class AsaltosMuralla {
     this.tHud = 0.3;
     const a = this.asalto;
     const rota = this.ctx.mundo.muralla.rota;
-    if (!a && !rota) {
+    const prox = this.proximo;
+    const cuentaAtras = !a && !rota && prox && !prox.espera && prox.segundos <= AVISO_PREVIO ? prox : null;
+    if (!a && !rota && !cuentaAtras) {
       if (this.hud) this.hud.hidden = true;
       return;
     }
@@ -460,7 +493,12 @@ export class AsaltosMuralla {
     }
     this.hud.hidden = false;
     const j = this.ctx.jugador.posicion;
-    const quien = a ? `${a.tipo === 'colosal' ? 'COLOSAL' : a.tipo === 'acorazado' ? 'ACORAZADO' : 'BESTIA'} a ${Math.round(Math.hypot(a.jefe.posicion.x - j.x, a.jefe.posicion.z - j.z))} m` : 'BRECHA ABIERTA';
+    const mayus = (t: EspecialTitan) => nombreCorto(t).toUpperCase();
+    const quien = a
+      ? `${mayus(a.tipo)} a ${Math.round(Math.hypot(a.jefe.posicion.x - j.x, a.jefe.posicion.z - j.z))} m`
+      : cuentaAtras
+        ? `${mayus(cuentaAtras.tipo)} LLEGA EN ${Math.ceil(cuentaAtras.segundos)} s`
+        : 'BRECHA ABIERTA';
     (this.hud.querySelector('.t') as HTMLElement).textContent = `PUERTA DE TROST ${Math.round(rota ? 0 : this.vidaPuerta)} % · ${quien}`;
     (this.hud.querySelector('.b') as HTMLElement).style.width = `${Math.round(rota ? 0 : this.vidaPuerta)}%`;
   }

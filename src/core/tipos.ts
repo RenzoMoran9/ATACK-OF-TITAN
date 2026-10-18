@@ -324,6 +324,8 @@ export interface EscuadronAPI {
   crear(miembros: MiembroEscuadron[], cerca: THREE.Vector3): void;
   /** Da la orden a la selección; los demás conservan la suya. */
   ordenar(o: OrdenEscuadron, destino?: DestinoOrden): void;
+  /** «¡A la muralla!»: la selección sube junto a esos cañones (puntos en la coronación) y los maneja. */
+  aLaMuralla(puntos: THREE.Vector3[]): void;
   /**
    * Manda a un soldado a trabajar junto a `punto` (montar el campamento) o, con null, lo deja
    * esperando junto a `descanso` (o siguiéndote si no hay). No lanza bengala ni habla.

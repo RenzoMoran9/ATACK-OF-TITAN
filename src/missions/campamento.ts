@@ -1,6 +1,7 @@
 import type RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { umbralNuca, umbralZona } from '../combat/corte';
+import { Artilleria, puntoDeTiro } from '../combat/artilleria';
+import { umbralZona } from '../combat/corte';
 import type { ContextoJuego } from '../core/contexto';
 import type { FuerteAPI, Humano, JugadorAPI, TitanAPI, ZonaTitan } from '../core/tipos';
 import { COLOR_AVISO, textoAviso } from '../npc/logicaOrdenes';
@@ -97,25 +98,6 @@ interface Canon {
   tSinTitanes: number;
 }
 
-interface Bala {
-  malla: THREE.Mesh;
-  desde: THREE.Vector3;
-  titan: TitanAPI;
-  zona: ZonaTitan;
-  /** Punto de impacto (se actualiza mientras vuela: sigue al titán). */
-  hasta: THREE.Vector3;
-  duracion: number;
-  t: number;
-}
-
-/** Vida que le van quitando los cañonazos a un titán (0–1) y su barra sobre la cabeza. */
-interface VidaTitan {
-  vida: number;
-  tGolpe: number;
-  fondo: THREE.Sprite;
-  barra: THREE.Sprite;
-}
-
 const MADERA = new THREE.MeshLambertMaterial({ color: '#6b4c30' });
 const TRONCO = new THREE.MeshLambertMaterial({ color: '#5a4029' });
 const PUNTA = new THREE.MeshLambertMaterial({ color: '#8a6a45' });
@@ -126,7 +108,6 @@ const LONA_VERDE = new THREE.MeshLambertMaterial({ color: '#5d6e4a', side: THREE
 const ESTANDARTE = new THREE.MeshLambertMaterial({ color: '#2f4a2a', side: THREE.DoubleSide });
 const LATA = new THREE.MeshLambertMaterial({ color: '#9aa0a6' });
 const PIEDRA = new THREE.MeshLambertMaterial({ color: '#8f8a80' });
-const BALA = new THREE.MeshLambertMaterial({ color: '#202020' });
 const BRONCE = new THREE.MeshLambertMaterial({ color: '#3a3326' });
 
 const N = NUM_POSTES;
@@ -164,14 +145,12 @@ const ENTRE_ATAQUES: [number, number] = [300, 480];
 const ALCANCE_CANON = 260;
 const ARCO_CANON = (50 * Math.PI) / 180;
 /** Velocidad de la bala (m/s): de lejos tarda en llegar. */
-const VEL_BALA = 150;
 /** Tronera: medio ancho del hueco en la empalizada y altura de los troncos rebajados. */
 const MEDIA_TRONERA = 1.15;
 const ALTO_TRONERA = 2.3;
 /** Altura del eje del cañón sobre el suelo (adarve + plataforma + cureña). */
 const ALTO_CANON = ALTO_ADARVE + 0.12 + 0.78;
 /** Segundos sin cañonazos para que un titán empiece a regenerar la vida perdida. */
-const REGEN_TITAN = 10;
 const RADIO_AVISO = 260;
 const PIERNAS: ZonaTitan[] = ['corvaIzq', 'corvaDer', 'tendonIzq', 'tendonDer'];
 
@@ -213,9 +192,6 @@ export class Campamento implements FuerteAPI {
   private readonly heridas = new Map<number, number>();
   private readonly avisados = new Set<number>();
   private readonly canones: Canon[] = [];
-  private readonly balas: Bala[] = [];
-  private readonly geoBala = new THREE.SphereGeometry(0.3, 10, 8);
-  private readonly vidas = new Map<TitanAPI, VidaTitan>();
   /** Vida de cada tramo de empalizada (los terminados empiezan llenos). */
   private readonly vidaTramo: number[] = Array.from({ length: N }, () => VIDA_TRAMO);
   private tAtaque = PRIMER_ATAQUE;
@@ -234,6 +210,8 @@ export class Campamento implements FuerteAPI {
 
   constructor(
     private readonly ctx: ContextoJuego,
+    /** Balas, impactos y barras de vida (compartida con los cañones de la muralla). */
+    private readonly artilleria: Artilleria,
     centro: THREE.Vector3,
     guardado?: EstadoGuardadoCampamento,
     giro = 0,
@@ -499,7 +477,6 @@ export class Campamento implements FuerteAPI {
     this.vigias();
     for (const k of this.canones) k.recarga = Math.max(0, k.recarga - dt);
     this.expulsarTitanes();
-    this.regenerarVidas(dt);
     // la hoguera crepita
     const f = 1 + 0.18 * Math.sin(this.t * 13) * Math.sin(this.t * 7.3);
     this.fuego.scale.set(1.3 * f, 1.8 * f, 1);
@@ -525,52 +502,12 @@ export class Campamento implements FuerteAPI {
       }
       const t = this.objetivoDe(k, usados);
       if (t) usados.add(t);
-      this.apuntar(k, t ? this.puntoDeTiro(t) : null);
+      this.apuntar(k, t ? puntoDeTiro(t) : null);
       k.retroceso = Math.max(0, k.retroceso - dt * 1.6);
       k.tubo.position.z = -0.45 * Math.sin(Math.min(1, k.retroceso) * Math.PI * 0.5);
       k.fogonazo.visible = k.retroceso > 0.82;
       k.fogonazo.scale.setScalar(1.2 + 2.5 * (1 - k.retroceso));
       k.material.color.setRGB(0.16 + 0.4 * Math.min(1, k.recarga / RECARGA_CANON), 0.16, 0.17);
-    }
-    // balas: parábola hacia el punto del titán (que se mueve mientras vuelan)
-    for (let i = this.balas.length - 1; i >= 0; i--) {
-      const b = this.balas[i];
-      b.t += dt / b.duracion;
-      if (b.titan.vivo) {
-        const p = b.titan.puntosDebiles.find((x) => x.zona === b.zona);
-        if (p) b.hasta.copy(p.centro);
-      }
-      const u = Math.min(1, b.t);
-      const arco = 4 * u * (1 - u) * Math.min(25, b.desde.distanceTo(b.hasta) * 0.06);
-      b.malla.position.lerpVectors(b.desde, b.hasta, u).y += arco;
-      if (Math.random() < 0.5) this.ctx.efectos.vapor(b.malla.position, 1, 0.35, 0.3);
-      if (b.t >= 1) {
-        b.malla.removeFromParent();
-        this.balas.splice(i, 1);
-        this.impacto(b);
-      }
-    }
-    this.dibujarVidas();
-  }
-
-  /** Barra de vida (cañonazos) sobre la cabeza de cada titán tocado; se recupera si dejan de darle. */
-  private dibujarVidas(): void {
-    const camara = this.ctx.camara;
-    const derecha = new THREE.Vector3().setFromMatrixColumn(camara.matrixWorld, 0);
-    for (const [t, v] of this.vidas) {
-      if (!t.vivo || v.vida >= 1) {
-        v.fondo.removeFromParent();
-        v.barra.removeFromParent();
-        this.vidas.delete(t);
-        continue;
-      }
-      const ancho = 1.5 + t.altura * 0.25;
-      const cabeza = t.cabeza().add(new THREE.Vector3(0, 1.2 + t.altura * 0.12, 0)).addScaledVector(derecha, -ancho / 2);
-      v.fondo.position.copy(cabeza);
-      v.barra.position.copy(cabeza);
-      v.fondo.scale.set(ancho, 0.22 + t.altura * 0.02, 1);
-      v.barra.scale.set(Math.max(0.001, ancho * v.vida), 0.22 + t.altura * 0.02, 1);
-      (v.barra.material as THREE.SpriteMaterial).color.setHSL(0.33 * v.vida, 0.85, 0.45);
     }
   }
 
@@ -749,7 +686,7 @@ export class Campamento implements FuerteAPI {
     let dMejor = ALCANCE_CANON;
     const p = k.pivote.position;
     for (const t of this.ctx.poblacion.titanesCerca(p, ALCANCE_CANON)) {
-      if (!t.vivo || t instanceof Silueta || evitar.has(t)) continue;
+      if (!Artilleria.blanco(t) || evitar.has(t)) continue;
       const dx = t.posicion.x - p.x;
       const dz = t.posicion.z - p.z;
       let da = Math.atan2(dz, dx) - k.rumbo;
@@ -784,87 +721,13 @@ export class Campamento implements FuerteAPI {
     k.pivote.lookAt(o.clone().add(dir));
   }
 
-  /** Nuca del titán caído; rodillas del que está en pie. */
-  private zonaDeTiro(t: TitanAPI): ZonaTitan {
-    const tumbado = t.estado === 'derribado' || t.estado === 'cegado';
-    if (tumbado && t.puntosDebiles.some((p) => p.zona === 'nuca' && p.activo)) return 'nuca';
-    return PIERNAS.find((z) => t.puntosDebiles.some((p) => p.zona === z && p.activo)) ?? 'cuerpo';
-  }
-
-  private puntoDeTiro(t: TitanAPI): THREE.Vector3 {
-    const z = this.zonaDeTiro(t);
-    return t.puntosDebiles.find((p) => p.zona === z)?.centro.clone() ?? t.posicion.clone().setY(t.altura * 0.4);
-  }
-
   /** Fogonazo, retroceso y la bala en camino; el daño se aplica cuando llega. */
   private dispararCanon(k: Canon, t: TitanAPI): void {
     k.recarga = RECARGA_CANON;
     k.retroceso = 1;
-    const zona = this.zonaDeTiro(t);
-    const blanco = this.puntoDeTiro(t);
-    this.apuntar(k, blanco);
+    this.apuntar(k, puntoDeTiro(t));
     k.pivote.updateMatrixWorld(true);
-    const boca = k.boca.getWorldPosition(new THREE.Vector3());
-    const bala = new THREE.Mesh(this.geoBala, BALA);
-    bala.position.copy(boca);
-    bala.castShadow = true;
-    this.ctx.escena.add(bala);
-    const d = boca.distanceTo(blanco);
-    this.balas.push({ malla: bala, desde: boca, titan: t, zona, hasta: blanco, duracion: Math.max(0.2, d / VEL_BALA), t: 0 });
-    this.ctx.efectos.vapor(boca, 22, 1.4, 5);
-    this.ctx.eventos.emit({ tipo: 'canon', pos: boca });
-  }
-
-  /**
-   * La bala llega: rodillas del titán en pie (cojea o cae), nuca del caído, y siempre le quita vida.
-   * Cuanto más grande el titán, más cañonazos aguanta (3 uno de 3 m, 6 uno de 15 m). Sin vida, muere.
-   */
-  private impacto(b: Bala): void {
-    const t = b.titan;
-    this.ctx.efectos.vapor(b.hasta, 12, 1 + t.altura * 0.06, 4);
-    if (!t.vivo) return;
-    const zona = t.puntosDebiles.some((p) => p.zona === b.zona && p.activo) ? b.zona : 'cuerpo';
-    // los cambiantes encajan mucho mejor la bala: el Acorazado casi ni se inmuta
-    const aguante = t.especial === 'acorazado' ? 0.08 : t.especial === 'hembra' ? 0.3 : 1;
-    const danio = (zona === 'nuca' ? umbralNuca(t.altura) * 0.55 : zona === 'cuerpo' ? 1 : umbralZona(zona, t.altura) * 1.3) * aguante;
-    const res = t.recibirCorte(zona, danio, this.ctx.jugador);
-    if (res.efecto !== 'nada') this.ctx.efectos.sangre(b.hasta.clone(), b.hasta.clone().sub(b.desde).normalize(), 14);
-    if (!t.vivo) return;
-    this.quitarVida(t, this.danioCanon(t));
-    // la metralla y la onda alcanzan a los que van al lado (la mitad)
-    for (const otro of this.ctx.poblacion.titanesCerca(b.hasta, 8)) {
-      if (otro !== t && otro.vivo && !(otro instanceof Silueta)) this.quitarVida(otro, this.danioCanon(otro) * 0.5);
-    }
-  }
-
-  /**
-   * Vida que quita un cañonazo: un titán normal cae con 2 (los pequeños) o 3 (los de 15 m). Los
-   * cambiantes aguantan mucho más: la Hembra unos 6 y el Acorazado, con su coraza, unos 25.
-   */
-  private danioCanon(t: TitanAPI): number {
-    const base = 1 / (1.4 + t.altura / 12);
-    return t.especial === 'acorazado' ? base * 0.1 : t.especial === 'hembra' ? base * 0.4 : base;
-  }
-
-  private quitarVida(t: TitanAPI, cuanto: number): void {
-    const v = this.vidaDe(t);
-    v.vida = Math.max(0, v.vida - cuanto);
-    v.tGolpe = this.t;
-    if (v.vida > 0) return;
-    this.rematar(t);
-    if (!t.vivo) {
-      const nombre = t.especial === 'acorazado' ? '¡El Acorazado' : t.especial === 'hembra' ? '¡La Hembra' : `¡Titán de ${Math.round(t.altura)} m`;
-      this.ctx.eventos.emit({ tipo: 'mensaje', texto: `${nombre} abatido a cañonazos!`, segundos: 3 });
-    }
-  }
-
-  /** Sin vida: nuca. Si la coraza la protege, primero una corva (cae y se le agrieta) y luego la nuca. */
-  private rematar(t: TitanAPI): void {
-    const U = umbralNuca(t.altura) * 3;
-    if (t.recibirCorte('nuca', U, this.ctx.jugador).efecto === 'muerte' || !t.vivo) return;
-    const corva = (['corvaIzq', 'corvaDer'] as ZonaTitan[]).find((z) => t.puntosDebiles.some((p) => p.zona === z && p.activo));
-    if (corva) t.recibirCorte(corva, umbralZona(corva, t.altura) * 3, this.ctx.jugador);
-    t.recibirCorte('nuca', U, this.ctx.jugador);
+    this.artilleria.disparar(k.boca.getWorldPosition(new THREE.Vector3()), t);
   }
 
   // ─────────────────────────── Asedio ───────────────────────────
@@ -998,28 +861,6 @@ export class Campamento implements FuerteAPI {
     const b = this.hud.querySelector('.b') as HTMLElement;
     b.style.width = `${Math.round(total * 100)}%`;
     b.style.background = total > 0.6 ? '#7fae4f' : total > 0.3 ? '#d9a33b' : '#c2412e';
-  }
-
-  private vidaDe(t: TitanAPI): VidaTitan {
-    let v = this.vidas.get(t);
-    if (!v) {
-      const fondo = new THREE.Sprite(new THREE.SpriteMaterial({ color: '#111111', transparent: true, opacity: 0.75, depthWrite: false }));
-      const barra = new THREE.Sprite(new THREE.SpriteMaterial({ color: '#3fae49', depthWrite: false }));
-      for (const sp of [fondo, barra]) {
-        sp.center.set(0, 0.5);
-        sp.renderOrder = 5;
-        this.ctx.escena.add(sp);
-      }
-      barra.renderOrder = 6;
-      v = { vida: 1, tGolpe: this.t, fondo, barra };
-      this.vidas.set(t, v);
-    }
-    return v;
-  }
-
-  /** Los titanes heridos por los cañones se regeneran si pasan un rato sin recibir. */
-  private regenerarVidas(dt: number): void {
-    for (const v of this.vidas.values()) if (this.t - v.tGolpe > REGEN_TITAN) v.vida = Math.min(1, v.vida + 0.04 * dt);
   }
 
   /** Con la empalizada cerrada, ningún titán puede estar dentro ni encima del muro: sale empujado. */
@@ -1448,8 +1289,6 @@ export class Campamento implements FuerteAPI {
     for (const col of this.collidersTorre) f.eliminarCollider(col);
     this.collidersTorre = [];
     if (this.puerta?.collider) f.eliminarCollider(this.puerta.collider);
-    for (const b of this.balas) b.malla.removeFromParent();
-    this.balas.length = 0;
     this.ctx.escena.remove(this.grupo);
     this.grupo.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.LineSegments) o.geometry.dispose();
@@ -1458,14 +1297,6 @@ export class Campamento implements FuerteAPI {
       k.material.dispose();
       (k.fogonazo.material as THREE.Material).dispose();
     }
-    for (const v of this.vidas.values()) {
-      for (const sp of [v.fondo, v.barra]) {
-        sp.removeFromParent();
-        (sp.material as THREE.Material).dispose();
-      }
-    }
-    this.vidas.clear();
-    this.geoBala.dispose();
     if (this.ctx.fuerte === this) this.ctx.fuerte = null;
     if (!this.listo) for (const s of this.ctx.escuadron.soldados) this.ctx.escuadron.trabajarEn(s, null);
   }

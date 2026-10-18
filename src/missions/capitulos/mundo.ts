@@ -8,7 +8,9 @@ import type { Lugar } from '../../world/lugares';
 import type { ApiCapitulo, Capitulo } from '../campana';
 import { borrarPartida, guardarPartida, leerPartida, type PartidaGuardada } from '../guardado';
 import { AsaltosMuralla } from '../asaltoMuralla';
+import { Artilleria } from '../../combat/artilleria';
 import { Campamento } from '../campamento';
+import { CanonesMuralla } from '../canonesMuralla';
 import { NUM_POSTES, RADIO_CARPAS, RADIO_CERCO, puntosCerco } from '../logicaCampamento';
 import { GestorPueblos } from '../pueblos';
 
@@ -73,6 +75,9 @@ export class CapMundo implements Capitulo {
   asaltos: AsaltosMuralla | null = null;
   caballo: Caballo | null = null;
   campamento: Campamento | null = null;
+  /** Balas, impactos y barras de vida de todos los cañones (campamento y muralla). */
+  artilleria: Artilleria | null = null;
+  canonesMuralla: CanonesMuralla | null = null;
   private api!: ApiCapitulo;
   private partida: PartidaGuardada | null = null;
   private poblador: Poblador | null = null;
@@ -133,6 +138,10 @@ export class CapMundo implements Capitulo {
     this.pueblos = new GestorPueblos(ctx);
     this.asaltos?.limpiar();
     this.asaltos = new AsaltosMuralla(ctx);
+    this.artilleria?.limpiar();
+    this.artilleria = new Artilleria(ctx);
+    this.canonesMuralla?.limpiar();
+    this.canonesMuralla = new CanonesMuralla(ctx, this.artilleria);
     if (p) this.pueblos.cargar(p.pueblos);
     // tu caballo espera a tu lado
     this.caballo ??= new Caballo(ctx.escena, ctx.nav, ctx.poblacion);
@@ -141,7 +150,7 @@ export class CapMundo implements Capitulo {
     const pc = p?.caballo;
     this.caballo.colocar(pc ? new THREE.Vector3(pc[0], 0, pc[1]) : inicio.clone().setY(0).add(new THREE.Vector3(4, 0, 3)), Math.PI);
     this.campamento?.eliminar();
-    this.campamento = p?.campamento ? new Campamento(ctx, new THREE.Vector3(p.campamento.x, 0, p.campamento.z), p.campamento) : null;
+    this.campamento = p?.campamento ? new Campamento(ctx, this.artilleria, new THREE.Vector3(p.campamento.x, 0, p.campamento.z), p.campamento) : null;
     (ctx.jugador as { caballo?: Caballo | null }).caballo = this.caballo;
     this.tRevisar = 0;
     this.tGuardar = 20;
@@ -175,11 +184,15 @@ export class CapMundo implements Capitulo {
     this.campamento?.actualizar(dt);
     this.asaltos?.actualizar(dt);
     this.campamento?.dibujar(dt);
+    this.canonesMuralla?.actualizar(dt);
+    this.artilleria?.actualizar(dt);
     this.pasoDescanso();
     if (ctx.entrada.consumir('KeyH')) this.alternarDescanso();
     if (ctx.entrada.consumir('KeyK')) this.armarCampamento();
-    // T: cañones del campamento (apuntan solos; los disparas tú desde dentro)
-    if (ctx.entrada.consumir('KeyT')) this.api.mensaje(this.campamento ? this.campamento.disparar() : 'No tienes campamento: K para armar uno', 1.8);
+    // T: cañones (apuntan solos; los disparas tú): los de la muralla si estás arriba, si no los del campamento
+    if (ctx.entrada.consumir('KeyT')) this.api.mensaje(this.dispararCanones(), 1.8);
+    // 9: ¡a la muralla! (el escuadrón sube a los cañones)
+    if (ctx.entrada.consumir('Digit9') || ctx.entrada.consumir('Numpad9')) this.aLaMuralla();
     this.avistamientos();
     this.tGuardar -= dt;
     if (this.tGuardar <= 0) {
@@ -213,6 +226,10 @@ export class CapMundo implements Capitulo {
     this.campamento = null;
     this.asaltos?.limpiar();
     this.asaltos = null;
+    this.canonesMuralla?.limpiar();
+    this.canonesMuralla = null;
+    this.artilleria?.limpiar();
+    this.artilleria = null;
     const ctx = this.api?.ctx;
     if (ctx) {
       ctx.ciclo.aceleracion = 1;
@@ -261,6 +278,35 @@ export class CapMundo implements Capitulo {
     return true;
   }
 
+  /**
+   * El escuadrón sube a los cañones de la muralla: los de la puerta sur si hay (o viene) un asalto;
+   * si no, los más cercanos a ti. Un punto en la coronación, por detrás de cada cañón.
+   */
+  private aLaMuralla(): void {
+    const ctx = this.api.ctx;
+    if (!ctx.escuadron.soldados.some((s) => s.vivo)) {
+      this.api.mensaje('No te queda escuadrón al que mandar', 2);
+      return;
+    }
+    const m = ctx.mundo.muralla;
+    const j = ctx.jugador.posicion;
+    const prox = this.asaltos?.proximo;
+    const haciaPuerta = this.asaltos?.enCurso || (prox && !prox.espera && prox.segundos < 120);
+    const centro = haciaPuerta ? 0 : Math.atan2(j.x, j.z);
+    const dist = (a: number) => Math.abs(Math.atan2(Math.sin(a - centro), Math.cos(a - centro)));
+    const angulos = [...m.canones].sort((a, b) => dist(a) - dist(b)).slice(0, 6);
+    const puntos = angulos.map((a) => new THREE.Vector3(Math.sin(a) * (m.radioExterior - 5), m.altura, Math.cos(a) * (m.radioExterior - 5)));
+    ctx.escuadron.aLaMuralla(puntos);
+    const n = (ctx.escuadron.seleccion ? 1 : ctx.escuadron.soldados.filter((s) => s.vivo).length);
+    this.api.mensaje(`¡A la muralla! ${n === 1 ? 'Sube a un cañón' : `Suben a ${Math.min(n, puntos.length)} cañones`}${haciaPuerta ? ' junto a la puerta sur' : ''}: disparan solos cuando están cargados`, 3);
+  }
+
+  private dispararCanones(): string {
+    if (this.canonesMuralla?.jugadorArriba) return this.canonesMuralla.disparar();
+    if (this.campamento) return this.campamento.disparar();
+    return 'Sube a la muralla o arma un campamento (K) para usar cañones';
+  }
+
   /** K: arma un campamento aquí (si ya había uno, se desmonta). */
   private armarCampamento(): void {
     const ctx = this.api.ctx;
@@ -283,7 +329,7 @@ export class CapMundo implements Capitulo {
     // la puerta mira hacia donde mira el jugador
     const r = ctx.jugador.rumbo ?? 0;
     const mirada = Math.atan2(Math.cos(r), Math.sin(r));
-    this.campamento = new Campamento(ctx, p.clone().setY(0), undefined, mirada - Math.PI / NUM_POSTES);
+    this.campamento = new Campamento(ctx, this.artilleria ?? new Artilleria(ctx), p.clone().setY(0), undefined, mirada - Math.PI / NUM_POSTES);
     this.api.mensaje('¡A montar el campamento!', 2);
   }
 

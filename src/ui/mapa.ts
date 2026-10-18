@@ -1,5 +1,6 @@
 import type { ContextoJuego } from '../core/contexto';
 import { nombreCorto } from '../titans/especiales';
+import type { EspecialTitan } from '../core/tipos';
 import type { GestorPueblos } from '../missions/pueblos';
 import { contorno } from '../world/formas';
 import { REGION } from '../world/region';
@@ -24,6 +25,9 @@ export class Mapa {
   private readonly z0 = REGION.z0 - MARGEN;
   /** Pueblos del mundo abierto (estado de cada uno). */
   pueblos: (() => GestorPueblos | null) | null = null;
+  /** Próximo asalto de un cambiante a Trost (o null si hay uno en curso). */
+  asaltos: (() => { tipo: EspecialTitan; segundos: number; espera: boolean } | null) | null = null;
+  private readonly avisoAsalto: HTMLDivElement;
   private readonly escala = LADO / Math.max(REGION.x1 - REGION.x0 + 2 * MARGEN, REGION.z1 - REGION.z0 + 2 * MARGEN);
 
   constructor(contenedor: HTMLElement) {
@@ -39,7 +43,9 @@ export class Mapa {
     pie.innerHTML =
       '<b>M</b> cerrar · <span class="l-jugador">▲</span> tú · <span class="l-soldado">●</span> escuadrón · <span class="l-caballo">●</span> caballo · <span class="l-titan">●</span> titanes · <span class="l-cuadrupedo">▲</span> a cuatro patas · <span class="l-deposito">■</span> recarga<br>' +
       'Pueblos: <span class="l-tomado">◆</span> tomado · <span class="l-obras">◆</span> reconstruyendo · <span class="l-paz">◆</span> en paz';
-    this.raiz.append(this.lienzo, pie);
+    this.avisoAsalto = document.createElement('div');
+    this.avisoAsalto.className = 'asalto';
+    this.raiz.append(this.lienzo, this.avisoAsalto, pie);
     contenedor.appendChild(this.raiz);
   }
 
@@ -61,6 +67,21 @@ export class Mapa {
 
   private pz(z: number): number {
     return (z - this.z0) * this.escala;
+  }
+
+  /** «Próximo asalto a Trost: el Colosal en unos 12 min». */
+  private textoAsalto(ctx: ContextoJuego): void {
+    const p = this.asaltos?.();
+    let texto = '';
+    if (ctx.mundo.muralla.rota) texto = '¡La puerta sur de Trost está rota!';
+    else if (!p) texto = this.asaltos ? '¡Asalto a la puerta sur de Trost en curso!' : '';
+    else {
+      const min = Math.max(1, Math.round(p.segundos / 60));
+      const cuando = p.segundos < 60 ? `en ${Math.ceil(p.segundos)} s` : `en unos ${min} min`;
+      texto = `Próximo asalto a Trost: ${nombreCorto(p.tipo)} ${cuando}${p.espera ? ' (solo si estás a menos de 1,3 km de Trost)' : ''}`;
+    }
+    if (this.avisoAsalto.textContent !== texto) this.avisoAsalto.textContent = texto;
+    this.avisoAsalto.hidden = !texto;
   }
 
   /** Capa fija: suelo, bosques, río, caminos, muralla y edificios. */
@@ -137,6 +158,7 @@ export class Mapa {
     const g = this.g;
     this.fijo ??= this.dibujarFijo(ctx);
     g.drawImage(this.fijo, 0, 0);
+    this.textoAsalto(ctx);
     g.textAlign = 'center';
     // Lugares
     const pueblos = this.pueblos?.()?.lista ?? [];

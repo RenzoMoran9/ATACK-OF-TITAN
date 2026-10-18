@@ -96,6 +96,7 @@ export class ControlesTactiles {
         <button class="t-btn" data-k="Digit6">6 Id allí</button>
         <button class="t-btn" data-k="Digit7">7 A ese titán</button>
         <button class="t-btn" data-k="Digit8">8 Explorad</button>
+        <button class="t-btn" data-k="Digit9">9 A la muralla</button>
         <button class="t-btn" data-k="Tab">A quién mando</button>
       </div>
       <div class="tactil-editor" hidden>

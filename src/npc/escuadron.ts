@@ -168,6 +168,26 @@ export class Escuadron implements EscuadronAPI {
     habla.decir(fraseConfirmacion(o, !this.seleccion && grupo.length > 1, Math.random, titan?.altura));
   }
 
+  /**
+   * «¡A la muralla!»: cada soldado de la selección sube a lo alto de la muralla, junto a uno de los
+   * cañones de `puntos` (en la coronación), y allí se queda manejándolo.
+   */
+  aLaMuralla(puntos: THREE.Vector3[]): void {
+    const j = this.ctx.jugador;
+    const grupo = (this.seleccion ? [this.seleccion] : this.soldados).filter((s) => s.vivo);
+    if (grupo.length === 0 || puntos.length === 0) return;
+    grupo.forEach((s, i) => {
+      const punto = puntos[i % puntos.length].clone();
+      this.anularReflejo(s);
+      s.orden = { tipo: 'irA', punto, puesto: this.puestoJunto(punto, 0, 1), dada: true, muralla: true };
+    });
+    this.tCoordinar = 0;
+    this.ctx.efectos.bengala(j.posicion.clone().setY(j.posicion.y + 2.5), COLOR_BENGALA.irA);
+    const habla = this.seleccion ?? grupo.reduce((a, b) => (a.posicion.distanceToSquared(j.posicion) <= b.posicion.distanceToSquared(j.posicion) ? a : b));
+    habla.ultimaFrase = -99;
+    habla.decir(grupo.length > 1 ? '¡A la muralla! ¡Cada uno a su cañón!' : '¡Entendido, subo a un cañón!');
+  }
+
   /** Una orden nueva cancela lo que hacía por su cuenta (depósito, rescate, gas, huida, curación). */
   private anularReflejo(s: Soldado): void {
     const m = s.mision;
@@ -488,8 +508,9 @@ export class Escuadron implements EscuadronAPI {
     // a caballo solo para moverse: quien va a pelear baja; el médico vuelve a montar cuando no pelea
     for (const s of libres) {
       const combate = s.mision.tipo === 'atacar' || s.mision.tipo === 'rescatar';
-      if (combate && s.montado) s.desmontar();
-      else if (!combate && !s.montado && s.rol === 'medico' && !this.ctx.fuerte?.dentro(s.posicion) && !this.enFuerte(s)) this.subirAlCaballo(s);
+      // a la muralla no se sube a caballo: el médico también va a pie (con el equipo de maniobras)
+      if ((combate || s.orden.muralla) && s.montado) s.desmontar();
+      else if (!combate && !s.montado && s.rol === 'medico' && !s.orden.muralla && !this.ctx.fuerte?.dentro(s.posicion) && !this.enFuerte(s)) this.subirAlCaballo(s);
     }
 
     // 5. Vigías

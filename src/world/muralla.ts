@@ -16,6 +16,8 @@ export interface DatosMuralla {
   altura: number;
   /** Ángulo (rad) de cada cañón; 0 = sur (+Z). */
   canones: number[];
+  /** Sus tubos (giran y retroceden). */
+  tubos: TubosCanon;
   /** Puerta exterior (sur), cara de fuera. */
   puerta: THREE.Vector3;
   /** Puerta interior (norte) por donde se evacúa a los civiles; punto en la cara de dentro. */
@@ -117,6 +119,8 @@ export function construirMuralla(escena: THREE.Scene, fisica: Fisica, mats: Mate
   antorchas.antorcha(pn.x - ANCHO_PUERTA / 2 - 2, 3, pn.z);
   antorchas.antorcha(pn.x + ANCHO_PUERTA / 2 + 2, 3, pn.z);
 
+  const tubos = crearTubosCanon(escena, canones, R, T, H);
+
   const sur = hojas[0];
   const escombros = new THREE.Group();
   escena.add(escombros);
@@ -127,6 +131,7 @@ export function construirMuralla(escena: THREE.Scene, fisica: Fisica, mats: Mate
     radioExterior: R + T,
     altura: H,
     canones,
+    tubos,
     puerta: puntoAnillo(0, R + T),
     puertaEvacuacion: puntoAnillo(Math.PI, R - 1),
     anchoPuerta: ANCHO_PUERTA,
@@ -238,17 +243,59 @@ function construirCanon(theta: number, R: number, T: number, H: number, hierro: 
       hierro.añadir(r, matriz(p.x, H + 0.42, p.z, theta), negro);
     }
   }
-  // Tubo negro apuntando hacia fuera, ligeramente elevado
-  const q = new THREE.Quaternion()
-    .setFromAxisAngle(new THREE.Vector3(0, 1, 0), theta)
-    .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2 - 0.08));
-  const tubo = new THREE.CylinderGeometry(0.26, 0.36, 3.8, 16);
-  const centroTubo = base.clone().add(puntoAnillo(theta, 0.9));
-  hierro.añadir(tubo, matriz(centroTubo.x, H + 1.45, centroTubo.z, 0, q), negro);
-  const culata = new THREE.SphereGeometry(0.38, 12, 8);
-  const pc = base.clone().add(puntoAnillo(theta, -1.0));
-  hierro.añadir(culata, matriz(pc.x, H + 1.3, pc.z), negro);
-  const boca = new THREE.TorusGeometry(0.3, 0.07, 6, 14);
-  const pb = base.clone().add(puntoAnillo(theta, 2.8));
-  hierro.añadir(boca, matriz(pb.x, H + 1.6, pb.z, theta), negro);
+  // (el tubo, que gira y retrocede, lo pone `crearTubosCanon`)
+}
+
+/** Tubos de los cañones de la muralla: giran hacia su blanco y retroceden al disparar. */
+export interface TubosCanon {
+  /** Muñones de cada cañón (donde gira), en el mundo. */
+  readonly pivotes: THREE.Vector3[];
+  /** Orienta el cañón i: guiñada (rad, 0 = hacia fuera), elevación (rad) y retroceso (m). */
+  colocar(i: number, guinada: number, elevacion: number, retroceso: number): void;
+  /** Boca del cañón i, en el mundo. */
+  boca(i: number, destino: THREE.Vector3): THREE.Vector3;
+}
+
+/** Altura de los muñones sobre la coronación. */
+const ALTO_MUNONES = 1.4;
+/** Distancia de los muñones a la boca (m). */
+const LARGO_BOCA = 3.0;
+
+/** Los tubos de todos los cañones en tres mallas instanciadas (tubo, culata y anillo de la boca). */
+function crearTubosCanon(escena: THREE.Scene, angulos: number[], R: number, T: number, H: number): TubosCanon {
+  // las piezas, ya colocadas respecto a los muñones: el tubo apunta a +Z
+  const tubo = new THREE.CylinderGeometry(0.26, 0.36, 3.8, 16).rotateX(Math.PI / 2).translate(0, 0, 0.9);
+  const culata = new THREE.SphereGeometry(0.38, 12, 8).translate(0, -0.05, -1.0);
+  const anillo = new THREE.TorusGeometry(0.3, 0.07, 6, 14).translate(0, 0, 2.8);
+  const material = new THREE.MeshPhongMaterial({ color: '#151517', specular: '#5c6066', shininess: 45 });
+  const n = angulos.length;
+  const mallas = [tubo, culata, anillo].map((g) => {
+    const m = new THREE.InstancedMesh(g, material, n);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    escena.add(m);
+    return m;
+  });
+  const pivotes = angulos.map((theta) => puntoAnillo(theta, R + T - 2.6, H + ALTO_MUNONES));
+  const matrices = angulos.map(() => new THREE.Matrix4());
+  const rot = new THREE.Matrix4();
+  const colocar = (i: number, guinada: number, elevacion: number, retroceso: number) => {
+    const p = pivotes[i];
+    // T(muñones) · Ry(rumbo) · Rx(−elevación) · T(0, 0, −retroceso)
+    matrices[i].makeTranslation(p.x, p.y, p.z);
+    matrices[i].multiply(rot.makeRotationY(angulos[i] + guinada));
+    matrices[i].multiply(rot.makeRotationX(-elevacion));
+    matrices[i].multiply(rot.makeTranslation(0, 0, -retroceso));
+    for (const m of mallas) {
+      m.setMatrixAt(i, matrices[i]);
+      m.instanceMatrix.needsUpdate = true;
+    }
+  };
+  for (let i = 0; i < n; i++) colocar(i, 0, 0.08, 0);
+  for (const m of mallas) m.computeBoundingSphere();
+  return {
+    pivotes,
+    colocar,
+    boca: (i, destino) => destino.set(0, 0, LARGO_BOCA).applyMatrix4(matrices[i]),
+  };
 }

@@ -18,6 +18,12 @@ export function nombreEspecial(e: EspecialTitan, articulo = true): string {
   return e === 'hembra' ? `la ${n}` : `el ${n}`;
 }
 
+/** Con preposición y la contracción que toque: «al Titán Colosal», «del Acorazado», «a la Titana Hembra». */
+export function nombreCon(e: EspecialTitan, prep: 'a' | 'de'): string {
+  const n = nombreEspecial(e);
+  return n.startsWith('el ') ? `${prep}l ${n.slice(3)}` : `${prep} ${n}`;
+}
+
 /** Nombre corto para la brújula y el mapa. */
 export function nombreCorto(e: EspecialTitan): string {
   return { acorazado: 'Acorazado', hembra: 'Hembra', colosal: 'Colosal', bestia: 'Bestia' }[e];

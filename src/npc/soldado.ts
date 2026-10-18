@@ -60,6 +60,8 @@ export interface OrdenAsignada {
   campamento?: boolean;
   /** Trabajando en el campamento: sin banderín y con su propia actividad en el panel. */
   trabajo?: boolean;
+  /** En lo alto de la muralla, junto a un cañón (lo dispara cuando está cargado). */
+  muralla?: boolean;
   /**
    * Una orden tuya: se cumple sin excepciones (nada de rescates, depósito, gas ni huida por su
    * cuenta). Sin ella, el soldado actúa por su cuenta.
@@ -875,7 +877,8 @@ export class Soldado implements Humano {
         return this.orden.tipo === 'atacar' || this.orden.tipo === 'atacarTitan' ? '' : 'en combate';
       case 'mantener':
         if (this.orden.trabajo) return m.destino && this.posicion.distanceTo(m.destino) > 4 ? 'va a la obra' : 'montando el campamento';
-        if (m.destino && this.posicion.distanceTo(m.destino) > 8) return 'en camino';
+        if (m.destino && this.posicion.distanceTo(m.destino) > 8) return this.orden.muralla ? 'sube a la muralla' : 'en camino';
+        if (this.orden.muralla) return 'al cañón';
         return this.orden.tipo === 'irA' ? 'en posición' : '';
       default:
         return '';
