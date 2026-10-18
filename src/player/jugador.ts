@@ -49,6 +49,18 @@ export class Jugador implements JugadorAPI {
   get filo(): number {
     return this.combate?.cuchillas.filo ?? 1;
   }
+  get lanzas(): number {
+    return this.combate?.lanzas.municion ?? 0;
+  }
+  get maxLanzas(): number {
+    return this.combate?.lanzas.maximo ?? 0;
+  }
+  get faltaMunicion(): boolean {
+    return this.combate?.faltaMunicion ?? false;
+  }
+  reponerArmas(): void {
+    this.combate?.rellenarBengalas();
+  }
   get cambiandoCuchillas(): boolean {
     return (this.combate?.cuchillas.cambiando ?? 0) > 0;
   }

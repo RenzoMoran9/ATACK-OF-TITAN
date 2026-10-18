@@ -388,6 +388,13 @@ export interface JugadorAPI extends Humano {
   teletransportar(pies: THREE.Vector3, rumbo?: number): void;
   /** Gas y cuchillas al máximo. */
   reabastecer(): void;
+  /** Lanzas relámpago que quedan (y cuántas caben). */
+  readonly lanzas?: number;
+  readonly maxLanzas?: number;
+  /** ¿Falta alguna lanza o bengala? */
+  readonly faltaMunicion?: boolean;
+  /** Lanzas relámpago y bengalas al completo (el intendente). */
+  reponerArmas?(): void;
   /** Vuelve a la vida en `pies` con salud llena (tras ser devorado). */
   revivir(pies: THREE.Vector3, rumbo?: number): void;
   /** Recoge gas y pares de cuchillas del equipo de un soldado caído. */

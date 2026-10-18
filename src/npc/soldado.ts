@@ -91,6 +91,8 @@ interface CandidatoAncla {
 const ARRIBA = new THREE.Vector3(0, 1, 0);
 const CENTRO = 0.85; // del centro del cuerpo a los pies
 const VEL_CORRER = 6.8;
+/** Llevando suministros, a menos de esto va derecho al compañero (corriendo o con gas, sin ganchos). */
+const ALCANCE_DIRECTO = 45;
 const VEL_RECOGIDA = 24;
 const VEL_MAX = 38;
 const GRAVEDAD = 14;
@@ -525,12 +527,16 @@ export class Soldado implements Humano {
     const dist = hacia.length();
     const dh = Math.hypot(hacia.x, hacia.z);
     this.impulsando = false;
+    // llevando gas, hojas o vendas a alguien ya cercano: derecho a él, sin ganchos (con los ganchos
+    // se balanceaba dando vueltas a su alrededor sin acabar de llegar)
+    const directo = (this.mision.tipo === 'darGas' || this.mision.tipo === 'curar') && dist < ALCANCE_DIRECTO;
+    if (directo && this.tirando().length) this.soltarAncla();
     const tiran = this.tirando();
 
     // En el suelo: andar o correr (con ruta por las calles); sin gas, siempre a pie
-    if (this.enSuelo && tiran.length === 0 && ((dist < 14 && Math.abs(hacia.y) < 2.5) || this.gas < 1)) {
+    if (this.enSuelo && tiran.length === 0 && ((dist < (directo ? ALCANCE_DIRECTO : 14) && Math.abs(hacia.y) < (directo ? 4 : 2.5)) || this.gas < 1)) {
       const paso = this.pasoRuta(meta, dt);
-      const v = dh < 1.5 ? 0 : Math.min(VEL_CORRER, dh * 1.2);
+      const v = dh < 1.5 ? 0 : Math.min(directo ? VEL_CORRER * 1.5 : VEL_CORRER, dh * 1.2);
       const dir = new THREE.Vector3(paso.x - this.posicion.x, 0, paso.z - this.posicion.z);
       if (dir.lengthSq() > 1e-6) dir.normalize();
       const k = Math.min(1, dt * 8);
@@ -553,7 +559,15 @@ export class Soldado implements Humano {
       return;
     }
     // lejos y a ras de suelo: salto con gas para volar en vez de patinar por la llanura
-    if (this.enSuelo && tiran.length === 0) this.despegar(meta);
+    if (this.enSuelo && tiran.length === 0) {
+      if (directo) {
+        // salto con gas sin gancho: el resto, en línea recta con el impulso
+        this.enSuelo = false;
+        this.velocidad.y = Math.max(this.velocidad.y, 5);
+        this.impulsar(ARRIBA);
+        this.bocanada(3);
+      } else this.despegar(meta);
+    }
 
     // En el aire (o lejos): ganchos alternos y bobina
     const ahora = this.tirando();
@@ -579,17 +593,22 @@ export class Soldado implements Humano {
       }
     } else {
       this.tSinAncla += dt;
-      if (this.tSinAncla > 0.25 && dist > 6) this.elegirAncla(meta, titan);
+      if (this.tSinAncla > 0.25 && dist > 6 && !directo) this.elegirAncla(meta, titan);
       // sin dónde engancharse: impulso de gas hacia la meta, frenando al acercarse
       if (this.tirando().length === 0 && dist > 3 && this.gas > 0.5) {
         const dir = hacia.clone().normalize();
         const acercamiento = this.velocidad.dot(dir);
-        const maxima = Math.min(VEL_MAX * 0.8, Math.sqrt(2 * 9 * Math.max(0, dist - 2)) + 3);
+        const maxima = Math.min(VEL_MAX * 0.8, Math.sqrt(2 * (directo ? 14 : 9) * Math.max(0, dist - 2)) + 3);
         if (acercamiento > maxima) {
           this.velocidad.addScaledVector(dir, -Math.min(acercamiento - maxima, 18 * dt));
           this.impulsar(dir.clone().negate());
         } else {
-          this.velocidad.addScaledVector(dir, 16 * dt);
+          this.velocidad.addScaledVector(dir, (directo ? 26 : 16) * dt);
+          // derecho: se anula lo que le desvía de la línea hacia la meta (no orbita)
+          if (directo) {
+            const lateral = this.velocidad.clone().addScaledVector(dir, -this.velocidad.dot(dir));
+            this.velocidad.addScaledVector(lateral, -Math.min(1, dt * 4));
+          }
           this.impulsar(dir);
         }
         if (this.velocidad.y < 2 && hacia.y > -2) this.velocidad.y += GRAVEDAD * 0.85 * dt;

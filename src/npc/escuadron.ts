@@ -300,33 +300,42 @@ export class Escuadron implements EscuadronAPI {
         const dado = s.darGas(intendente ? falta : Math.min(falta, 100));
         if (companero) companero.gas = Math.min(companero.gasMax, companero.gas + dado);
         else j.gas.nivel = Math.min(j.gas.capacidad, j.gas.nivel + dado);
-        // el intendente además cambia las hojas y venda las heridas
-        let extra = '';
+        // el intendente además cambia las hojas, repone lanzas y bengalas y venda las heridas
+        const cosas: string[] = [];
         if (intendente) {
           if (companero) {
             if (companero.cuchillas.repuesto < 4 || companero.cuchillas.filo < 1) {
               companero.cuchillas.rellenar();
-              extra += ', hojas nuevas';
+              cosas.push('hojas nuevas');
             }
             if (companero.salud < companero.saludMax - 5) {
               companero.curar(60);
-              extra += ' y un vendaje';
+              cosas.push('un vendaje');
             }
           } else {
+            // lo que falta se mira antes: reabastecer también repone lanzas y bengalas
+            const faltaLanzas = (j.lanzas ?? 0) < (j.maxLanzas ?? 0);
+            const faltaMunicion = j.faltaMunicion ?? false;
             if (j.paresRepuesto < 4 || j.filo < 1) {
               j.reabastecer();
-              extra += ', hojas nuevas';
+              cosas.push('hojas nuevas');
+            }
+            if (faltaMunicion) {
+              j.reponerArmas?.();
+              cosas.push(faltaLanzas ? 'lanzas relámpago' : 'bengalas');
             }
             if (j.salud < j.saludMax - 5) {
               j.curar(60);
-              extra += ' y un vendaje';
+              cosas.push('un vendaje');
             }
           }
         }
+        if (dado > 0) cosas.unshift(`gas (+${Math.round(dado)})`);
+        const lista = cosas.length <= 1 ? (cosas[0] ?? '') : `${cosas.slice(0, -1).join(', ')} y ${cosas[cosas.length - 1]}`;
         s.ultimaFrase = -99;
         const a = companero ? `${companero.nombre}, toma` : 'Toma';
-        s.decir(dado > 0 || extra ? `${a}: gas${dado > 0 ? ` (+${Math.round(dado)})` : ''}${extra}` : 'Ya no me queda gas…');
-        if ((dado > 0 || extra) && !companero) this.ctx.eventos.emit({ tipo: 'recarga', quien: j });
+        s.decir(lista ? `${a}: ${lista}` : 'Ya no me queda gas…');
+        if (lista && !companero) this.ctx.eventos.emit({ tipo: 'recarga', quien: j });
         s.mision = { tipo: 'seguir' };
       }
       // recarga en el depósito
@@ -397,7 +406,7 @@ export class Escuadron implements EscuadronAPI {
         if (s.avisoGas.humano !== quien || ctx.reloj.t - s.avisoGas.t > 30) {
           s.avisoGas = { humano: quien, t: ctx.reloj.t };
           s.ultimaFrase = -99;
-          s.decir(quien === j ? '¡Voy, te llevo gas, hojas y vendas!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, aguanta, te llevo suministros!`);
+          s.decir(quien === j ? '¡Voy, te llevo gas, hojas, lanzas y vendas!' : `¡${quien instanceof Soldado ? quien.nombre : 'Eh'}, aguanta, te llevo suministros!`);
         }
       }
       asignados.add(s);
@@ -672,7 +681,9 @@ export class Escuadron implements EscuadronAPI {
     const j = this.ctx.jugador;
     // nunca se mete bajo las manos de un titán para llegar a nadie (las de uno grande llegan lejos)
     const seguro = (h: Humano) => !this.ctx.poblacion.titanesCerca(h.posicion, 50).some((t) => esAmenaza(t) && t.posicion.distanceTo(h.posicion) < 14 + 0.5 * t.altura);
-    if (j.vivo && !j.agarradoPor && seguro(j) && (j.gas.nivel < j.gas.capacidad * 0.35 || j.salud < j.saludMax * 0.6 || j.paresRepuesto < 2 || j.filo < 0.3)) return j;
+    // sin lanzas relámpago también viene (te las repone con lo demás)
+    const sinLanzas = (j.maxLanzas ?? 0) > 0 && (j.lanzas ?? 1) === 0;
+    if (j.vivo && !j.agarradoPor && seguro(j) && (j.gas.nivel < j.gas.capacidad * 0.35 || j.salud < j.saludMax * 0.6 || j.paresRepuesto < 2 || j.filo < 0.3 || sinLanzas)) return j;
     let peor: Soldado | null = null;
     let nota = 0;
     for (const s of this.soldados) {
