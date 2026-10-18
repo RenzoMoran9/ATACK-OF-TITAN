@@ -1,6 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { Cuchillas } from '../combat/cuchillas';
 import { empujeFuera, RADIO_PERSONA } from '../core/colision';
 import { config } from '../core/config';
 import type { ContextoJuego } from '../core/contexto';
@@ -100,7 +99,7 @@ export class Jugador implements JugadorAPI {
   recogerEquipo(gas: number, pares: number): void {
     this.gas.recargar(gas);
     const c = this.combate?.cuchillas;
-    if (c) c.repuesto = Math.min(Cuchillas.MAX_REPUESTO, c.repuesto + pares);
+    if (c) c.repuesto = Math.min(c.maxRepuesto, c.repuesto + pares);
   }
   /** El médico te cura (sin pasarse de la salud máxima). */
   curar(cantidad: number): void {

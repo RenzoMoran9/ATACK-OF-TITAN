@@ -14,7 +14,7 @@ export interface PartidaGuardada {
   hora: number;
   pueblos: EstadoGuardadoPueblo[];
   descubiertos: string[];
-  stats: { titanes: number; nucas: number; jefes: number; defensas: number };
+  stats: { titanes: number; nucas: number; jefes: number; defensas: number; asaltos?: number; asaltosLimpios?: number };
   /** Último sitio seguro (x, z). */
   reaparicion: [number, number];
   /** Dónde estabas exactamente y con qué equipo (para seguir justo ahí). */
@@ -38,7 +38,7 @@ export function leerPartida(): PartidaGuardada | null {
       hora: ((p.hora % 24) + 24) % 24,
       pueblos: Array.isArray(p.pueblos) ? p.pueblos : [],
       descubiertos: Array.isArray(p.descubiertos) ? p.descubiertos.filter((x) => typeof x === 'string') : [],
-      stats: { titanes: 0, nucas: 0, jefes: 0, defensas: 0, ...(p.stats ?? {}) },
+      stats: { titanes: 0, nucas: 0, jefes: 0, defensas: 0, asaltos: 0, asaltosLimpios: 0, ...(p.stats ?? {}) },
       reaparicion: Array.isArray(p.reaparicion) && p.reaparicion.length === 2 ? [Number(p.reaparicion[0]) || 0, Number(p.reaparicion[1]) || 0] : [6, 300],
       jugador: p.jugador && [p.jugador.x, p.jugador.y, p.jugador.z].every(Number.isFinite) ? p.jugador : undefined,
       caballo: Array.isArray(p.caballo) && p.caballo.length === 2 && p.caballo.every(Number.isFinite) ? p.caballo : undefined,

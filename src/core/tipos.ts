@@ -153,6 +153,10 @@ export interface TitanAPI {
 
 export type EventoJuego =
   | { tipo: 'corte'; titan: TitanAPI; resultado: ResultadoCorte; por: Humano | null }
+  /** Asalto de un cambiante a la muralla detenido (abatido); `puertaIntacta`: la puerta aguantó por encima de la mitad. */
+  | { tipo: 'asaltoDetenido'; puertaIntacta: boolean }
+  /** Ascenso de rango (méritos por defender): nuevo rango y lo que mejora. */
+  | { tipo: 'ascenso'; rango: string; novedad: string }
   | { tipo: 'titanMuerto'; titan: TitanAPI; por: Humano | null }
   | { tipo: 'humanoAgarrado'; humano: Humano; titan: TitanAPI }
   | { tipo: 'humanoLiberado'; humano: Humano; titan: TitanAPI }

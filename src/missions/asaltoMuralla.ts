@@ -145,6 +145,7 @@ export class AsaltosMuralla {
       const rota = this.ctx.mundo.muralla.rota;
       this.ctx.eventos.emit({ tipo: 'mensaje', texto: rota ? 'Asalto detenido, pero la puerta está rota: los ingenieros la repararán cuando se despeje' : '¡Asalto detenido! La puerta de Trost resiste', segundos: 4 });
       for (const t of a.escolta) if (!rota) t.dirigirA?.(null);
+      this.ctx.eventos.emit({ tipo: 'asaltoDetenido', puertaIntacta: !rota && this.vidaPuerta >= VIDA_PUERTA * 0.5 });
       this.terminar();
       return;
     }

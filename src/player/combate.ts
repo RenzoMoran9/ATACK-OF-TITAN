@@ -113,8 +113,9 @@ export class CombateJugador {
   qte: QTE | null = null;
   /** Para la cámara: sube con los golpes y decae sola. */
   sacudida = 0;
-  /** Bengalas que quedan (se reponen en los depósitos). */
+  /** Bengalas que quedan (se reponen en los depósitos) y cuántas caben (mejora con el rango). */
   bengalas = MAX_BENGALAS;
+  maxBengalas = MAX_BENGALAS;
   /** Lanzas relámpago (se reponen en los depósitos y con el intendente). */
   readonly lanzas: LanzasRelampago;
   private readonly proyectiles: Proyectil[] = [];
@@ -147,13 +148,13 @@ export class CombateJugador {
 
   /** Bengalas y lanzas al completo (depósitos, intendente, al reaparecer). */
   rellenarBengalas(): void {
-    this.bengalas = MAX_BENGALAS;
+    this.bengalas = this.maxBengalas;
     this.lanzas.rellenar();
   }
 
   /** ¿Falta alguna bengala o lanza? */
   get faltaMunicion(): boolean {
-    return this.bengalas < MAX_BENGALAS || this.lanzas.municion < this.lanzas.maximo;
+    return this.bengalas < this.maxBengalas || this.lanzas.municion < this.lanzas.maximo;
   }
 
   /** Punto débil fijado (si sigue activo y el titán vivo), o null. */

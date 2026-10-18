@@ -13,6 +13,8 @@ import { Campamento } from '../campamento';
 import { CanonesMuralla } from '../canonesMuralla';
 import { NUM_POSTES, RADIO_CARPAS, RADIO_CERCO, puntosCerco } from '../logicaCampamento';
 import { GestorPueblos } from '../pueblos';
+import { RANGOS, indiceRango, meritos, textoRango } from '../rangos';
+import { config } from '../../core/config';
 
 /**
  * Mundo abierto: el territorio perdido al sur de Trost, sin capítulos ni final. El día y la
@@ -86,9 +88,13 @@ export class CapMundo implements Capitulo {
   private tGuardar = 0;
   private refuerzos = 0;
   private prev = { dia: 1, hora: HORA_INICIAL };
-  private base = { titanes: 0, nucas: 0, jefes: 0, defensas: 0 };
+  private base = { titanes: 0, nucas: 0, jefes: 0, defensas: 0, asaltos: 0, asaltosLimpios: 0 };
   private jefes = 0;
   private defensas = 0;
+  private asaltosParados = 0;
+  private asaltosLimpios = 0;
+  /** Rango actual (índice en RANGOS): sube con los méritos y mejora el equipo. */
+  private rango = 0;
   /** Descanso hasta el amanecer (H): dónde empezó. */
   private descanso: THREE.Vector3 | null = null;
   private jefeSuelto: TitanAPI | null = null;
@@ -109,9 +115,15 @@ export class CapMundo implements Capitulo {
     ctx.ciclo.hora = p?.hora ?? HORA_INICIAL;
     ctx.ciclo.aceleracion = 1;
     this.prev = { dia: ctx.ciclo.dia, hora: ctx.ciclo.hora };
-    this.base = { ...(p?.stats ?? { titanes: 0, nucas: 0, jefes: 0, defensas: 0 }) };
+    this.base = { titanes: 0, nucas: 0, jefes: 0, defensas: 0, asaltos: 0, asaltosLimpios: 0, ...(p?.stats ?? {}) };
     this.jefes = 0;
     this.defensas = 0;
+    this.asaltosParados = 0;
+    this.asaltosLimpios = 0;
+    // el equipo del rango que ya tenías (sin aviso: no es un ascenso)
+    this.rango = 0;
+    this.aplicarMejoras();
+    this.revisarRango(false);
     for (const l of ctx.mundo.lugares) l.descubierto = p?.descubiertos.includes(l.id) ?? false;
     const m = ctx.mundo.muralla;
     const puerta = new THREE.Vector3(6, 0, m.radioExterior + 30);
@@ -160,6 +172,11 @@ export class CapMundo implements Capitulo {
     this.avistamientoHoy = p ? p.dia : -1;
     this.quitar.push(
       ctx.eventos.on('puebloDefendido', () => this.defensas++),
+      ctx.eventos.on('asaltoDetenido', (e) => {
+        this.asaltosParados++;
+        if (e.puertaIntacta) this.asaltosLimpios++;
+        this.revisarRango(true);
+      }),
       ctx.eventos.on('titanMuerto', (e) => {
         if (!e.titan.especial) return;
         this.jefes++;
@@ -210,6 +227,7 @@ export class CapMundo implements Capitulo {
     }
     // reaparecer en el refugio más cercano
     this.api.puntoControl(this.lugarSeguro(p));
+    this.revisarRango(true);
     this.reforzar(p);
     this.actualizarObjetivo();
   }
@@ -257,6 +275,8 @@ export class CapMundo implements Capitulo {
         nucas: this.base.nucas + s.nucasPropias,
         jefes: this.base.jefes + this.jefes,
         defensas: this.base.defensas + this.defensas,
+        asaltos: this.base.asaltos + this.asaltosParados,
+        asaltosLimpios: this.base.asaltosLimpios + this.asaltosLimpios,
       },
       reaparicion: [r.x, r.z],
       // si te están comiendo, mejor volver al refugio que a la mano del titán
@@ -469,6 +489,44 @@ export class CapMundo implements Capitulo {
     return ctx.nav.puntoLibreCercano(mejor.x, mejor.z, 1.5) ?? mejor.clone().setY(0);
   }
 
+  /** Méritos de toda la partida (rangos.ts). */
+  private get meritos(): number {
+    return meritos({
+      titanes: this.titanesTotales,
+      jefes: this.base.jefes + this.jefes,
+      defensas: this.base.defensas + this.defensas,
+      asaltos: this.base.asaltos + this.asaltosParados,
+      asaltosLimpios: this.base.asaltosLimpios + this.asaltosLimpios,
+    });
+  }
+
+  /** Si los méritos dan para otro rango, asciende (con aviso si `avisar`) y mejora el equipo. */
+  private revisarRango(avisar: boolean): void {
+    const i = indiceRango(this.meritos);
+    if (i === this.rango) return;
+    const sube = i > this.rango;
+    this.rango = i;
+    this.aplicarMejoras();
+    if (!avisar || !sube) return;
+    const r = RANGOS[i];
+    this.api.mensaje(`¡Ascenso a ${r.nombre}! Por defender a la humanidad: ${r.novedad}`, 6);
+    this.api.ctx.eventos.emit({ tipo: 'ascenso', rango: r.nombre, novedad: r.novedad });
+  }
+
+  /** El equipo del rango actual: gas, dureza y repuesto de las hojas, bengalas y lanzas. */
+  private aplicarMejoras(): void {
+    const j = this.api.ctx.jugador as unknown as { gas: { capacidad: number; nivel: number }; combate?: { cuchillas: { maxRepuesto: number; dureza: number }; maxBengalas: number; lanzas: { maximo: number } } | null };
+    const m = RANGOS[this.rango].mejoras;
+    j.gas.capacidad = config.gas.capacidad * m.gas;
+    j.gas.nivel = Math.min(j.gas.nivel, j.gas.capacidad);
+    const c = j.combate;
+    if (!c) return;
+    c.cuchillas.maxRepuesto = m.repuesto;
+    c.cuchillas.dureza = m.desgaste;
+    c.maxBengalas = m.bengalas;
+    c.lanzas.maximo = m.lanzas;
+  }
+
   private actualizarObjetivo(): void {
     const ctx = this.api.ctx;
     const c = ctx.ciclo;
@@ -483,6 +541,7 @@ export class CapMundo implements Capitulo {
       `Pueblos en paz ${pueblos?.enPaz ?? 0}/${n}`,
       `Vecinos ${pueblos?.poblacion ?? 0}`,
       `Titanes abatidos ${this.titanesTotales}`,
+      textoRango(this.meritos),
     ].join(' · ');
     this.api.objetivo(titulo, detalle);
   }

@@ -106,6 +106,9 @@ export class SonidosJuego {
     });
     ev.on('puertaFuerte', (e) => this.s.tocar('golpe', { pos: e.pos, alcance: 20, volumen: 0.6, tono: 0.6 }));
     ev.on('alambre', (e) => this.s.tocar('coraza', { pos: e.pos, alcance: 40, volumen: 0.9, tono: 1.6, variacion: 0.15 }));
+    // asalto detenido: vítores desde la muralla; ascenso: campana
+    ev.on('asaltoDetenido', () => this.s.tocar('vitores', { volumen: 0.9, retraso: 0.5 }));
+    ev.on('ascenso', () => this.s.tocar('campana', { volumen: 0.8, tono: 1.25 }));
     for (const tipo of ['puebloDefendido', 'puebloLiberado', 'puebloEnPaz'] as const) {
       ev.on(tipo, (e) => this.s.tocar('vitores', { pos: e.pos.clone().setY(2), alcance: 90, volumen: 1, retraso: 0.8 }));
     }
