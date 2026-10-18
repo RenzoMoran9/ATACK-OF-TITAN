@@ -61,13 +61,13 @@ export const COMPLEXION_CAMBIANTE: Proporciones = {
   radioCabeza: 0.068, brazo: 0.42, radioBrazo: 0.03,
 };
 
-/** Colosal: 60 m, delgado y fibroso, cuello largo y cabeza pequeña. */
+/** Colosal: 60 m, fibroso y de espalda ancha (cintura estrecha), cuello largo y cabeza pequeña. */
 export const COMPLEXION_COLOSAL: Proporciones = {
-  cadera: 0.47, muslo: 0.23, radioPierna: 0.045, anchoCadera: 0.055,
-  perfil: [[0, 0.43], [0.06, 0.44], [0.075, 0.5], [0.068, 0.56], [0.085, 0.64], [0.105, 0.72], [0.112, 0.775], [0.09, 0.8], [0.045, 0.812], [0, 0.814]],
-  profundidad: 0.55,
-  hombroY: 0.77, hombroX: 0.115, cuelloAlto: 0.05,
-  radioCabeza: 0.07, brazo: 0.42, radioBrazo: 0.026,
+  cadera: 0.47, muslo: 0.23, radioPierna: 0.052, anchoCadera: 0.06,
+  perfil: [[0, 0.43], [0.065, 0.44], [0.08, 0.5], [0.07, 0.56], [0.092, 0.64], [0.122, 0.72], [0.132, 0.772], [0.1, 0.8], [0.048, 0.812], [0, 0.814]],
+  profundidad: 0.62,
+  hombroY: 0.77, hombroX: 0.13, cuelloAlto: 0.05,
+  radioCabeza: 0.07, brazo: 0.42, radioBrazo: 0.032,
 };
 
 /** Bestia: simiesca, piernas cortas, pecho enorme, brazos larguísimos que llegan al suelo. */
@@ -352,7 +352,8 @@ export class ModeloTitan {
       return x;
     };
     if (e === 'acorazado') {
-      const placa = new THREE.MeshLambertMaterial({ color: '#ddcfab' });
+      // placas duras: facetadas y con algo de brillo (no piel)
+      const placa = new THREE.MeshPhongMaterial({ color: '#ddcfab', specular: '#5a5246', shininess: 28, flatShading: true });
       const junta = new THREE.MeshLambertMaterial({ color: '#5d4c3c' });
       // pecho: dos grandes placas pectorales
       for (const lado of [-1, 1]) {
@@ -390,9 +391,25 @@ export class ModeloTitan {
       const mascara = malla(new THREE.SphereGeometry(rc * 1.05, 26, 18, Math.PI / 2 - 0.95, 1.9, 0.5, 1.55), placa, this.cabeza);
       mascara.scale.set(1, 1.12, 1.04);
       malla(new THREE.BoxGeometry(rc * 1.3, rc * 0.14, rc * 0.25), placa, this.cabeza, 0, rc * 0.28, rc * 0.93);
-      for (const lado of [-1, 1]) sinSombra(malla(elipsoide(rc * 0.2, rc * 0.07, rc * 0.06), new THREE.MeshBasicMaterial({ color: '#1a120c' }), this.cabeza, lado * rc * 0.34, rc * 0.12, rc * 1.03));
+      for (const lado of [-1, 1]) {
+        sinSombra(malla(elipsoide(rc * 0.2, rc * 0.07, rc * 0.06), new THREE.MeshBasicMaterial({ color: '#1a120c' }), this.cabeza, lado * rc * 0.34, rc * 0.12, rc * 1.03));
+        // ojos pálidos, casi blancos, al fondo de las rendijas
+        sinSombra(malla(elipsoide(rc * 0.11, rc * 0.045, rc * 0.03), new THREE.MeshBasicMaterial({ color: '#f1ead2' }), this.cabeza, lado * rc * 0.34, rc * 0.12, rc * 1.07));
+        // pómulos acorazados
+        malla(elipsoide(rc * 0.2, rc * 0.13, rc * 0.1), placa, this.cabeza, lado * rc * 0.5, -rc * 0.1, rc * 0.86);
+      }
       // dientes acorazados en una boca sin labios
       malla(new THREE.BoxGeometry(rc * 0.75, rc * 0.1, rc * 0.08), placa, this.cabeza, 0, -rc * 0.36, rc * 1.0);
+      // pelo corto y rubio asomando por encima de la máscara
+      const pelo = malla(new THREE.SphereGeometry(rc * 1.07, 18, 8, 0, Math.PI * 2, 0, Math.PI * 0.3), new THREE.MeshLambertMaterial({ color: '#e3cf8c' }), this.cabeza);
+      pelo.scale.set(1, 1.12, 1.04);
+      pelo.rotation.x = -0.25;
+      // surco entre las placas del pecho y bordes oscuros bajo hombreras y rodilleras
+      sinSombra(malla(new THREE.BoxGeometry(0.008 * H, 0.09 * H, 0.012 * H), junta, this.torso, 0, altoTorso - 0.085 * H, radioEn(hombroY / H - 0.085) * p.profundidad * 0.97));
+      for (let i = 0; i < 2; i++) {
+        const borde = sinSombra(malla(new THREE.TorusGeometry(p.radioBrazo * H * 1.3, 0.004 * H, 4, 14), junta, this.hombros[i], 0, -brazo * 0.78 - 0.02 * H, 0));
+        borde.rotation.x = Math.PI / 2;
+      }
     } else if (e === 'colosal') {
       const fibra = new THREE.MeshLambertMaterial({ color: '#6c241d' });
       const tendon = new THREE.MeshLambertMaterial({ color: '#d79a86' });
@@ -447,8 +464,9 @@ export class ModeloTitan {
         }
       }
     } else if (e === 'bestia') {
-      const pelaje = new THREE.MeshLambertMaterial({ color: '#6e5c48' });
-      const pelajeOscuro = new THREE.MeshLambertMaterial({ color: '#4f4234' });
+      // pardo claro como en la serie (el oscuro, en la melena, la barba y algunos mechones)
+      const pelaje = new THREE.MeshLambertMaterial({ color: '#a2845f' });
+      const pelajeOscuro = new THREE.MeshLambertMaterial({ color: '#6f5a43' });
       // capa de pelo sobre el tronco: el mismo torno, algo más ancho
       const capa = malla(new THREE.LatheGeometry(p.perfil.slice(0, -1).map(([r, y]) => new THREE.Vector2(r * H * 1.07, (y - p.cadera) * H)), 22), pelaje, this.torso);
       capa.scale.z = p.profundidad;
