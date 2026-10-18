@@ -15,6 +15,8 @@ export class Efectos {
   private readonly destellos: { s: THREE.Sprite; t: number; dur: number; tam: number }[] = [];
   /** Aviso para el sonido: se ha disparado una bengala. */
   alBengala: ((pos: THREE.Vector3) => void) | null = null;
+  /** Calidad gráfica: menos vapor en los niveles bajos (1 = todo). */
+  factorParticulas = 1;
 
   constructor(private readonly escena: THREE.Scene) {
     this.vaporP = new Particulas(escena, 1400, '#f4f6f8', 3.2, { gravedad: -1.2, alfaMax: 0.55, amortiguacion: 0.8 });
@@ -23,7 +25,10 @@ export class Efectos {
 
   /** Bocanada de vapor en un punto (tam = tamaño inicial de cada nube en m). */
   vapor(pos: THREE.Vector3, cantidad = 12, tam = 2, velocidad = 3): void {
-    for (let i = 0; i < cantidad; i++) {
+    // con menos partículas, cada una algo más grande para que la nube se vea igual de densa
+    const n = Math.max(1, Math.round(cantidad * this.factorParticulas));
+    if (n < cantidad) tam *= 1 + 0.5 * (1 - this.factorParticulas);
+    for (let i = 0; i < n; i++) {
       this.tmp.set(Math.random() - 0.5, Math.random() * 0.8 + 0.4, Math.random() - 0.5).normalize().multiplyScalar(velocidad * (0.5 + Math.random()));
       this.vaporP.emitir(pos, this.tmp, 2.5 + Math.random() * 2.5, tam * (0.6 + Math.random() * 0.8), velocidad * 0.5);
     }
@@ -34,7 +39,8 @@ export class Efectos {
    * Si `seguir` devuelve una posición, el emisor la sigue; si devuelve null, se apaga.
    */
   vaporContinuo(pos: THREE.Vector3, segundos: number, porSegundo = 10, tam = 2, seguir?: () => THREE.Vector3 | null): void {
-    this.fuentes.push({ pos: pos.clone(), restante: segundos, ritmo: porSegundo, tam, acum: 0, seguir });
+    const f = this.factorParticulas;
+    this.fuentes.push({ pos: pos.clone(), restante: segundos, ritmo: porSegundo * f, tam: tam * (1 + 0.5 * (1 - f)), acum: 0, seguir });
   }
 
   /** Salpicadura de sangre roja, corta y estilizada, en la dirección del corte. */

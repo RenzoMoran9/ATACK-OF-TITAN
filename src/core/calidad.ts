@@ -31,12 +31,14 @@ export interface PerfilCalidad {
   distancia: number;
   /** Antorchas que dan luz de verdad (cada luz encarece cada píxel). */
   antorchasConLuz: number;
+  /** Factor sobre el vapor y el humo (las nubes del Colosal o de un titán muerto pesan mucho). */
+  particulas: number;
 }
 
 export const PERFILES: Record<NivelCalidad, PerfilCalidad> = {
-  alta: { etiqueta: 'Alto', resolucionMax: 1.5, resolucionMin: 1, sombras: true, tamanoSombra: 2048, distancia: 1, antorchasConLuz: 8 },
-  media: { etiqueta: 'Medio', resolucionMax: 1.1, resolucionMin: 0.7, sombras: true, tamanoSombra: 1024, distancia: 0.6, antorchasConLuz: 4 },
-  baja: { etiqueta: 'Bajo', resolucionMax: 0.85, resolucionMin: 0.5, sombras: false, tamanoSombra: 512, distancia: 0.42, antorchasConLuz: 2 },
+  alta: { etiqueta: 'Alto', resolucionMax: 1.5, resolucionMin: 1, sombras: true, tamanoSombra: 2048, distancia: 1, antorchasConLuz: 8, particulas: 1 },
+  media: { etiqueta: 'Medio', resolucionMax: 1.1, resolucionMin: 0.7, sombras: true, tamanoSombra: 1024, distancia: 0.6, antorchasConLuz: 4, particulas: 0.7 },
+  baja: { etiqueta: 'Bajo', resolucionMax: 0.85, resolucionMin: 0.5, sombras: false, tamanoSombra: 512, distancia: 0.42, antorchasConLuz: 2, particulas: 0.4 },
 };
 
 export const ORDEN_NIVELES: NivelCalidad[] = ['alta', 'media', 'baja'];

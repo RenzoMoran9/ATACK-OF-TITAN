@@ -292,6 +292,7 @@ async function iniciar(): Promise<void> {
   calidad = new Calidad(modoGuardado() ?? (tactil ? 'media' : 'alta'), tactil ? 'media' : 'alta', window.devicePixelRatio || 1, (perfil, resolucion, nivelCambiado) => {
     renderer.setPixelRatio(resolucion);
     if (!nivelCambiado) return;
+    ctx.efectos.factorParticulas = perfil.particulas;
     const sombras = perfil.sombras && config.render.sombras;
     const sombraCambia = renderer.shadowMap.enabled !== sombras || cielo.sol.shadow.mapSize.x !== perfil.tamanoSombra;
     renderer.shadowMap.enabled = sombras;
