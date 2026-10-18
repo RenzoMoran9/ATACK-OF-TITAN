@@ -44,7 +44,7 @@ declare global {
   interface Window {
     /** true cuando la escena está construida y se han dibujado varios fotogramas (lo usa scripts/capturas.ts). */
     __juegoListo?: boolean;
-    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown; renderer?: unknown; sonido?: unknown; avanzar?: (segundos: number) => void; destinos?: unknown };
+    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown; renderer?: unknown; sonido?: unknown; avanzar?: (segundos: number) => void; destinos?: unknown; mapa?: unknown };
   }
 }
 
@@ -245,6 +245,7 @@ async function iniciar(): Promise<void> {
   mapa.pueblos = sonidos.pueblos;
   mapa.asaltos = () => mundoAbierto()?.asaltos?.proximo ?? null;
   brujula.destino = () => destinos.destino;
+  mapa.campamento = sonidos.campamento;
   brujula.marcasMapa = () => destinos.marcas;
   mapa.mandarEscuadron = (x, z) => {
     if (!ctx.escuadron.soldados.some((s) => s.vivo)) return 'No te queda escuadrón al que mandar';
@@ -522,6 +523,7 @@ async function iniciar(): Promise<void> {
     // Para pruebas automáticas (Playwright) y depuración en consola
     ctx,
     destinos,
+    mapa,
     /** Avanza la lógica del juego sin dibujar (simulaciones largas en pruebas). */
     avanzar: (segundos: number) => {
       for (let i = 0; i < Math.round(segundos * config.fisica.hz); i++) actualizar(1 / config.fisica.hz);

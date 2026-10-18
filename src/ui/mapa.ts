@@ -5,6 +5,8 @@ import type { GestorPueblos } from '../missions/pueblos';
 import { contorno } from '../world/formas';
 import { REGION } from '../world/region';
 import type { Destinos, Sitio } from './destinos';
+import { describirZona } from './zonaMapa';
+import { RADIO_CERCO } from '../missions/logicaCampamento';
 import { aLienzo, aMundo, arrastrar, coordenadas, distancia, leerCoordenadas, limitar, pasoCuadricula, rumbo, zoomEn, type Vista } from './logicaMapa';
 
 /**
@@ -36,12 +38,15 @@ export class Mapa {
   private readonly g: CanvasRenderingContext2D | null;
   private readonly fijo = document.createElement('canvas');
   private fijoClave = '';
+  private readonly patrones = new Map<string, CanvasPattern | string>();
   /** Pueblos del mundo abierto (estado de cada uno). */
   pueblos: (() => GestorPueblos | null) | null = null;
   /** Próximo asalto de un cambiante a Trost (o null si hay uno en curso). */
   asaltos: (() => { tipo: EspecialTitan; segundos: number; espera: boolean } | null) | null = null;
   /** Destino y marcas (compartidos con la brújula y la columna de luz del mundo). */
   destinos: Destinos | null = null;
+  /** Tu campamento (si has armado uno). */
+  campamento: (() => { centro: { x: number; z: number } } | null) | null = null;
   /** Manda al escuadrón a un punto («Id allí»); devuelve el aviso. */
   mandarEscuadron: ((x: number, z: number) => string) | null = null;
   private readonly avisoAsalto: HTMLDivElement;
@@ -182,7 +187,8 @@ export class Mapa {
       this.panelSucio = true;
       if (a === 'quitar') this.destinos.quitarDestino();
       else if (a === 'guardar') {
-        const m = this.destinos.marcar(d.x, d.z, d.nombre.startsWith('Coordenadas') || d.nombre === 'Punto del mapa' ? undefined : d.nombre);
+        const generico = d.nombre.startsWith('Coordenadas') || ['Punto del mapa', 'Llanura abierta', 'Río', 'Montañas'].includes(d.nombre);
+        const m = this.destinos.marcar(d.x, d.z, generico ? undefined : d.nombre);
         if (!m) this.avisar('Ya tienes 12 marcas: borra alguna');
       } else if (a === 'escuadron' && this.mandarEscuadron) this.avisar(this.mandarEscuadron(d.x, d.z));
     });
@@ -322,7 +328,9 @@ export class Mapa {
   private tocar(px: number, py: number): void {
     const cerca = this.sitioEn(px, py);
     const w = aMundo(this.vista, px, py);
-    this.irA(cerca ?? { x: w.x, z: w.z, nombre: 'Punto del mapa' });
+    // un punto suelto se llama como la zona en la que cae («Pinar Negro», «Llanura abierta»…)
+    const nombre = this.ctx ? describirZona(this.ctx, w.x, w.z, this.pueblos?.() ?? null).nombre : 'Punto del mapa';
+    this.irA(cerca ?? { x: w.x, z: w.z, nombre });
   }
 
   private marcarEn(px: number, py: number): void {
@@ -384,7 +392,10 @@ export class Mapa {
     const ds = this.destinos;
     const d = ds?.destino ?? null;
     const lejos = (s: Sitio) => `${distancia(Math.hypot(s.x - j.x, s.z - j.z))} ${rumbo(s.x - j.x, s.z - j.z)}`;
-    const info = d ? `<b>${escapar(d.nombre)}</b><br>${lejos(d)} · ${coordenadas(d.x, d.z)}` : 'Toca el mapa (o un lugar) para elegirlo';
+    const pueblos = this.pueblos?.() ?? null;
+    const zona = d ? describirZona(ctx, d.x, d.z, pueblos) : null;
+    const queHay = zona && zona.detalles.length ? `<div class="que-hay"><span>Qué hay allí</span><ul>${zona.detalles.map((x) => `<li>${escapar(x)}</li>`).join('')}</ul></div>` : '';
+    const info = d ? `<b>${escapar(d.nombre)}</b><br>${lejos(d)} · ${coordenadas(d.x, d.z)}${queHay}` : 'Toca el mapa (o un lugar) para elegirlo y ver qué hay allí';
     if (this.infoDestino.innerHTML !== info) this.infoDestino.innerHTML = info;
     this.botonesDestino.hidden = !d;
     const marcas = ds?.marcas ?? [];
@@ -397,7 +408,7 @@ export class Mapa {
     }
     const yo = `Tú: ${coordenadas(j.x, j.z)}`;
     if (this.textoYo.textContent !== yo) this.textoYo.textContent = yo;
-    const cur = this.cursor ? `Cursor: ${coordenadas(this.cursor.x, this.cursor.z)} · ${lejos({ ...this.cursor, nombre: '' })}` : '';
+    const cur = this.cursor ? `Cursor: ${coordenadas(this.cursor.x, this.cursor.z)} · ${describirZona(ctx, this.cursor.x, this.cursor.z, pueblos).nombre} · ${lejos({ ...this.cursor, nombre: '' })}` : '';
     if (this.textoCursor.textContent !== cur) this.textoCursor.textContent = cur;
   }
 
@@ -416,10 +427,14 @@ export class Mapa {
     this.vista = { ...this.vista, ancho: w, alto: h, k: Math.min(this.kMax, this.vista.k * escala) };
   }
 
-  /** Capa fija (suelo, bosques, río, caminos, edificios, Trost y cuadrícula) para la vista actual. */
+  /**
+   * Capa fija para la vista actual, con el detalle que pida el zoom: montañas fuera del territorio,
+   * hierba, campos de cultivo, bosques (y cada árbol al acercar), caminos, el río, los tejados de
+   * los pueblos y de Trost, la iglesia, la muralla con su puerta y sus cañones, y la cuadrícula.
+   */
   private dibujarFijo(ctx: ContextoJuego): void {
     const v = this.vista;
-    const clave = `${v.cx.toFixed(1)}|${v.cz.toFixed(1)}|${v.k.toFixed(4)}|${v.ancho}|${v.alto}`;
+    const clave = `${v.cx.toFixed(1)}|${v.cz.toFixed(1)}|${v.k.toFixed(4)}|${v.ancho}|${v.alto}|${ctx.mundo.muralla.rota}`;
     if (clave === this.fijoClave) return;
     this.fijoClave = clave;
     const c = this.fijo;
@@ -431,23 +446,64 @@ export class Mapa {
     if (!g) return;
     const mundo = ctx.mundo;
     const s = this.dpr;
+    /** Píxeles de pantalla por metro: decide cuánto detalle se dibuja. */
+    const detalle = v.k / s;
+    const a = aMundo(v, 0, 0);
+    const b = aMundo(v, v.ancho, v.alto);
+    const enVista = (x: number, z: number, r: number) => x + r > a.x && x - r < b.x && z + r > a.z && z - r < b.z;
     g.setTransform(1, 0, 0, 1, 0, 0);
-    g.fillStyle = '#3c3a2c';
+    // montañas alrededor del territorio
+    g.fillStyle = '#6d685a';
     g.fillRect(0, 0, v.ancho, v.alto);
-    // del mundo al lienzo: todo lo que sigue se dibuja en metros
+    g.fillStyle = this.patron(g, 'monte');
+    g.fillRect(0, 0, v.ancho, v.alto);
+    // del mundo al lienzo: lo que sigue se dibuja en metros
     g.setTransform(v.k, 0, 0, v.k, v.ancho / 2 - v.cx * v.k, v.alto / 2 - v.cz * v.k);
-    const px = (n: number) => n / v.k; // grosor en píxeles de pantalla
-    g.fillStyle = '#5b5a3f';
+    const px = (n: number) => (n * s) / v.k; // grosor en píxeles de pantalla
+    g.fillStyle = '#5d6040';
     g.fillRect(REGION.x0, REGION.z0, REGION.x1 - REGION.x0, REGION.z1 - REGION.z0);
-    for (const b of mundo.bosques) {
-      const puntos = contorno(b.forma, 64);
+    // textura de hierba (en píxeles de pantalla, recortada al territorio)
+    g.save();
+    g.beginPath();
+    g.rect(REGION.x0, REGION.z0, REGION.x1 - REGION.x0, REGION.z1 - REGION.z0);
+    g.clip();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = this.patron(g, 'hierba');
+    g.fillRect(0, 0, v.ancho, v.alto);
+    g.restore();
+    g.strokeStyle = 'rgba(30, 26, 18, 0.6)';
+    g.lineWidth = px(3);
+    g.strokeRect(REGION.x0, REGION.z0, REGION.x1 - REGION.x0, REGION.z1 - REGION.z0);
+    // campos de cultivo (con surcos de cerca)
+    for (const cp of mundo.plano.campos) {
+      if (!enVista(cp.x, cp.z, 20)) continue;
+      g.save();
+      g.translate(cp.x, cp.z);
+      g.rotate(-cp.rotY);
+      g.fillStyle = cp.color;
+      g.fillRect(-cp.ancho / 2, -cp.fondo / 2, cp.ancho, cp.fondo);
+      if (detalle > 0.8) {
+        g.strokeStyle = 'rgba(60, 45, 20, 0.45)';
+        g.lineWidth = px(1);
+        g.beginPath();
+        for (let f = -cp.ancho / 2 + 1.1; f < cp.ancho / 2; f += 2.2) {
+          g.moveTo(f, -cp.fondo / 2);
+          g.lineTo(f, cp.fondo / 2);
+        }
+        g.stroke();
+      }
+      g.restore();
+    }
+    // bosques: la mancha y, al acercar, cada copa
+    for (const bo of mundo.bosques) {
+      const puntos = contorno(bo.forma, 72);
       g.beginPath();
       puntos.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.z) : g.lineTo(p.x, p.z)));
       g.closePath();
-      g.fillStyle = b.tipo === 'gigante' ? '#26391f' : '#2f4a27';
+      g.fillStyle = bo.tipo === 'gigante' ? '#2a3d22' : '#33492a';
       g.fill();
-      g.strokeStyle = 'rgba(160, 40, 30, 0.55)';
-      g.lineWidth = px(1.5 * s);
+      g.strokeStyle = 'rgba(160, 40, 30, 0.5)';
+      g.lineWidth = px(1.5);
       g.stroke();
     }
     const linea = (pts: readonly { x: number; z: number }[], ancho: number, color: string) => {
@@ -456,36 +512,108 @@ export class Mapa {
       g.strokeStyle = color;
       g.lineWidth = ancho;
       g.lineJoin = 'round';
+      g.lineCap = 'round';
       g.stroke();
     };
-    for (const camino of mundo.plano.caminos) linea(camino, Math.max(px(2 * s), 4), '#8c7650');
-    linea(mundo.plano.rio, Math.max(px(2 * s), mundo.plano.anchoRio), '#4f7896');
-    g.fillStyle = '#a89b82';
-    for (const e of mundo.plano.edificios) {
+    // caminos de tierra con borde, y el río con su corriente
+    for (const camino of mundo.plano.caminos) linea(camino, Math.max(px(3.5), 7), 'rgba(60, 48, 30, 0.7)');
+    for (const camino of mundo.plano.caminos) linea(camino, Math.max(px(2), 5), '#a8916a');
+    linea(mundo.plano.rio, Math.max(px(3), mundo.plano.anchoRio + 3), '#35566f');
+    linea(mundo.plano.rio, Math.max(px(2), mundo.plano.anchoRio), '#4f7f9f');
+    if (detalle > 0.5) linea(mundo.plano.rio, Math.max(px(1), mundo.plano.anchoRio * 0.25), 'rgba(170, 205, 225, 0.35)');
+    // árboles: copas con sombra (los gigantes se ven antes)
+    if (detalle > 0.1) {
+      const sombra = 'rgba(10, 16, 8, 0.45)';
+      for (const bo of mundo.bosques) {
+        for (const t of bo.datos.arboles) {
+          const r = t.radio * 3.2;
+          if (!enVista(t.x, t.z, r)) continue;
+          g.fillStyle = sombra;
+          circuloM(g, t.x + r * 0.25, t.z + r * 0.25, r);
+          g.fillStyle = '#2f4a26';
+          circuloM(g, t.x, t.z, r);
+          if (detalle > 0.6) {
+            g.fillStyle = 'rgba(120, 150, 80, 0.35)';
+            circuloM(g, t.x - r * 0.3, t.z - r * 0.3, r * 0.45);
+          }
+        }
+      }
+    }
+    if (detalle > 0.35) {
+      for (const t of mundo.vegetacion.arboles) {
+        const r = t.altura * (t.tipo === 'pino' ? 0.1 : 0.15);
+        if (!enVista(t.x, t.z, r)) continue;
+        g.fillStyle = 'rgba(10, 16, 8, 0.4)';
+        circuloM(g, t.x + r * 0.3, t.z + r * 0.3, r);
+        g.fillStyle = t.tipo === 'pino' ? '#24402a' : '#3e5c2c';
+        circuloM(g, t.x, t.z, r);
+      }
+    }
+    // edificios: sombra y tejado a dos aguas
+    const tejado = (x: number, z: number, ancho: number, fondo: number, rotY: number, color: string) => {
+      if (!enVista(x, z, Math.max(ancho, fondo))) return;
       g.save();
-      g.translate(e.x, e.z);
-      g.rotate(-e.rotY);
-      g.fillRect(-e.ancho / 2, -e.fondo / 2, Math.max(px(1.5 * s), e.ancho), Math.max(px(1.5 * s), e.fondo));
+      g.translate(x, z);
+      g.rotate(-rotY);
+      const w = Math.max(px(1.5), ancho);
+      const h = Math.max(px(1.5), fondo);
+      g.fillStyle = 'rgba(0, 0, 0, 0.35)';
+      g.fillRect(-w / 2 + 1, -h / 2 + 1, w, h);
+      g.fillStyle = color;
+      g.fillRect(-w / 2, -h / 2, w, h);
+      if (detalle > 0.6) {
+        // cumbrera por el lado largo
+        g.strokeStyle = 'rgba(40, 18, 10, 0.55)';
+        g.lineWidth = px(1);
+        g.beginPath();
+        if (w >= h) {
+          g.moveTo(-w / 2, 0);
+          g.lineTo(w / 2, 0);
+        } else {
+          g.moveTo(0, -h / 2);
+          g.lineTo(0, h / 2);
+        }
+        g.stroke();
+      }
       g.restore();
-    }
+    };
+    for (const e of mundo.plano.edificios) tejado(e.x, e.z, e.ancho, e.fondo, e.rotY, '#9c6046');
+    g.fillStyle = '#8f8a80';
     for (const t of mundo.plano.torres) {
-      g.beginPath();
-      g.arc(t.x, t.z, Math.max(px(2 * s), t.r), 0, Math.PI * 2);
-      g.fill();
+      if (enVista(t.x, t.z, t.r)) circuloM(g, t.x, t.z, Math.max(px(2), t.r));
     }
-    g.fillStyle = '#7a6d5c';
-    g.beginPath();
-    g.arc(0, 0, mundo.muralla.radioInterior, 0, Math.PI * 2);
-    g.fill();
+    // Trost: adoquines, la plaza, las casas, la iglesia y la muralla con su puerta
+    const m = mundo.muralla;
+    g.fillStyle = '#857b6a';
+    circuloM(g, 0, 0, m.radioInterior);
+    if (detalle > 0.25) {
+      g.fillStyle = '#a49a86';
+      circuloM(g, 0, 0, 36);
+      for (const casa of mundo.ciudad.casas) tejado(casa.x, casa.z, casa.ancho, casa.fondo, casa.rotY, '#b0583a');
+      tejado(0, -62, 18, 34, 0, '#6e6a66');
+      tejado(0, -41, 9, 9, 0, '#5e5a56');
+    }
+    const Rm = (m.radioInterior + m.radioExterior) / 2;
+    const hueco = m.rota ? m.anchoPuerta / 2 / Rm : 0;
     g.strokeStyle = '#d8d0c0';
-    g.lineWidth = Math.max(px(2 * s), mundo.muralla.radioExterior - mundo.muralla.radioInterior);
+    g.lineWidth = Math.max(px(2), m.radioExterior - m.radioInterior);
+    g.lineCap = 'butt';
+    g.beginPath();
+    g.arc(0, 0, Rm, Math.PI / 2 + hueco, Math.PI / 2 - hueco + Math.PI * 2);
     g.stroke();
+    // la puerta sur (madera) y, de cerca, los cañones de la coronación
+    if (!m.rota && detalle > 0.2) {
+      g.fillStyle = '#6b4a2e';
+      g.fillRect(-m.anchoPuerta / 2, m.radioInterior, m.anchoPuerta, m.radioExterior - m.radioInterior);
+    }
+    if (detalle > 0.5) {
+      g.fillStyle = '#202022';
+      for (const th of m.canones) circuloM(g, Math.sin(th) * (m.radioExterior - 2.6), Math.cos(th) * (m.radioExterior - 2.6), Math.max(px(1.5), 1.2));
+    }
     // cuadrícula con su paso según el zoom
-    const paso = pasoCuadricula(v.k / s);
-    const a = aMundo(v, 0, 0);
-    const b = aMundo(v, v.ancho, v.alto);
-    g.strokeStyle = 'rgba(240, 232, 210, 0.13)';
-    g.lineWidth = px(1 * s);
+    const paso = pasoCuadricula(detalle);
+    g.strokeStyle = 'rgba(240, 232, 210, 0.12)';
+    g.lineWidth = px(1);
     g.beginPath();
     for (let x = Math.ceil(a.x / paso) * paso; x <= b.x; x += paso) {
       g.moveTo(x, a.z);
@@ -499,26 +627,72 @@ export class Mapa {
     // textos a tamaño fijo de pantalla
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.textAlign = 'center';
-    g.fillStyle = 'rgba(240, 232, 210, 0.55)';
+    g.fillStyle = 'rgba(240, 232, 210, 0.6)';
     g.font = `${10 * s}px Georgia, serif`;
     for (let x = Math.ceil(a.x / paso) * paso; x <= b.x; x += paso) g.fillText(String(x).replace('-', '−'), aLienzo(v, x, 0).px, 12 * s);
     g.textAlign = 'left';
     for (let z = Math.ceil(a.z / paso) * paso; z <= b.z; z += paso) g.fillText(String(z).replace('-', '−'), 4 * s, aLienzo(v, 0, z).py - 3 * s);
     g.textAlign = 'center';
-    g.fillStyle = '#efe6d2';
+    const conSombra = (t: string, x: number, y: number) => {
+      g.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      g.fillText(t, x + s, y + s);
+      g.fillStyle = '#f1e9d6';
+      g.fillText(t, x, y);
+    };
     g.font = `600 ${13 * s}px Georgia, serif`;
-    const trost = aLienzo(v, 0, 0);
-    g.fillText('TROST', trost.px, trost.py + 4 * s);
+    const trost = aLienzo(v, 0, detalle > 0.25 ? -m.radioInterior * 0.55 : 0);
+    conSombra('TROST', trost.px, trost.py + 4 * s);
     g.font = `italic ${11 * s}px Georgia, serif`;
-    g.fillStyle = 'rgba(230, 220, 200, 0.85)';
     for (const bo of mundo.bosques) {
       const p = aLienzo(v, bo.centro.x, bo.centro.z);
-      g.fillText(bo.nombre, p.px, p.py);
+      conSombra(bo.nombre, p.px, p.py);
     }
-    // rosa de los vientos
+    if (detalle > 0.5) {
+      g.font = `italic ${10 * s}px Georgia, serif`;
+      const pr = mundo.plano.rio[Math.floor(mundo.plano.rio.length / 2)];
+      if (pr) conSombra('Río', aLienzo(v, pr.x, pr.z).px, aLienzo(v, pr.x, pr.z).py - 8 * s);
+    }
+    // rosa de los vientos y escala
     g.font = `600 ${12 * s}px Georgia, serif`;
-    g.fillStyle = 'rgba(240, 232, 210, 0.8)';
-    g.fillText('N ▲', v.ancho - 22 * s, 18 * s);
+    conSombra('N ▲', v.ancho - 22 * s, 18 * s);
+    const metros = paso;
+    const largo = metros * v.k;
+    g.fillStyle = 'rgba(240, 232, 210, 0.85)';
+    g.fillRect(10 * s, v.alto - 14 * s, largo, 3 * s);
+    g.font = `${10 * s}px Georgia, serif`;
+    g.textAlign = 'left';
+    conSombra(distancia(metros), 10 * s, v.alto - 19 * s);
+  }
+
+  /** Patrones de relieve (en píxeles de pantalla): hierba moteada y rayado de montaña. */
+  private patron(g: CanvasRenderingContext2D, tipo: 'hierba' | 'monte'): CanvasPattern | string {
+    const hecho = this.patrones.get(tipo);
+    if (hecho) return hecho;
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 64;
+    const q = c.getContext('2d');
+    if (!q) return 'transparent';
+    let semilla = tipo === 'hierba' ? 7 : 13;
+    const azar = () => ((semilla = (semilla * 16807) % 2147483647) / 2147483647);
+    if (tipo === 'hierba') {
+      for (let i = 0; i < 260; i++) {
+        q.fillStyle = azar() < 0.5 ? 'rgba(20, 30, 10, 0.12)' : 'rgba(200, 210, 140, 0.08)';
+        q.fillRect(Math.floor(azar() * 64), Math.floor(azar() * 64), 2, 2);
+      }
+    } else {
+      q.strokeStyle = 'rgba(30, 26, 20, 0.35)';
+      q.lineWidth = 1.5;
+      for (let i = -64; i < 64; i += 8) {
+        q.beginPath();
+        q.moveTo(i, 64);
+        q.lineTo(i + 64, 0);
+        q.stroke();
+      }
+    }
+    const p = g.createPattern(c, 'repeat') ?? 'transparent';
+    this.patrones.set(tipo, p);
+    return p;
   }
 
   /** Redibuja (solo con el mapa abierto). `yaw` = cámara. */
@@ -565,7 +739,8 @@ export class Mapa {
       }
       g.fillStyle = l.descubierto ? '#f4ecd8' : 'rgba(244, 236, 216, 0.45)';
       circulo(g, x, y, 3.5 * s);
-      g.fillText(l.descubierto ? l.nombre : '?', x, y - 7 * s);
+      const icono = { castillo: '♜', puente: '⌒', puesto: '⚑', campamento: '⛺', aldea: '⌂', bosque: '' }[l.tipo];
+      g.fillText(l.descubierto ? `${icono} ${l.nombre}` : '?', x, y - 7 * s);
     }
     g.fillStyle = '#9ee07a';
     for (const d of ctx.mundo.depositos) {
@@ -599,6 +774,19 @@ export class Mapa {
       g.fill();
       g.stroke();
       g.fillText(nombreCorto(t.especial), x, y - 9 * s);
+    }
+    // Tu campamento: la empalizada
+    const camp = this.campamento?.();
+    if (camp) {
+      const { px: x, py: y } = P(camp.centro.x, camp.centro.z);
+      g.strokeStyle = '#8a6440';
+      g.lineWidth = Math.max(2 * s, 2.2 * v.k);
+      g.beginPath();
+      g.arc(x, y, Math.max(4 * s, RADIO_CERCO * v.k), 0, Math.PI * 2);
+      g.stroke();
+      g.fillStyle = '#f4ecd8';
+      g.font = `${11 * s}px Georgia, serif`;
+      g.fillText('⛺ Tu campamento', x, y - Math.max(8 * s, RADIO_CERCO * v.k + 5 * s));
     }
     // Tu caballo
     const caballo = (ctx.jugador as { caballo?: { pos: { x: number; z: number }; montado: boolean; grupo: { visible: boolean } } | null }).caballo;
@@ -700,4 +888,11 @@ function rombo(g: CanvasRenderingContext2D, x: number, y: number, r: number, bor
 
 function escapar(t: string): string {
   return t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+}
+
+/** Círculo en coordenadas del mundo (con la transformación ya puesta). */
+function circuloM(g: CanvasRenderingContext2D, x: number, z: number, r: number): void {
+  g.beginPath();
+  g.arc(x, z, r, 0, Math.PI * 2);
+  g.fill();
 }

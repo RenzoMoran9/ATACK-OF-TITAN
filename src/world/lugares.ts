@@ -48,6 +48,8 @@ export interface Plano {
   caminos: PuntoXZ[][];
   edificios: Huella[];
   torres: { x: number; z: number; r: number }[];
+  /** Campos de cultivo junto a los pueblos (con el color del sembrado). */
+  campos: (Huella & { color: string })[];
 }
 
 /** Un pueblo que se puede repoblar y reconstruir (las casas en ruinas van por etapas). */
@@ -317,6 +319,7 @@ function construirCampos(o: Obra, rng: Rng, radio: number, caminos: PuntoXZ[][])
     hechos++;
     const color = colores[hechos % colores.length];
     const rot = -a;
+    o.plano.campos.push({ x: p.x, z: p.z, ancho: 7 * 2.2, fondo: 22, rotY: o.rot + rot, color: `#${color.getHexString()}` });
     const cr = Math.cos(rot);
     const sr = Math.sin(rot);
     for (let f = -3; f <= 3; f++) {
@@ -749,7 +752,7 @@ function construirPuente(o: Obra, largoAgua: number): void {
 export function construirLugares(escena: THREE.Scene, fisica: Fisica, mats: Materiales, antorchas: Antorchas, semilla: number): DatosLugares {
   const rio = curva(RIO_CONTROL, 10);
   const caminos = CAMINOS_CONTROL.map((c) => curva(c, 6));
-  const plano: Plano = { rio, anchoRio: ANCHO_RIO, caminos, edificios: [], torres: [] };
+  const plano: Plano = { rio, anchoRio: ANCHO_RIO, caminos, edificios: [], torres: [], campos: [] };
   const emblemas = new Lote();
   const lugares: Lugar[] = [];
   const depositos: DatosLugares['depositos'] = [];

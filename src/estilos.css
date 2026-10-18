@@ -1391,6 +1391,25 @@ body.tactil .hud-objetivo {
 .hud-mapa .info-destino b {
   color: #ffcf5a;
 }
+.hud-mapa .que-hay {
+  margin-top: 5px;
+  padding: 5px 7px;
+  background: rgba(255, 207, 90, 0.07);
+  border-left: 2px solid rgba(255, 207, 90, 0.6);
+}
+.hud-mapa .que-hay span {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.hud-mapa .que-hay ul {
+  margin: 2px 0 0;
+  padding-left: 14px;
+}
+.hud-mapa .que-hay li {
+  margin: 2px 0;
+}
 .hud-mapa .botones-destino {
   display: flex;
   flex-wrap: wrap;
