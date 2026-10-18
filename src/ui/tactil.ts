@@ -51,6 +51,7 @@ export class ControlesTactiles {
   private readonly base: HTMLDivElement;
   private readonly pomo: HTMLDivElement;
   private readonly ordenes: HTMLDivElement;
+  private readonly mas: HTMLDivElement;
   private joy: { id: number; x: number; y: number } | null = null;
   private readonly mirando = new Map<number, { x: number; y: number }>();
   private readonly teclasJoy = new Set<string>();
@@ -77,16 +78,19 @@ export class ControlesTactiles {
         <button class="t-btn mini" data-k="KeyB" title="Bengala (en la cara, ciega 3 s)">✷<small>Bengala</small></button>
         <button class="t-btn mini" data-k="KeyX" title="Fijar parte del titán">◎<small>Parte</small></button>
         <button class="t-btn mini" data-k="KeyC" title="Caballo: montar, bajar o silbar">♞<small>Caballo</small></button>
-        <button class="t-btn mini" data-k="KeyK" title="Armar campamento aquí">⛺<small>Acampar</small></button>
-        <button class="t-btn mini" data-k="KeyH" title="Descansar hasta el amanecer">☾<small>Dormir</small></button>
-        <button class="t-btn mini" data-k="KeyT" title="Disparar los cañones del campamento">✹<small>Cañones</small></button>
-        <button class="t-btn mini" data-k="KeyL" title="Linterna">☀<small>Luz</small></button>
+        <button class="t-btn mini" data-k="KeyT" title="Cañones (en la muralla o el campamento)">✹<small>Cañones</small></button>
         <button class="t-btn mini" data-k="KeyM" title="Mapa">⌖<small>Mapa</small></button>
-        <button class="t-btn mini" data-k="KeyG" title="Recoger equipo / pedir gas">✚<small>G</small></button>
         <button class="t-btn mini" data-accion="ordenes" title="Órdenes al escuadrón">⚑<small>Órdenes</small></button>
-        <button class="t-btn mini" data-k="KeyN" title="Sonido">♪<small>Sonido</small></button>
-        <button class="t-btn mini" data-accion="pantalla" title="Pantalla completa">⛶<small>Pantalla</small></button>
+        <button class="t-btn mini" data-accion="mas" title="Más: acampar, dormir, gas, luz, sonido, pantalla">☰<small>Más</small></button>
         <button class="t-btn mini" data-accion="pausa" title="Pausa">❚❚<small>Pausa</small></button>
+      </div>
+      <div class="tactil-mas" hidden>
+        <button class="t-btn" data-k="KeyK">⛺ Acampar aquí</button>
+        <button class="t-btn" data-k="KeyH">☾ Dormir</button>
+        <button class="t-btn" data-k="KeyG">✚ Recoger equipo / pedir gas</button>
+        <button class="t-btn" data-k="KeyL">☀ Linterna</button>
+        <button class="t-btn" data-k="KeyN">♪ Sonido</button>
+        <button class="t-btn" data-accion="pantalla">⛶ Pantalla completa</button>
       </div>
       <div class="tactil-ordenes" hidden>
         <button class="t-btn" data-k="Digit1">1 Seguidme</button>
@@ -111,6 +115,7 @@ export class ControlesTactiles {
     this.base = r.querySelector('.tactil-joy')!;
     this.pomo = r.querySelector('.tactil-joy .pomo')!;
     this.ordenes = r.querySelector('.tactil-ordenes')!;
+    this.mas = r.querySelector('.tactil-mas')!;
 
     const zona = r.querySelector<HTMLDivElement>('.tactil-zona')!;
     zona.addEventListener('pointerdown', (e) => this.empezarZona(e));
@@ -152,8 +157,17 @@ export class ControlesTactiles {
         if (pulsada) this.entrada.presionar(pulsada);
         if (accion === 'pausa') acciones.pausa();
         if (accion === 'pantalla') acciones.pantallaCompleta();
-        if (accion === 'ordenes') this.ordenes.hidden = !this.ordenes.hidden;
+        if (accion === 'ordenes') {
+          this.ordenes.hidden = !this.ordenes.hidden;
+          this.mas.hidden = true;
+        }
+        if (accion === 'mas') {
+          this.mas.hidden = !this.mas.hidden;
+          this.ordenes.hidden = true;
+        }
         if (k?.startsWith('Digit')) this.ordenes.hidden = true;
+        // del menú «Más» se elige una cosa y se cierra
+        if (b.closest('.tactil-mas')) this.mas.hidden = true;
       });
       b.addEventListener('pointermove', (e) => {
         if (this.editando) {
@@ -316,6 +330,7 @@ export class ControlesTactiles {
     }
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     this.ordenes.hidden = true;
+    this.mas.hidden = true;
     if (e.clientX < window.innerWidth * 0.42 && !this.joy) {
       this.joy = { id: e.pointerId, x: e.clientX, y: e.clientY };
       this.base.hidden = false;
@@ -380,6 +395,7 @@ export class ControlesTactiles {
     this.ponerTeclasJoy(new Set());
     this.mirando.clear();
     this.ordenes.hidden = true;
+    this.mas.hidden = true;
     for (const b of this.raiz.querySelectorAll<HTMLButtonElement>('.t-btn.pulsado')) {
       b.classList.remove('pulsado');
       if (b.dataset.k) this.entrada.liberar(b.dataset.k);

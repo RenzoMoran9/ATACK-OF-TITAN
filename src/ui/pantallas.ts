@@ -32,7 +32,7 @@ const CONTROLES_TACTILES = `
     <li><b>Dedo derecho</b> arrastra para mirar · <b>GANCHOS</b> mantener = recoger cable · <b>TAJO</b> mantener = cargar</li>
     <li><b>SALTO/GAS</b> toque = salto; mantenido = sube con gas hasta 10 m (con joystick, te lanza hacia delante); en el aire frena</li>
     <li><b>◀ GANCHO</b> (pulgar izquierdo) y <b>GANCHO ▶</b> (pulgar derecho): se clavan solos a ese lado; mantén para balancearte y suelta para salir despedido</li>
-    <li>Mientras mantienes un botón de acción, arrástralo para apuntar · arriba: cuchillas, bengala, parte, caballo, descansar, luz, mapa, órdenes, pausa</li>
+    <li>Mientras mantienes un botón de acción, arrástralo para apuntar · arriba: cuchillas, bengala, parte, caballo, cañones, mapa, órdenes, <b>☰ Más</b> (acampar, dormir, recoger equipo o pedir gas, linterna, sonido, pantalla completa) y pausa</li>
     <li>Cuando un titán cierra la mano sobre ti, <b>salto/gas o un gancho justo a tiempo</b>: lo esquivas</li>
     <li><b>⚡ LANZA</b> lanza relámpago a la mira (o a la parte marcada): se clava y estalla · <b>✹ Cañones</b> en lo alto de la muralla o en el campamento</li>
   </ul>`;

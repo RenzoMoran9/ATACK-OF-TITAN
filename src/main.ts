@@ -34,6 +34,7 @@ import { Calidad, PERFILES, guardarModo, modoGuardado } from './core/calidad';
 import { Sonido } from './audio/sonido';
 import { SonidosJuego } from './audio/sonidosJuego';
 import { ControlesTactiles, esDispositivoTactil } from './ui/tactil';
+import { GuiaCambiantes } from './ui/guiaCambiantes';
 import { alternarPantallaCompleta, esIOS, registrarServiceWorker } from './ui/pantallaCompleta';
 import { aplicarLimite, puntoDentro } from './world/region';
 
@@ -139,6 +140,7 @@ async function iniciar(): Promise<void> {
   // Orientación en el mundo abierto: brújula arriba y mapa con M
   const brujula = new Brujula(document.body, urlDepuracion.hud);
   const mapa = new Mapa(document.body);
+  const guia = new GuiaCambiantes(document.body);
   // ── Órdenes al escuadrón: 1-8 a la selección, Tab elige a quién (src/ui/ordenes.ts) ──
   const mando = new MandoEscuadron(ctx, () => ({ origen: camara.position, dir: rig.dir, excluir: jugador.collider }));
   // Muerte del jugador: fundido y reaparición
@@ -445,6 +447,7 @@ async function iniciar(): Promise<void> {
     mando.dibujar(tiempo);
     brujula.actualizar(ctx, rig.yaw);
     mapa.actualizar(ctx, rig.yaw);
+    if (!(pantallas?.bloqueaJuego ?? false)) guia.actualizar(ctx, dt);
     ctx.civiles.dibujar(dt, tiempo);
     ctx.suministros.dibujar(tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
