@@ -68,6 +68,7 @@ export class ControlesTactiles {
         <button class="t-btn medio salto" data-k="Space" data-mover="salto"><span>SALTO<br>GAS</span></button>
         <button class="t-btn chico q" data-k="KeyQ" data-mover="q"><span>◀</span><small>GANCHO</small></button>
         <button class="t-btn chico e" data-k="KeyE" data-mover="e"><span>▶</span><small>GANCHO</small></button>
+        <button class="t-btn chico lanza" data-k="KeyY" data-mover="lanza"><span>⚡</span><small>LANZA</small></button>
         <button class="t-btn medio caballo" data-k="KeyC" data-mover="caballo" hidden><span>♞</span><small>MONTAR</small></button>
         <button class="t-btn medio acelerar" data-k="KeyV" data-mover="acelerar" hidden><span>»</span><small>ACELERAR</small></button>
       </div>

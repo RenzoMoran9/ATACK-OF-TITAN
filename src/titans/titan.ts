@@ -552,6 +552,13 @@ export class Titan implements TitanAPI {
     }
   }
 
+  /** La explosión de una lanza relámpago agrieta la coraza: la nuca queda expuesta unos segundos. */
+  romperCoraza(segundos: number): void {
+    if (this.especial !== 'acorazado' || !this.vivo) return;
+    if (this.tCorazaRota <= 0) this.ctx.eventos.emit({ tipo: 'mensaje', texto: '¡Coraza reventada!', segundos: 1.2 });
+    this.tCorazaRota = Math.max(this.tCorazaRota, segundos);
+  }
+
   /** Protege la nuca unos segundos (el vapor del Colosal): los tajos rebotan como en la coraza. */
   protegerNuca(segundos: number): void {
     this.tEndurecida = Math.max(this.tEndurecida, segundos);

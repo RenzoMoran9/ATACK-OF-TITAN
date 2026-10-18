@@ -50,6 +50,7 @@ export class Hud {
   private readonly peligro: HTMLDivElement;
   private readonly muerte: HTMLDivElement;
   private readonly bengalas: HTMLSpanElement;
+  private readonly lanzas: HTMLSpanElement;
   private readonly fijado: HTMLDivElement;
   private readonly nombreFijado: HTMLSpanElement;
   private readonly accion: HTMLDivElement;
@@ -85,6 +86,7 @@ export class Hud {
           <div class="fila"><span>FILO</span><div class="barra"><div class="filo"></div></div><span class="repuesto">×4</span></div>
           <span class="estado-cuchillas"></span>
           <span class="bengalas"></span>
+          <span class="bengalas lanzas"></span>
         </div>
       </div>
       <div class="reticula">
@@ -130,6 +132,7 @@ export class Hud {
     this.peligro = q('.hud-peligro');
     this.muerte = q('.hud-muerte');
     this.bengalas = q('.bengalas');
+    this.lanzas = q('.lanzas');
     this.fijado = q('.hud-fijado');
     this.nombreFijado = q('.hud-fijado .nombre');
     this.accion = q('.hud-accion');
@@ -294,6 +297,10 @@ export class Hud {
     const tb = `BENGALAS ×${nb}`;
     if (this.bengalas.textContent !== tb) this.bengalas.textContent = tb;
     this.bengalas.classList.toggle('vacio', nb === 0);
+    const nl = jugador.combate?.lanzas.municion ?? 0;
+    const tl = `LANZAS ×${nl} · Y`;
+    if (this.lanzas.textContent !== tl) this.lanzas.textContent = tl;
+    this.lanzas.classList.toggle('vacio', nl === 0);
 
     // Minijuego del martillo junto a una obra del campamento
     const obra = jugador.vivo && !jugador.montado ? this.obraMartillo?.() : null;

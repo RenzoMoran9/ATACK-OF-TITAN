@@ -413,6 +413,9 @@ body {
 .hud-barras .bengalas.vacio {
   color: rgba(255, 255, 255, 0.4);
 }
+.hud-barras .lanzas {
+  color: #ffd27a;
+}
 
 /* Parte del titán fijada con X */
 .hud-fijado {
@@ -791,6 +794,13 @@ body {
 .tactil-acciones .e {
   right: calc(124px + env(safe-area-inset-right));
   bottom: 156px;
+}
+/* LANZA relámpago: encima de SALTO */
+.tactil-acciones .lanza {
+  right: calc(40px + env(safe-area-inset-right));
+  bottom: 204px;
+  border-color: rgba(255, 210, 122, 0.85);
+  background: rgba(90, 65, 20, 0.45);
 }
 .tactil-menu {
   position: absolute;

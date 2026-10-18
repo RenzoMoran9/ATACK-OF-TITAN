@@ -14,6 +14,7 @@ import {
   siguienteParte,
   zonaPasadaBaja,
 } from '../combat/tacticas';
+import { LanzasRelampago } from '../combat/lanzas';
 import type { ContextoJuego } from '../core/contexto';
 import type { Entrada } from '../core/entrada';
 import type { EfectoCorte, Humano, PuntoDebil, TitanAPI, ZonaTitan } from '../core/tipos';
@@ -29,6 +30,8 @@ import type { EfectoCorte, Humano, PuntoDebil, TitanAPI, ZonaTitan } from '../co
  * - Pasada baja: volando por debajo de 0,2·H y a menos de 3 m de un tendón o una corva, el
  *   tajo sale corto (0,15 s, sin carga) directo a esa zona.
  * - B: bengala a 50 m/s hacia la mira; si estalla a 4 m o menos de la cara, ciega 3 s.
+ * - Y: lanza relámpago hacia la mira (o hacia la parte fijada): se clava y estalla a los 1,4 s
+ *   (src/combat/lanzas.ts). Revienta la coraza del Acorazado. Pocas: se reponen en los depósitos.
  * - X: fija una parte del titán más cercano (nuca → ojos → brazos → corvas → tendones → nada);
  *   el tajo y los ganchos van a ella aunque la mira esté en otro sitio.
  * - Ataque directo: con una parte fijada lejos, el tajo (clic izquierdo o F, un toque) engancha
@@ -112,6 +115,8 @@ export class CombateJugador {
   sacudida = 0;
   /** Bengalas que quedan (se reponen en los depósitos). */
   bengalas = MAX_BENGALAS;
+  /** Lanzas relámpago (se reponen en los depósitos y con el intendente). */
+  readonly lanzas: LanzasRelampago;
   private readonly proyectiles: Proyectil[] = [];
   /** Parte del titán fijada con X (null = nada). */
   parteFijada: { titan: TitanAPI; zona: ZonaTitan } | null = null;
@@ -120,6 +125,7 @@ export class CombateJugador {
   private asalto: { t: number; cortado: boolean; dMin: number; tSinAvance: number } | null = null;
 
   constructor(private readonly ctx: ContextoJuego, private readonly c: CuerpoCombatiente) {
+    this.lanzas = new LanzasRelampago(ctx, c.humano);
     ctx.eventos.on('esquiva', (e) => {
       if (e.humano !== c.humano) return;
       this.sacudida = Math.max(this.sacudida, 0.6);
@@ -139,8 +145,15 @@ export class CombateJugador {
     return this.asalto !== null;
   }
 
+  /** Bengalas y lanzas al completo (depósitos, intendente, al reaparecer). */
   rellenarBengalas(): void {
     this.bengalas = MAX_BENGALAS;
+    this.lanzas.rellenar();
+  }
+
+  /** ¿Falta alguna bengala o lanza? */
+  get faltaMunicion(): boolean {
+    return this.bengalas < MAX_BENGALAS || this.lanzas.municion < this.lanzas.maximo;
   }
 
   /** Punto débil fijado (si sigue activo y el titán vivo), o null. */
@@ -176,7 +189,9 @@ export class CombateJugador {
   paso(dt: number, entrada: Entrada, mirada: THREE.Vector3): void {
     this.sacudida = Math.max(0, this.sacudida - dt * 2.5);
     this.moverProyectiles(dt);
+    this.lanzas.actualizar(dt);
     if (entrada.consumir('KeyB')) this.dispararBengala(mirada);
+    if (entrada.consumir('KeyY')) this.dispararLanza(mirada);
     if (entrada.consumir('KeyX')) this.fijarParte(mirada);
     if (this.c.agarradoPor) {
       this.terminarAsalto();
@@ -371,6 +386,19 @@ export class CombateJugador {
   }
 
   /** B: bengala roja hacia la mira (desde la mano). */
+  /** Y: lanza relámpago hacia la mira, o hacia la parte fijada con X. */
+  private dispararLanza(mirada: THREE.Vector3): void {
+    if (this.c.agarradoPor) return;
+    const desde = this.c.pos.clone().add(new THREE.Vector3(0, 0.6, 0)).addScaledVector(mirada, 0.9);
+    const fijado = this.puntoFijado;
+    const dir = fijado ? fijado.centro.clone().sub(desde).normalize() : mirada.clone().normalize();
+    if (!this.lanzas.disparar(desde, dir, fijado && this.parteFijada ? { titan: this.parteFijada.titan, zona: fijado.zona } : null)) {
+      this.mensaje('Sin lanzas relámpago: se reponen en los depósitos y con el intendente', 2);
+      return;
+    }
+    this.sacudida = Math.max(this.sacudida, 0.4);
+  }
+
   private dispararBengala(mirada: THREE.Vector3): void {
     if (this.c.agarradoPor) return;
     if (this.bengalas <= 0) {

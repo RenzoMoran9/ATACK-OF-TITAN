@@ -10,7 +10,7 @@ import { nuevoId } from '../core/poblacion';
 import type { JugadorAPI, TitanAPI } from '../core/tipos';
 import { Aguante } from './aguante';
 import type { Caballo } from './caballo';
-import { CombateJugador, MAX_BENGALAS } from './combate';
+import { CombateJugador } from './combate';
 import { DepositoGas } from './gas';
 import { ModeloJugador } from './modeloJugador';
 import { EquipoODM, type Lado } from './odm';
@@ -301,7 +301,7 @@ export class Jugador implements JugadorAPI {
     const antes = this.enDeposito;
     this.enDeposito += dt;
     const c = this.combate?.cuchillas;
-    const faltanBengalas = (this.combate?.bengalas ?? MAX_BENGALAS) < MAX_BENGALAS;
+    const faltanBengalas = this.combate?.faltaMunicion ?? false;
     if (antes < 2 && this.enDeposito >= 2 && c && (c.repuesto < 4 || c.filo < 1 || faltanBengalas)) {
       c.rellenar();
       this.combate?.rellenarBengalas();

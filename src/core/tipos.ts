@@ -145,6 +145,8 @@ export interface TitanAPI {
   dirigirA?(p: THREE.Vector3 | null): void;
   /** Enredado en el alambre de un campamento: anda a `factor` de su velocidad unos `segundos`. */
   enredar?(segundos: number, factor: number): void;
+  /** Una lanza relámpago le revienta la coraza: la nuca del Acorazado queda expuesta `segundos`. */
+  romperCoraza?(segundos: number): void;
 }
 
 // ───────────────────────── Eventos de juego ─────────────────────────
