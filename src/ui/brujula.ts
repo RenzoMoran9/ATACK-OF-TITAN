@@ -2,6 +2,7 @@ import type { ContextoJuego } from '../core/contexto';
 import { nombreCorto } from '../titans/especiales';
 import type { GestorPueblos } from '../missions/pueblos';
 import { depositoMasCercano } from '../world/mundo';
+import { distancia } from './logicaMapa';
 
 /**
  * Brújula en la parte superior: los puntos cardinales giran con la cámara y encima se ven
@@ -24,7 +25,7 @@ const CARDINALES: [string, number][] = [
 ];
 
 /** Qué nombre se queda cuando dos se pisan en la tira (más = más importante). */
-const PRIORIDAD: Record<string, number> = { alarma: 6, jefe: 5, campamento: 4, trost: 3, deposito: 2, lugar: 1 };
+const PRIORIDAD: Record<string, number> = { destino: 7, alarma: 6, jefe: 5, campamento: 4, trost: 3, deposito: 2, marca: 1.5, lugar: 1 };
 export function prioridad(clase: string): number {
   return PRIORIDAD[clase.split(' ')[0]] ?? 0;
 }
@@ -57,6 +58,9 @@ export class Brujula {
   pueblos: (() => GestorPueblos | null) | null = null;
   /** Tu campamento (si has armado uno). */
   campamento: (() => { centro: { x: number; z: number } } | null) | null = null;
+  /** Destino elegido en el mapa y marcas guardadas. */
+  destino: (() => { x: number; z: number; nombre: string } | null) | null = null;
+  marcasMapa: (() => readonly { x: number; z: number; nombre: string }[]) | null = null;
 
   constructor(contenedor: HTMLElement, visible: boolean) {
     this.raiz = document.createElement('div');
@@ -106,6 +110,9 @@ export class Brujula {
     // pueblos atacados (con su campana), cambiantes a la vista y tu caballo
     for (const p of this.pueblos?.()?.lista ?? []) if (p.enAlarma) m.push({ clase: 'alarma', x: p.centro.x, z: p.centro.z, texto: `¡${p.nombre}!` });
     for (const t of ctx.poblacion.titanesCerca(j, 1500)) if (t.vivo && t.especial) m.push({ clase: 'jefe', x: t.posicion.x, z: t.posicion.z, texto: nombreCorto(t.especial) });
+    const dest = this.destino?.();
+    if (dest) m.push({ clase: 'destino', x: dest.x, z: dest.z, texto: `${dest.nombre.length > 18 ? 'Destino' : dest.nombre} ${distancia(Math.hypot(dest.x - j.x, dest.z - j.z))}` });
+    for (const mk of this.marcasMapa?.() ?? []) m.push({ clase: 'marca', x: mk.x, z: mk.z, texto: mk.nombre });
     const camp = this.campamento?.();
     if (camp) m.push({ clase: 'campamento', x: camp.centro.x, z: camp.centro.z, texto: 'Campamento' });
     const caballo = (ctx.jugador as { caballo?: { pos: { x: number; z: number }; montado: boolean; grupo: { visible: boolean } } | null }).caballo;

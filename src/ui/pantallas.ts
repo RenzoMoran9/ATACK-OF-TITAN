@@ -22,7 +22,7 @@ const CONTROLES = `
     <li><b>Y</b> lanza relámpago: se clava y estalla (revienta la coraza del Acorazado; pocas, se reponen en los depósitos) · <b>T</b> cañones (en lo alto de la muralla o dentro del campamento)</li>
     <li><b>H</b> descansar hasta el amanecer (de noche, en un refugio)</li>
     <li><b>1</b> seguidme · <b>2</b> atacad · <b>3</b> proteged a los civiles · <b>4</b> retirada · <b>5</b> esperad aquí · <b>6</b> id allí · <b>7</b> atacad a ese titán · <b>8</b> explorad · <b>9</b> ¡a la muralla! (a los cañones)</li>
-    <li><b>L</b> linterna · <b>M</b> mapa · <b>G</b> recoger equipo / pedir gas · <b>N</b> sonido sí/no</li>
+    <li><b>L</b> linterna · <b>M</b> mapa (clic: destino · clic derecho: marca · rueda: zoom · escribe coordenadas) · <b>G</b> recoger equipo / pedir gas · <b>N</b> sonido sí/no</li>
     <li><b>Tab</b> a quién mandas (todos o uno) · <b>F1/P</b> ajustes · <b>Esc</b> pausa</li>
   </ul>`;
 
@@ -34,6 +34,7 @@ const CONTROLES_TACTILES = `
     <li><b>◀ GANCHO</b> (pulgar izquierdo) y <b>GANCHO ▶</b> (pulgar derecho): se clavan solos a ese lado; mantén para balancearte y suelta para salir despedido</li>
     <li>Mientras mantienes un botón de acción, arrástralo para apuntar · arriba: cuchillas, bengala, parte, caballo, cañones, mapa, órdenes, <b>☰ Más</b> (acampar, dormir, recoger equipo o pedir gas, linterna, sonido, pantalla completa) y pausa</li>
     <li>Cuando un titán cierra la mano sobre ti, <b>salto/gas o un gancho justo a tiempo</b>: lo esquivas</li>
+    <li><b>⌖ Mapa</b>: toca para elegir destino (columna de luz), mantén pulsado para guardar una marca, pellizca para el zoom; desde el panel, manda al escuadrón allí o escribe coordenadas</li>
     <li><b>⚡ LANZA</b> lanza relámpago a la mira (o a la parte marcada): se clava y estalla · <b>✹ Cañones</b> en lo alto de la muralla o en el campamento</li>
   </ul>`;
 

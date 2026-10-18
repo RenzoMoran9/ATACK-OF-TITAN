@@ -35,6 +35,8 @@ import { Sonido } from './audio/sonido';
 import { SonidosJuego } from './audio/sonidosJuego';
 import { ControlesTactiles, esDispositivoTactil } from './ui/tactil';
 import { GuiaCambiantes } from './ui/guiaCambiantes';
+import { Destinos } from './ui/destinos';
+import { distancia as textoDistancia } from './ui/logicaMapa';
 import { alternarPantallaCompleta, esIOS, registrarServiceWorker } from './ui/pantallaCompleta';
 import { aplicarLimite, puntoDentro } from './world/region';
 
@@ -42,7 +44,7 @@ declare global {
   interface Window {
     /** true cuando la escena está construida y se han dibujado varios fotogramas (lo usa scripts/capturas.ts). */
     __juegoListo?: boolean;
-    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown; renderer?: unknown; sonido?: unknown; avanzar?: (segundos: number) => void };
+    __juego?: { hora: Hora; cam: string | null; puntos: string[]; estado: () => EstadoDepuracion; ctx?: unknown; campana?: unknown; rig?: unknown; mando?: unknown; renderer?: unknown; sonido?: unknown; avanzar?: (segundos: number) => void; destinos?: unknown };
   }
 }
 
@@ -141,6 +143,9 @@ async function iniciar(): Promise<void> {
   const brujula = new Brujula(document.body, urlDepuracion.hud);
   const mapa = new Mapa(document.body);
   const guia = new GuiaCambiantes(document.body);
+  // destino y marcas del mapa (columna de luz en el mundo, brújula y mapa)
+  const destinos = new Destinos(escena);
+  mapa.destinos = destinos;
   // ── Órdenes al escuadrón: 1-8 a la selección, Tab elige a quién (src/ui/ordenes.ts) ──
   const mando = new MandoEscuadron(ctx, () => ({ origen: camara.position, dir: rig.dir, excluir: jugador.collider }));
   // Muerte del jugador: fundido y reaparición
@@ -239,6 +244,14 @@ async function iniciar(): Promise<void> {
   };
   mapa.pueblos = sonidos.pueblos;
   mapa.asaltos = () => mundoAbierto()?.asaltos?.proximo ?? null;
+  brujula.destino = () => destinos.destino;
+  brujula.marcasMapa = () => destinos.marcas;
+  mapa.mandarEscuadron = (x, z) => {
+    if (!ctx.escuadron.soldados.some((s) => s.vivo)) return 'No te queda escuadrón al que mandar';
+    ctx.escuadron.ordenar('irA', { punto: new THREE.Vector3(x, 0, z) });
+    const quien = ctx.escuadron.seleccion ? (ctx.escuadron.seleccion as { nombre?: string }).nombre ?? 'Tu soldado' : 'El escuadrón';
+    return `${quien} va al destino (${textoDistancia(Math.hypot(x - jugador.pos.x, z - jugador.pos.z))})`;
+  };
   const derechaCamara = new THREE.Vector3();
   const alternarSonido = () => {
     sonido.desbloquear();
@@ -344,7 +357,8 @@ async function iniciar(): Promise<void> {
   // Soltar el ratón (Esc) pausa la partida
   document.addEventListener('pointerlockchange', () => {
     const capturado = document.pointerLockElement === renderer.domElement;
-    if (!capturado && !entrada.sinCaptura) {
+    // abrir el mapa suelta el ratón a propósito: eso no es pausa
+    if (!capturado && !entrada.sinCaptura && !mapa.abierto) {
       pantallas?.ponerPausa(true);
       mundoAbierto()?.guardar();
     }
@@ -354,6 +368,10 @@ async function iniciar(): Promise<void> {
     if (document.visibilityState === 'hidden') mundoAbierto()?.guardar();
   });
   window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape' && mapa.abierto) {
+      mapa.cerrar();
+      return;
+    }
     if (e.code === 'Escape' && entrada.sinCaptura) pantallas?.ponerPausa(!pantallas.pausado);
   });
 
@@ -456,6 +474,7 @@ async function iniciar(): Promise<void> {
     brujula.actualizar(ctx, rig.yaw);
     mapa.actualizar(ctx, rig.yaw);
     if (!(pantallas?.bloqueaJuego ?? false)) guia.actualizar(ctx, dt);
+    destinos.actualizar(ctx, tiempo);
     ctx.civiles.dibujar(dt, tiempo);
     ctx.suministros.dibujar(tiempo);
     ctx.efectos.actualizar(dt * bucleRef.escalaTiempo);
@@ -502,6 +521,7 @@ async function iniciar(): Promise<void> {
     }),
     // Para pruebas automáticas (Playwright) y depuración en consola
     ctx,
+    destinos,
     /** Avanza la lógica del juego sin dibujar (simulaciones largas en pruebas). */
     avanzar: (segundos: number) => {
       for (let i = 0; i < Math.round(segundos * config.fisica.hz); i++) actualizar(1 / config.fisica.hz);
