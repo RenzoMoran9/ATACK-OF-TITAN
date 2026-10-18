@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { generarMusicaAsalto } from './musica';
 
 /**
  * Motor de sonido con Web Audio: efectos sueltos (con distancia y lado respecto a la cámara)
@@ -45,6 +46,9 @@ export class Sonido {
   private readonly derecha = new THREE.Vector3(1, 0, 0);
   private readonly tmp = new THREE.Vector3();
   private cargando = false;
+  /** Música de los asaltos (generada al cargar) y su reproducción en bucle. */
+  private musicaBuf: AudioBuffer | null = null;
+  private musicaNodo: { fuente: AudioBufferSourceNode; gain: GainNode } | null = null;
   silenciado: boolean;
   /** Volumen general (0–1). */
   volumen = 0.9;
@@ -101,6 +105,29 @@ export class Sonido {
         }
       }),
     );
+    try {
+      this.musicaBuf = await generarMusicaAsalto(ctx.sampleRate);
+    } catch {
+      // sin OfflineAudioContext: el juego sigue sin música
+    }
+  }
+
+  /** Volumen de la música de los asaltos (0 = callada); entra y sale despacio. */
+  musica(volumen: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.maestro || !this.musicaBuf) return;
+    if (!this.musicaNodo) {
+      if (volumen <= 0.001) return;
+      const fuente = ctx.createBufferSource();
+      fuente.buffer = this.musicaBuf;
+      fuente.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      fuente.connect(gain).connect(this.maestro);
+      fuente.start();
+      this.musicaNodo = { fuente, gain };
+    }
+    this.musicaNodo.gain.gain.setTargetAtTime(Math.max(0, volumen), ctx.currentTime, volumen > 0.001 ? 1.2 : 2.5);
   }
 
   alternarSilencio(): boolean {
@@ -186,5 +213,6 @@ export class Sonido {
   callarBucles(): void {
     if (!this.ctx) return;
     for (const b of this.bucles.values()) b.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
+    this.musicaNodo?.gain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.1);
   }
 }

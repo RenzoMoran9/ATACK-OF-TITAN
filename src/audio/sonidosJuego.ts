@@ -36,6 +36,8 @@ export class SonidosJuego {
   /** Pueblos del mundo abierto (los pone main.ts cuando hay partida). */
   pueblos: (() => GestorPueblos | null) | null = null;
   campamento: (() => Campamento | null) | null = null;
+  /** Intensidad de la música de asalto (0–1): asalto en curso o a punto de llegar. */
+  musicaAsalto: (() => number) | null = null;
 
   constructor(
     private readonly s: Sonido,
@@ -198,6 +200,10 @@ export class SonidosJuego {
 
     // ── Mundo abierto: caballo y pueblos ──
     this.mundoAbierto(noche);
+
+    // ── Música: entra con un asalto a la muralla (o su cuenta atrás) y con un cambiante cerca ──
+    const cambiante = this.ctx.poblacion.titanesCerca(j.posicion, 220).some((t) => t.vivo && !!t.especial);
+    s.musica(0.38 * Math.max(cambiante ? 1 : 0, this.musicaAsalto?.() ?? 0));
 
     // ── Equipo de maniobras ──
     j.odm.ganchos.forEach((g, i) => {

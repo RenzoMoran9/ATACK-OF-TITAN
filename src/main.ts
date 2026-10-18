@@ -224,6 +224,13 @@ async function iniciar(): Promise<void> {
   brujula.pueblos = sonidos.pueblos;
   if (pantallas) pantallas.guardar = () => mundoAbierto()?.guardar() ?? false;
   sonidos.campamento = () => mundoAbierto()?.campamento ?? null;
+  sonidos.musicaAsalto = () => {
+    const a = mundoAbierto()?.asaltos;
+    if (!a) return 0;
+    if (a.enCurso) return 1;
+    const p = a.proximo;
+    return p && !p.espera && p.segundos <= 60 ? 0.6 : 0;
+  };
   brujula.campamento = sonidos.campamento;
   hud.obraMartillo = () => {
     const c = mundoAbierto()?.campamento;
