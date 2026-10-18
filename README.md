@@ -39,18 +39,20 @@ npm run dev                       # http://localhost:5173
 | **Espacio** | Toque: **salto**. **Mantenido: salto con gas** — el gas te sigue empujando hasta **10 m** sobre el despegue y luego planeas despacio (para escapar de los que corren a cuatro patas o caer sobre un titán desde arriba); con WASD, el gas te lanza hacia delante. En el aire sin ganchos: solo, **freno**; con WASD, impulso. Enganchado: impulso y órbita del ancla |
 | **Shift** (mantener) | **Correr** a pie; gasta la barra de **aguante**, que se recupera al parar (vacía, te agotas y andas más lento). Shift o Espacio justo antes de tocar el suelo: **rodada** (evita el daño por caída) |
 | **WASD** | Mover en el suelo. En el aire sin cables ni gas: dirige el salto hacia donde pulsas sin perder impulso, y la tecla contraria frena (para caer justo sobre una rama) |
-| **R** | Cambiar de par de cuchillas (4 de repuesto) |
+| **R** | Cambiar de par de cuchillas (4 de repuesto; más con el rango) |
 | **B** | **Bengala** roja hacia la mira (50 m/s). Si estalla a 4 m o menos de la cara de un titán, lo ciega 3 s. 4 bengalas; se reponen en los depósitos |
+| **Y** | **Lanza relámpago** hacia la mira (o hacia la parte fijada con X): se clava en la parte del titán donde impacta y **estalla a los 1,4 s**. En la nuca mata a un titán normal; al **Acorazado le revienta la coraza** (dos lo tumban), la Bestia cae con dos y el Colosal con tres si no está soltando vapor. En una pierna la arranca (al Acorazado le revienta una corva y cae). La explosión hiere a quien esté a menos de 8 m, también a ti. Dos lanzas (más con el rango); se reponen en los depósitos y con el intendente |
 | **X** | **Fijar parte** del titán que tienes delante: nuca → ojos → brazos → corvas → tendones → nada. Los ganchos (clic derecho) van a ella aunque la mira esté en otro sitio. Con la parte fijada, el **tajo se ilumina** (en el celular) |
 | **Ataque directo** (TAJO con una parte fijada, lejos) | Un toque en **TAJO** engancha los ganchos al punto marcado, los **sostiene sin tener el botón pulsado** y corta solo al llegar a ~3 m. **Para soltarte** antes: Espacio (salto o gas), GANCHOS o Q/E. Si algo se interpone y no avanza (el titán pegado a una casa), se suelta solo; si no hay dónde clavarse, avisa «No llego al punto» |
 | **C** | **Caballo**: al lado, montar; montado, bajar; lejos, silbar (viene al galope). Montado: WASD lo dirige, Shift galope, Espacio salta de la silla, y si clavas un gancho sales volando de ella |
 | **V** | **Acelerar a caballo** (montado, mantenido): un galope más rápido que gasta el aliento (la barra ALIENTO); vuelve despacio al soltar |
 | **K** | **Armar un campamento fortificado** donde estés (en un claro, a cualquier hora): empalizada de troncos con adarve, atalaya, puerta automática, estacas, cuatro cañones y seis carpas alrededor de una hoguera. **Se levanta solo** en unos 25 s, con el escuadrón esperando dentro |
-| **T** | Disparar los **cañones** del campamento (desde dentro): apuntan solos a las rodillas del titán en pie o a la nuca del caído; 5 s de recarga cada uno |
+| **T** | Disparar los **cañones**: en **lo alto de la muralla**, los de la muralla que tengas a menos de 200 m (hasta 320 m de alcance y 55° a cada lado; no llegan al pie del muro; 4 s de recarga); dentro del campamento, los del campamento. Apuntan solos a las rodillas del titán en pie o a la nuca del caído, y le van quitando vida (barra sobre su cabeza) |
 | **G** junto a una obra | **Martillazo**: pulsa cuando la aguja pase por la zona verde. En el centro, el poste entra de una vez; bien, en tres golpes; fuera, apenas avanza |
 | **H** | Descansar hasta el amanecer (de noche, en un refugio: Trost, un puesto, el campamento de la Legión, tu campamento o un pueblo en paz) |
 | **G** | Recoger el equipo de un soldado caído (gas + cuchillas) o, si no hay ninguno al lado, pedir gas a un compañero |
 | **1 / 2 / 3 / 4** | Órdenes al escuadrón: seguidme · atacad · proteged a los civiles · retirada |
+| **9** | **¡A la muralla!**: el escuadrón sube a los cañones de la muralla (los de la puerta sur si hay o viene un asalto; si no, los más cercanos) y **los dispara solo** cada vez que están cargados |
 | **5 / 6 / 7 / 8** | Esperad aquí (se quedan en su sitio: solo pelean con el titán que llega hasta ellos; dentro del campamento no salen) · id allí (al punto de la mira) · atacad a ese titán (el de la mira) · explorad (patrullan alrededor del punto de la mira y avisan de lo que ven) |
 | **Tab** | A quién mandas: todo el escuadrón → cada soldado → todos. Los demás conservan su orden (Todos + 5 = te vas solo; Tab hasta Mikasa + 1 = te la llevas) |
 | **M** | Mapa del territorio (bosques, río, lugares, escuadrón, titanes cercanos, puntos de recarga) |
@@ -83,7 +85,8 @@ Se activan solos en pantallas táctiles (o con `?tactil` en la URL). Se juega en
 | **◀ GANCHO** / **GANCHO ▶** | Q / E: el izquierdo junto al joystick (pulgar izquierdo), el derecho junto a GANCHOS (pulgar derecho) |
 | **⚒ MARTILLO** | Sale en el mismo sitio que MONTAR cuando estás junto a un poste o una carpa sin terminar |
 | **♞ MONTAR** / **BAJAR** | Aparece a la izquierda de GANCHOS cuando estás al lado de tu caballo, y montado pasa a BAJAR. A caballo: joystick para dirigirlo (al fondo, galope) y SALTO/GAS para saltar de la silla. Si el caballo está lejos, ♞ Caballo en la fila de arriba le silba y viene |
-| Fila de arriba | Cuchillas (R), bengala (B), parte (X), caballo (C), acampar (K), dormir (H), luz (L), mapa (M), recoger (G), órdenes (1–8 y a quién), sonido, pantalla completa, pausa |
+| **⚡ LANZA** | Y: lanza relámpago a la mira (o a la parte marcada) |
+| Fila de arriba | Cuchillas (R), bengala (B), parte (X), caballo (C), cañones (T), mapa (M), órdenes (1–9 y a quién), **☰ Más** y pausa. En **☰ Más**: acampar (K), dormir (H), recoger equipo o pedir gas (G), linterna (L), sonido y pantalla completa |
 
 **Mover los botones:** en la pausa, **✥ Mover botones**: arrastra cada botón (y la fila de arriba) donde te quede cómodo, cambia su tamaño con − / + y pulsa **Listo**. Se guarda en el celular; **Restablecer** vuelve a la disposición original.
 
@@ -95,7 +98,8 @@ En la pausa, **Gráficos** te deja elegir **Automático**, **Alto**, **Medio** o
 elegir, empieza en **Alto** en el ordenador y en **Medio** en el celular (sombras pequeñas, menos distancia de dibujado,
 sin antialias, pocas antorchas con luz). Un nivel fijo no cambia por su cuenta. **Automático** adapta la calidad
 (`src/core/calidad.ts`): si no llega a ~45 imágenes por segundo, baja primero la resolución interna y después el nivel
-(**Bajo**: sin sombras, niebla más cerca). Cada soldado se dibuja con ~25 piezas fundidas (antes 63) y los titanes con ~20.
+(**Bajo**: sin sombras, niebla más cerca). **Medio** y **Bajo** también sueltan menos vapor y humo (70 % y 40 %, con
+nubes algo más grandes para que se vean igual de densas): lo que más pesa junto al Colosal. Cada soldado se dibuja con ~25 piezas fundidas (antes 63) y los titanes con ~20.
 
 ## Sonido
 
@@ -215,6 +219,12 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   campo abierto con el camino despejado (nunca de dentro de un bosque, donde uno de 60 m no cabe entre los troncos). La
   puerta tiene vida (barra arriba en pantalla, con la distancia al cambiante); si llega a cero se rompe, los titanes
   entran en la ciudad y no se repara hasta que no queda ningún cambiante y pasan dos minutos.
+  - **Aviso**: un minuto antes, **repica la campana de Trost** y los vigías dicen quién viene; la barra de arriba cuenta
+    los segundos y el **mapa (M)** dice siempre cuándo es el próximo asalto y de quién.
+  - **Defensa**: sube a la muralla y dispara sus cañones (**T**), manda al escuadrón a los cañones (**9**) o sal a su
+    encuentro con lanzas relámpago (**Y**). Durante un asalto, si caes, reapareces dentro de Trost.
+  - **Música**: un tema de tensión (tambores, cuerdas y metales, generado con Web Audio) entra con la cuenta atrás y
+    con cualquier cambiante cerca, y se va al terminar.
   - **Colosal** (60 m, sin piel: músculo rojo, costillas y la dentadura al aire): camina despacio hasta la puerta y la
     patea (cinco patadas, una cada 8 s, la rompen). Cada 14 s suelta vapor: 4,5 s con la nuca protegida (los tajos rebotan) y quien
     esté pegado a él se abrasa y sale despedido. Su nuca aguanta cuatro veces más: hay que volver varias veces (la
@@ -231,6 +241,11 @@ obligatorio: vas por el territorio cazando titanes y defendiendo los pueblos par
   llevas; desde el día 3, a veces con un cambiante al frente). Cuando entran, **los propios aldeanos dan la alarma**:
   repica la campana, gritan, y una bengala roja sube sobre la plaza (se ve y se oye desde lejos; la brújula y el mapa lo
   marcan). Con titanes dentro se pierde obra y, si nadie los defiende, la gente huye o muere y el pueblo cae.
+- **Rangos**: defender da **méritos** (asalto detenido 5, y 2 más si la puerta aguanta por encima de la mitad;
+  cambiante abatido 3; pueblo defendido 2; cada 8 titanes 1) y los méritos dan **rango**: Recluta, Soldado (5), Veterano
+  (12), Sargento (22), Capitán (35) y Comandante (55). Cada ascenso **mejora el equipo para siempre**: más gas (hasta
+  +75 %), hojas más duras, más pares de repuesto, bengalas y lanzas relámpago. Se ve arriba a la izquierda y se guarda.
+- **Guía de los cambiantes**: la primera vez que tienes cerca a cada uno sale una tarjeta con cómo se le mata.
 - **Cambiantes avistados**: desde el segundo día, a media mañana, a veces aparece el Acorazado o la Hembra en la llanura.
 - **Caballo** (C): para cruzar la llanura rápido (paso 1,8 m/s, trote 6 m/s, galope 16 m/s ≈ 58 km/h). Huye de los
   titanes cuando está suelto. Es un modelo 3D (`public/modelos/caballo.glb`, ~1 MB) sin huesos: las patas se doblan en
@@ -320,7 +335,7 @@ Las capturas son artefactos generados: `capturas/` está en `.gitignore`.
 | --- | --- |
 | **Escala** | Jugador 1,7 m; casas 10–20 m; muralla 50 m; árboles 80–90 m. Todo en metros reales. |
 | **Ciudad** | ~460 casas de entramado: zócalo de piedra gris, yeso crema con vigas oscuras (ventanas con contraventanas o cruz de San Andrés), tejados de teja roja/naranja a 50–58°, chimeneas, puertas a escala humana. Calles empedradas de 4–8 m, avenidas en cruz, plaza con pozo y depósito de suministros, iglesia con torre y chapitel de pizarra (punto alto, ~55 m). |
-| **Muralla** | Anillo de 230 m de radio, 50 m de alto y 12 m de grosor; piedra lisa gris-beige casi sin juntas; coronación plana sin almenas; vía longitudinal y raíles transversales con cañones negros; puerta enorme de madera con flejes de hierro, levantada 7 m. |
+| **Muralla** | Anillo de 230 m de radio, 50 m de alto y 12 m de grosor; piedra lisa gris-beige casi sin juntas; coronación plana sin almenas; vía longitudinal y raíles transversales con 24 cañones negros que apuntan solos y se disparan con T desde arriba; puerta enorme de madera con flejes de hierro, levantada 7 m. |
 | **Bosque** | ~120 árboles de 80–90 m con troncos rojizos de 8–15 m de diámetro y raíces ensanchadas, ramas horizontales anchas (transitables y enganchables), copas altas, haces de luz entre las copas, suelo oscuro y bruma baja. |
 | **Titanes puros** | Piel carne pálida, sin ropa ni detalles anatómicos, cabeza enorme, sonrisa fija exagerada con dientes, ojos abiertos sin expresión, torso deforme (dos complexiones). En la fase 1 están quietos (balanceo en reposo). |
 | **Jugador** | Chaqueta corta marrón claro, pantalón blanco, botas altas marrones, correas del arnés, capa verde con capucha y emblema de alas, vainas grises en los muslos con cilindros de gas encima, carcasa del equipo en la parte baja de la espalda. |
